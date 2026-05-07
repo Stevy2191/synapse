@@ -1,0 +1,20 @@
+services:
+  synapse:
+    build: .
+    container_name: synapse
+    restart: unless-stopped
+    ports:
+      - "3001:3001"   # Change left port to expose on different host port
+    volumes:
+      - ./data:/data  # Persistent SQLite DB + uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATA_DIR=/data
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-something-secure-in-production}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+
+# For Nginx Proxy Manager:
+# - Set proxy host to: http://synapse:3001
+# - No need to configure anything else — the app is proxy-aware
+# - Enable Websockets if desired for future features
