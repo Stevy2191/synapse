@@ -97,4 +97,4 @@ db.exec(`
 
 // Migrations for existing databases
 try { db.exec(`ALTER TABLE notes ADD COLUMN editor_mode TEXT NOT NULL DEFAULT 'markdown'`); } catch {}
-
+export { db, UPLOADS_DIR };
