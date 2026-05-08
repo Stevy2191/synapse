@@ -35,7 +35,7 @@ app.use('/api/admin', adminRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Synapse' }));
 
 // Serve frontend in production
-const FRONTEND_DIST = path.join(__dirname, '../frontend/dist');
+const FRONTEND_DIST = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(FRONTEND_DIST));
 app.get('*', (req, res) => {
   res.sendFile(path.join(FRONTEND_DIST, 'index.html'));

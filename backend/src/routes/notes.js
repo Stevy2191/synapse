@@ -59,7 +59,7 @@ router.get('/:id', (req, res) => {
 
 // Create note
 router.post('/', (req, res) => {
-  const { workspace_id, parent_id = null, title = 'Untitled', content = '' } = req.body;
+  const { workspace_id, parent_id = null, title = 'Untitled', content = '', note_type = 'note', canvas_data = null } = req.body;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
   if (!getWorkspace(workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
 
@@ -67,7 +67,7 @@ router.post('/', (req, res) => {
   const position = (maxPos.m ?? -1) + 1;
 
   const id = uuid();
-  db.prepare('INSERT INTO notes (id,workspace_id,parent_id,title,content,position) VALUES (?,?,?,?,?,?)').run(id, workspace_id, parent_id, title, content, position);
+  db.prepare('INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data) VALUES (?,?,?,?,?,?,?,?)').run(id, workspace_id, parent_id, title, content, position, note_type, canvas_data);
   syncLinks(id, content, workspace_id);
 
   const note = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
@@ -80,11 +80,13 @@ router.patch('/:id', (req, res) => {
   if (!note) return res.status(404).json({ error: 'Not found' });
   if (!getWorkspace(note.workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
 
-  const { title, content, parent_id, position, tags, editor_mode } = req.body;
+  const { title, content, parent_id, position, tags, editor_mode, note_type, canvas_data } = req.body;
   const newTitle = title !== undefined ? title : note.title;
   const newContent = content !== undefined ? content : note.content;
   const newTags = tags !== undefined ? JSON.stringify(tags) : note.tags;
   const newMode = editor_mode !== undefined ? editor_mode : note.editor_mode;
+  const newType = note_type !== undefined ? note_type : note.note_type;
+  const newCanvas = canvas_data !== undefined ? canvas_data : note.canvas_data;
 
   db.prepare(`
     UPDATE notes SET 
@@ -93,9 +95,11 @@ router.patch('/:id', (req, res) => {
       position=COALESCE(?,position),
       tags=?,
       editor_mode=?,
+      note_type=?,
+      canvas_data=?,
       updated_at=unixepoch()
     WHERE id=?
-  `).run(newTitle, newContent, parent_id !== undefined ? parent_id : null, position !== undefined ? position : null, newTags, newMode, note.id);
+  `).run(newTitle, newContent, parent_id !== undefined ? parent_id : null, position !== undefined ? position : null, newTags, newMode, newType, newCanvas, note.id);
 
   syncLinks(note.id, newContent, note.workspace_id);
   const updated = db.prepare('SELECT * FROM notes WHERE id=?').get(note.id);

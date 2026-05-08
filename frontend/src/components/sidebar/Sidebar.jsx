@@ -3,8 +3,9 @@ import { ChevronRight, Plus, Trash2, FileText, ChevronDown, FolderOpen, Folder }
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import toast from 'react-hot-toast';
+import NewNoteModal from '../editor/NewNoteModal';
 
-function NoteItem({ note, notes, depth = 0, onSelect, activeId }) {
+function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const [expanded, setExpanded] = useState(true);
   const { removeNoteFromTree, activeWorkspace } = useStore(s => ({
     removeNoteFromTree: s.removeNoteFromTree,
@@ -26,14 +27,9 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId }) {
     } catch { toast.error('Failed to delete'); }
   };
 
-  const handleAddChild = async (e) => {
+  const handleAddChild = (e) => {
     e.stopPropagation();
-    try {
-      const { data } = await api.post('/notes', { workspace_id: activeWorkspace.id, parent_id: note.id, title: 'Untitled' });
-      addNoteToTree(data.note);
-      setExpanded(true);
-      onSelect(data.note.id);
-    } catch { toast.error('Failed to create'); }
+    if (onAddChild) onAddChild(note.id);
   };
 
   return (
@@ -67,7 +63,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId }) {
         </span>
       </div>
       {expanded && children.map(child => (
-        <NoteItem key={child.id} note={child} notes={notes} depth={depth + 1} onSelect={onSelect} activeId={activeId} />
+        <NoteItem key={child.id} note={child} notes={notes} depth={depth + 1} onSelect={onSelect} activeId={activeId} onAddChild={onAddChild} />
       ))}
       <style>{`.group:hover .note-actions { opacity: 1 !important; }`}</style>
     </div>
@@ -84,6 +80,8 @@ export default function Sidebar({ width }) {
   const [newWs, setNewWs] = useState(false);
   const [wsName, setWsName] = useState('');
   const [wsIcon, setWsIcon] = useState('📁');
+  const [showNewNote, setShowNewNote] = useState(false);
+  const [pendingParent, setPendingParent] = useState(null);
   const setWorkspaces = useStore(s => s.setWorkspaces);
 
   const roots = notes.filter(n => !n.parent_id);
@@ -95,14 +93,17 @@ export default function Sidebar({ width }) {
     } catch { toast.error('Failed to load note'); }
   }, [setActiveNote]);
 
-  const createRoot = async () => {
+  const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
+    const titles = { note: 'Untitled', diagram: 'New Diagram', draw: 'New Drawing' };
     try {
-      const { data } = await api.post('/notes', { workspace_id: activeWorkspace.id, title: 'Untitled' });
+      const { data } = await api.post('/notes', { workspace_id: activeWorkspace.id, parent_id: parentId, title: titles[type] || 'Untitled', note_type: type });
       addNoteToTree(data.note);
       selectNote(data.note.id);
     } catch { toast.error('Failed to create note'); }
   };
+
+  const createRoot = () => { setPendingParent(null); setShowNewNote(true); };
 
   const createWorkspace = async () => {
     if (!wsName.trim()) return;
@@ -168,10 +169,16 @@ export default function Sidebar({ width }) {
           </div>
         ) : (
           roots.map(note => (
-            <NoteItem key={note.id} note={note} notes={notes} onSelect={selectNote} activeId={activeNote?.note?.id} />
+            <NoteItem key={note.id} note={note} notes={notes} onSelect={selectNote} activeId={activeNote?.note?.id} onAddChild={(parentId) => { setPendingParent(parentId); setShowNewNote(true); }} />
           ))
         )}
       </div>
+      {showNewNote && (
+        <NewNoteModal
+          onSelect={(type) => { setShowNewNote(false); createNote(type, pendingParent); }}
+          onClose={() => setShowNewNote(false)}
+        />
+      )}
     </div>
   );
 }

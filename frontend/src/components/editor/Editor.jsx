@@ -9,6 +9,8 @@ import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
+import DiagramEditor from './DiagramEditor';
+import FreeDrawEditor from './FreeDrawEditor';
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -110,6 +112,17 @@ export default function Editor() {
     toast.success(next === 'rich' ? 'Switched to Rich Text' : 'Switched to Markdown', { duration: 1500 });
   };
 
+  const noteType = activeNote?.note?.note_type || 'note';
+
+  const handleCanvasChange = useCallback(async (canvasData) => {
+    if (!activeNote?.note) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try { await api.patch(`/notes/${activeNote.note.id}`, { canvas_data: canvasData }); }
+      catch { toast.error('Save failed'); }
+    }, 800);
+  }, [activeNote?.note?.id]);
+
   if (!activeNote?.note) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, color: 'var(--text-muted)' }}>
@@ -125,7 +138,8 @@ export default function Editor() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base)' }}>
-      {/* Toolbar */}
+      {/* Toolbar - only for regular notes */}
+      {noteType === 'note' && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
 
         {/* Editor mode toggle */}
@@ -163,6 +177,7 @@ export default function Editor() {
           {saving ? '💾 Saving...' : '✓ Saved'}
         </span>
       </div>
+      )}
 
       {/* Title */}
       <div style={{ padding: '20px 24px 8px', background: 'var(--bg-base)', flexShrink: 0 }}>
@@ -212,70 +227,60 @@ export default function Editor() {
         </div>
       )}
 
-      {/* Editor area */}
+      {/* Editor area - routed by note type */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
 
-        {editorMode === 'rich' && (
-          <RichEditor
-            content={content}
-            onChange={handleContentChange}
-            editorRef={richEditorRef}
+        {noteType === 'diagram' && (
+          <DiagramEditor
+            canvasData={activeNote.note.canvas_data}
+            onChange={handleCanvasChange}
           />
         )}
 
-        {editorMode === 'markdown' && (
+        {noteType === 'draw' && (
+          <FreeDrawEditor
+            canvasData={activeNote.note.canvas_data}
+            onChange={handleCanvasChange}
+          />
+        )}
+
+        {noteType === 'note' && (
           <>
-            {showEditor && (
-              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-                <CodeMirror
-                  value={content}
-                  height="100%"
-                  theme={oneDark}
-                  extensions={[markdown()]}
-                  onChange={handleContentChange}
-                  style={{ height: '100%', fontSize: 14 }}
-                  basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
-                />
-                {linkSuggestions.length > 0 && (
-                  <div style={{
-                    position: 'absolute', bottom: 16, left: 16, background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
-                    zIndex: 100, minWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
-                  }}>
-                    <div style={{ padding: '5px 12px', fontSize: 10, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Link to note
-                    </div>
-                    {linkSuggestions.map(s => (
-                      <div key={s.id}
-                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={() => {
-                          const lastOpen = content.lastIndexOf('[[');
-                          const next = content.slice(0, lastOpen) + `[[${s.title}]]`;
-                          handleContentChange(next);
-                          setLinkSuggestions([]);
-                        }}
-                      >
-                        📄 {s.title}
+            {editorMode === 'rich' && (
+              <RichEditor content={content} onChange={handleContentChange} editorRef={richEditorRef} />
+            )}
+            {editorMode === 'markdown' && (
+              <>
+                {showEditor && (
+                  <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    <CodeMirror
+                      value={content} height="100%" theme={oneDark} extensions={[markdown()]}
+                      onChange={handleContentChange} style={{ height: '100%', fontSize: 14 }}
+                      basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
+                    />
+                    {linkSuggestions.length > 0 && (
+                      <div style={{ position: 'absolute', bottom: 16, left: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', zIndex: 100, minWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+                        <div style={{ padding: '5px 12px', fontSize: 10, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Link to note</div>
+                        {linkSuggestions.map(s => (
+                          <div key={s.id} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={() => { const lastOpen = content.lastIndexOf('[['); handleContentChange(content.slice(0, lastOpen) + `[[${s.title}]]`); setLinkSuggestions([]); }}
+                          >📄 {s.title}</div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-            {view === 'split' && <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }} />}
-            {showPreview && (
-              <div style={{ flex: 1, padding: '16px 24px 48px', overflow: 'auto' }}>
-                <div
-                  className="markdown-preview"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-                  onClick={e => {
-                    const link = e.target.closest('.wiki-link');
-                    if (link) toast(`Navigate to: ${link.dataset.link}`, { icon: '🔗' });
-                  }}
-                />
-              </div>
+                {view === 'split' && <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }} />}
+                {showPreview && (
+                  <div style={{ flex: 1, padding: '16px 24px 48px', overflow: 'auto' }}>
+                    <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+                      onClick={e => { const link = e.target.closest('.wiki-link'); if (link) toast(`Navigate to: ${link.dataset.link}`, { icon: '🔗' }); }}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
