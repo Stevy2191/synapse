@@ -80,13 +80,14 @@ router.patch('/:id', (req, res) => {
   if (!note) return res.status(404).json({ error: 'Not found' });
   if (!getWorkspace(note.workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
 
-  const { title, content, parent_id, position, tags, editor_mode, note_type, canvas_data } = req.body;
+  const { title, content, parent_id, position, tags, editor_mode, note_type, canvas_data, rich_content } = req.body;
   const newTitle = title !== undefined ? title : note.title;
   const newContent = content !== undefined ? content : note.content;
   const newTags = tags !== undefined ? JSON.stringify(tags) : note.tags;
   const newMode = editor_mode !== undefined ? editor_mode : note.editor_mode;
   const newType = note_type !== undefined ? note_type : note.note_type;
   const newCanvas = canvas_data !== undefined ? canvas_data : note.canvas_data;
+  const newRich = rich_content !== undefined ? rich_content : note.rich_content;
 
   db.prepare(`
     UPDATE notes SET 
@@ -97,9 +98,10 @@ router.patch('/:id', (req, res) => {
       editor_mode=?,
       note_type=?,
       canvas_data=?,
+      rich_content=?,
       updated_at=unixepoch()
     WHERE id=?
-  `).run(newTitle, newContent, parent_id !== undefined ? parent_id : null, position !== undefined ? position : null, newTags, newMode, newType, newCanvas, note.id);
+  `).run(newTitle, newContent, parent_id !== undefined ? parent_id : null, position !== undefined ? position : null, newTags, newMode, newType, newCanvas, newRich, note.id);
 
   syncLinks(note.id, newContent, note.workspace_id);
   const updated = db.prepare('SELECT * FROM notes WHERE id=?').get(note.id);

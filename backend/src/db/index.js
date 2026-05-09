@@ -47,6 +47,7 @@ db.exec(`
     editor_mode TEXT NOT NULL DEFAULT 'markdown',
     note_type TEXT NOT NULL DEFAULT 'note',
     canvas_data TEXT,
+    rich_content TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -101,6 +102,7 @@ db.exec(`
 try { db.exec(`ALTER TABLE notes ADD COLUMN editor_mode TEXT NOT NULL DEFAULT 'markdown'`); } catch {}
 try { db.exec(`ALTER TABLE notes ADD COLUMN note_type TEXT NOT NULL DEFAULT 'note'`); } catch {}
 try { db.exec(`ALTER TABLE notes ADD COLUMN canvas_data TEXT`); } catch {}
+try { db.exec(`ALTER TABLE notes ADD COLUMN rich_content TEXT`); } catch {}
 
 export { db, UPLOADS_DIR };
 
