@@ -7,11 +7,11 @@ import Logo from '../components/Logo';
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', setup_code: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const setAuth = useStore(s => s.setAuth);
-  const [status, setStatus] = useState({ setupRequired: false, registrationOpen: false });
+  const [status, setStatus] = useState({ setupRequired: false, setupCodeRequired: false, registrationOpen: false });
 
   useEffect(() => {
     api.get('/auth/status').then(({ data }) => {
@@ -70,6 +70,22 @@ export default function AuthPage() {
 
         {/* Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {mode === 'register' && status.setupCodeRequired && (
+            <div>
+              <input
+                placeholder="Setup code (e.g. K7QF-M2XP)"
+                value={form.setup_code}
+                onChange={e => setForm(f => ({ ...f, setup_code: e.target.value.toUpperCase() }))}
+                onKeyDown={e => e.key === 'Enter' && handle()}
+                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textAlign: 'center' }}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                The installer showed this code. Lost it? Run <code style={{ fontFamily: 'var(--font-mono)' }}>synapse setup-code</code> on the server.
+              </p>
+            </div>
+          )}
           <input
             placeholder={mode === 'register' ? 'Username' : 'Username or email'}
             value={form.username}

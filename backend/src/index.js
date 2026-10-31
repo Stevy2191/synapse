@@ -6,6 +6,8 @@ import path from 'path';
 import multer from 'multer';
 
 import { FRONTEND_DIST } from './config.js';
+import { db } from './db/index.js';
+import { prepareSetupCode } from './setup.js';
 import authRoutes from './routes/auth.js';
 import workspaceRoutes from './routes/workspaces.js';
 import noteRoutes from './routes/notes.js';
@@ -59,6 +61,8 @@ app.use((err, req, res, next) => {
   if (status === 500) console.error(err);
   res.status(status).json({ error: status === 500 ? 'Server error' : err.message });
 });
+
+prepareSetupCode(db.prepare('SELECT COUNT(*) AS c FROM users').get().c);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧠 Synapse running on port ${PORT}`);

@@ -34,41 +34,57 @@
 
 ## Install
 
-```bash
-mkdir /opt/stacks/synapse && cd /opt/stacks/synapse
-
-curl -O https://raw.githubusercontent.com/Stevy2191/synapse/main/docker-compose.yml
-
-cat > .env << EOF
-JWT_SECRET=$(openssl rand -base64 48)
-EOF
-
-docker compose pull
-docker compose up -d
-```
-
----
-
-## Update
+On a Linux server (64-bit PC / VM), run:
 
 ```bash
-cd /opt/stacks/synapse
-docker compose pull
-docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/Stevy2191/synapse/main/install.sh | sudo bash
 ```
 
-GitHub Actions automatically builds and pushes a new image on every push to main. No building required on the server.
+The installer:
+
+- checks your system and offers to install Docker if it's missing
+- asks how you'll open Synapse:
+  1. **On your home network**: `http://192.168.x.x:3001`
+  2. **Through your reverse proxy** (Nginx Proxy Manager, Cloudflare Tunnel…), printing the settings to enter
+  3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets the certificate automatically
+- checks which ports are free, tells you what's using a busy one, and suggests a free one
+- opens the port in your firewall (ufw / firewalld) if one is active
+- prints the address and a **setup code** for creating the admin account
+
+Prefer no questions? Pass the answers: `… | sudo bash -s -- --yes --mode home --port 3001` (see `install.sh --help`).
+
+Installing by hand with Docker Compose instead? Download [`docker-compose.yml`](docker-compose.yml), then `docker compose up -d`; the setup code is printed in `docker compose logs`.
 
 ---
 
 ## First Run
 
-1. Navigate to your domain
-2. Create the **admin account** (only the first user can sign up)
-3. Add family members or teammates from **Settings → Admin** (you can reset their passwords there too)
-4. Create your first workspace and start taking notes
+1. Open the address the installer printed
+2. Enter the **setup code** and create your account. The first account is the **admin**.
+   (Lost the code? Run `synapse setup-code`.)
+3. Add family members or teammates from **Settings → Admin**
+4. Start writing
 
-Want open sign-ups instead? Set `ALLOW_REGISTRATION=true`.
+The setup code stops a stranger from claiming the admin account before you do. It's deleted once the admin exists.
+
+---
+
+## The `synapse` command
+
+| Command | What it does |
+|---|---|
+| `synapse status` | Is it running, and at what address? |
+| `synapse update` | Download and start the latest version |
+| `synapse backup [folder]` | Save notes, uploads and settings to a `.tar.gz` |
+| `synapse restore <file>` | Restore a backup (the current data is kept aside) |
+| `synapse logs [-f]` | Recent logs (`synapse logs caddy` for HTTPS) |
+| `synapse setup-code` | Show the admin setup code |
+| `synapse users` | List accounts |
+| `synapse reset-password <user>` | New temporary password (works for the admin too) |
+| `synapse make-admin <user>` | Make someone an admin |
+| `synapse port <number>` | Move to another port (checks it's free) |
+| `synapse restart` / `stop` / `start` | |
+| `synapse uninstall` | Remove Synapse (asks before deleting notes) |
 
 ---
 
@@ -106,31 +122,11 @@ Notes:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | auto-generated | Signs login tokens. If unset, a random one is created and saved to `data/.jwt_secret` |
+| `SETUP_CODE` | random | Code needed to create the admin account. `off` to skip it (trusted networks only) |
 | `ALLOW_REGISTRATION` | `false` | `true` lets anyone create an account. Otherwise only the first user (admin) can register |
 | `CORS_ORIGIN` | unset | Only needed if a different site calls the API from a browser (comma-separated list) |
 | `PORT` | `3001` | Internal port |
 | `DATA_DIR` | `/data` | Database and uploads location |
-
----
-
-## Backup
-
-```bash
-tar -czf synapse-backup-$(date +%Y%m%d).tar.gz /opt/stacks/synapse/data/
-```
-
----
-
-## Stack Layout
-
-```
-/opt/stacks/synapse/
-├── docker-compose.yml
-├── .env
-└── data/
-    ├── synapse.db
-    └── uploads/
-```
 
 ---
 

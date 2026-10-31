@@ -5,6 +5,7 @@ import { ALLOW_REGISTRATION } from '../config.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { createUser, setPassword, HttpError, PUBLIC_USER_FIELDS } from '../users.js';
+import { checkSetupCode, clearSetupCode, setupCodeDisabled } from '../setup.js';
 
 const router = Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
@@ -20,17 +21,28 @@ function userCount() {
 // Tells the login page whether to offer sign-up.
 router.get('/status', (req, res) => {
   const setupRequired = userCount() === 0;
-  res.json({ setupRequired, registrationOpen: setupRequired || ALLOW_REGISTRATION });
+  res.json({
+    setupRequired,
+    setupCodeRequired: setupRequired && !setupCodeDisabled(),
+    registrationOpen: setupRequired || ALLOW_REGISTRATION,
+  });
 });
 
 // Register. The first user becomes admin; after that, sign-up is closed unless ALLOW_REGISTRATION=true.
 router.post('/register', authLimiter, async (req, res, next) => {
   try {
-    const user = await createUser(req.body || {}, (count) => {
-      if (count === 0) return 'admin';
+    const body = req.body || {};
+    const user = await createUser(body, (count) => {
+      if (count === 0) {
+        if (!checkSetupCode(body.setup_code)) {
+          throw new HttpError(403, 'That setup code isn’t right. It was shown by the installer — or run "synapse setup-code" on the server.');
+        }
+        return 'admin';
+      }
       if (!ALLOW_REGISTRATION) throw new HttpError(403, 'Registration is closed. Ask your admin for an account.');
       return 'user';
     });
+    if (user.role === 'admin') clearSetupCode();
     const { token_version, ...safeUser } = user;
     res.json({ token: signToken(user), user: safeUser });
   } catch (err) { next(err); }

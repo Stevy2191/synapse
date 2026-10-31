@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# The `synapse` command — everyday management of a Synapse install.
+# Installed to /usr/local/bin/synapse by install.sh. Run `synapse help` for commands.
+set -euo pipefail
+
+SYNAPSE_DIR="${SYNAPSE_DIR:-/opt/synapse}"   # set by the installer
+
+if [ -t 1 ]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; RED=$'\e[31m'; GRN=$'\e[32m'; YEL=$'\e[33m'
+else B=""; D=""; R=""; RED=""; GRN=""; YEL=""; fi
+ok()   { printf '%s✓%s %s\n' "$GRN" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$YEL" "$R" "$*"; }
+die()  { printf '%s✗ %s%s\n' "$RED" "$*" "$R" >&2; exit 1; }
+confirm() { local a; printf '%s %s[y/N]%s ' "$1" "$D" "$R"; IFS= read -r a </dev/tty || a=""; [[ "$a" =~ ^[Yy] ]]; }
+
+usage() {
+  cat <<EOF
+${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
+
+  ${B}status${R}                      Is it running, and at what address?
+  ${B}update${R}                      Download and start the latest version
+  ${B}restart${R} | ${B}stop${R} | ${B}start${R}
+  ${B}logs${R} [caddy]                Show recent logs (add -f to follow)
+
+  ${B}backup${R} [folder]             Save all notes, uploads and settings to a .tar.gz
+  ${B}restore${R} <file>              Restore from a backup (the current data is kept aside)
+
+  ${B}setup-code${R}                  Show the code for creating the admin account
+  ${B}users${R}                       List accounts
+  ${B}reset-password${R} <user>       Give someone a new temporary password
+  ${B}make-admin${R} <user>           Make an account an admin
+
+  ${B}port${R} <number>               Move Synapse to another port (checks it's free)
+  ${B}uninstall${R}                   Remove Synapse (asks before deleting notes)
+EOF
+}
+
+# Docker needs root (or the docker group).
+need_docker() {
+  if ! docker info >/dev/null 2>&1; then
+    if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then exec sudo -E "$0" "$@"; fi
+    die "Can't reach Docker. Is it running? (sudo systemctl start docker)"
+  fi
+}
+[ -f "$SYNAPSE_DIR/docker-compose.yml" ] || die "No Synapse install found in $SYNAPSE_DIR. (Set SYNAPSE_DIR if it's somewhere else.)"
+cd "$SYNAPSE_DIR"
+env_get() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2-; }
+compose() { docker compose "$@"; }
+
+port_in_use() {
+  local p="$1"
+  if command -v ss >/dev/null 2>&1; then ss -Hltn "sport = :$p" 2>/dev/null | grep -q .
+  else (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; fi
+}
+
+lan_ip() {
+  local ip
+  ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src"){print $(i+1); exit}}') || true
+  [ -z "$ip" ] && ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  echo "${ip:-localhost}"
+}
+
+address() {
+  case "$(env_get SYNAPSE_MODE)" in
+    https) echo "https://$(env_get SYNAPSE_DOMAIN)" ;;
+    *)     echo "http://$(lan_ip):$(env_get SYNAPSE_PORT)" ;;
+  esac
+}
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  help|-h|--help) usage ;;
+
+  status)
+    need_docker "$cmd" "$@"
+    if [ "$(docker inspect -f '{{.State.Running}}' synapse 2>/dev/null)" = true ]; then
+      ok "Synapse is running at $(address)"
+      ver=$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' synapse 2>/dev/null || true)
+      [ -n "$ver" ] && [ "$ver" != "<no value>" ] && printf '  %sversion %s%s\n' "$D" "${ver:0:7}" "$R"
+      if [ -f data/.setup_code ]; then warn "No admin account yet — setup code: $(cat data/.setup_code)"; fi
+    else
+      warn "Synapse is not running. Start it with: synapse start  (or check: synapse logs)"
+    fi
+    ;;
+
+  update)
+    need_docker "$cmd" "$@"
+    echo "Downloading the latest Synapse…"
+    compose pull --quiet
+    compose up -d
+    docker image prune -f >/dev/null 2>&1 || true
+    ok "Up to date. Reload Synapse in your browser to get the new version."
+    ;;
+
+  restart) need_docker "$cmd" "$@"; compose restart; ok "Restarted" ;;
+  stop)    need_docker "$cmd" "$@"; compose stop; ok "Stopped" ;;
+  start)   need_docker "$cmd" "$@"; compose up -d; ok "Started at $(address)" ;;
+
+  logs)
+    need_docker "$cmd" "$@"
+    svc="synapse"; follow=""
+    for a in "$@"; do case "$a" in -f) follow="-f" ;; caddy) svc="caddy" ;; esac; done
+    compose logs --tail 100 $follow "$svc"
+    ;;
+
+  backup)
+    need_docker "$cmd" "$@"
+    dest="${1:-$SYNAPSE_DIR/backups}"
+    mkdir -p "$dest"
+    file="$dest/synapse-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+    echo "Pausing Synapse for a moment to take a consistent copy…"
+    compose stop synapse >/dev/null
+    trap 'compose start synapse >/dev/null' EXIT
+    files=(data .env docker-compose.yml)
+    if [ -f Caddyfile ]; then files+=(Caddyfile); fi
+    tar -czf "$file" "${files[@]}"
+    compose start synapse >/dev/null; trap - EXIT
+    ok "Backup saved: $file ($(du -h "$file" | cut -f1))"
+    ;;
+
+  restore)
+    need_docker "$cmd" "$@"
+    file="${1:-}"
+    [ -f "$file" ] || die "Usage: synapse restore <backup-file.tar.gz>"
+    tar -tzf "$file" | grep -q '^data/' || die "That file doesn't look like a Synapse backup."
+    warn "This replaces the current notes with the ones in $(basename "$file")."
+    confirm "Continue?" || { echo "Nothing changed."; exit 0; }
+    aside="data.before-restore-$(date +%Y%m%d-%H%M%S)"
+    compose stop >/dev/null
+    mv data "$aside"
+    tar -xzf "$file" data
+    compose up -d >/dev/null
+    ok "Restored. The previous data was kept in $SYNAPSE_DIR/$aside (delete it once you're happy)."
+    ;;
+
+  setup-code)
+    # The code file is readable by root only.
+    if [ -e data/.setup_code ] && [ ! -r data/.setup_code ] && [ "$(id -u)" -ne 0 ]; then exec sudo "$0" setup-code; fi
+    if [ -f data/.setup_code ]; then
+      echo "Setup code: ${B}$(cat data/.setup_code)${R}"
+      echo "Open $(address) and create the admin account with it."
+    else
+      ok "The admin account already exists, so no setup code is needed."
+      echo "  Forgot the admin password? Run: synapse reset-password <username>"
+    fi
+    ;;
+
+  users|reset-password|make-admin)
+    need_docker "$cmd" "$@"
+    [ "$cmd" != users ] && [ -z "${1:-}" ] && die "Usage: synapse $cmd <username or email>"
+    docker exec synapse node src/cli.js "$cmd" "$@"
+    ;;
+
+  port)
+    need_docker "$cmd" "$@"
+    new="${1:-}"
+    [ "$(env_get SYNAPSE_MODE)" = https ] && die "This install uses HTTPS on ports 80/443 (through Caddy); there's no Synapse port to change."
+    [[ "$new" =~ ^[0-9]+$ ]] && [ "$new" -ge 1024 ] && [ "$new" -le 65535 ] || die "Usage: synapse port <1024-65535>"
+    [ "$new" = "$(env_get SYNAPSE_PORT)" ] && { ok "Already on port $new"; exit 0; }
+    port_in_use "$new" && die "Port $new is already in use. Pick another."
+    sed -i "s/^SYNAPSE_PORT=.*/SYNAPSE_PORT=$new/" .env
+    compose up -d >/dev/null
+    ok "Synapse moved to $(address)"
+    warn "If a firewall or reverse proxy points at the old port, update it too."
+    ;;
+
+  uninstall)
+    need_docker "$cmd" "$@"
+    warn "This stops and removes Synapse."
+    confirm "Continue?" || { echo "Nothing changed."; exit 0; }
+    compose down
+    if confirm "Also DELETE all notes and uploads in $SYNAPSE_DIR? This cannot be undone."; then
+      cd / && rm -rf "$SYNAPSE_DIR"
+      ok "Synapse and its data were removed."
+    else
+      ok "Synapse was removed. Your notes are still in $SYNAPSE_DIR/data — run the installer again to bring it back."
+    fi
+    rm -f "$0" 2>/dev/null || true
+    ;;
+
+  *) echo "Unknown command: $cmd"; echo; usage; exit 1 ;;
+esac
