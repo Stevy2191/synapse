@@ -202,6 +202,18 @@ export async function openNote(id) {
   useStore.getState().setActiveNote({ note, links: computeLinks(note, all), attachments: [], loadedAt: Date.now() });
 }
 
+/** Recompute the open note's links after an edit, without reloading the editor. */
+export async function refreshActiveLinks(id) {
+  const active = useStore.getState().activeNote;
+  if (!active || active.note.id !== id) return;
+  const note = await (await db()).get('notes', id);
+  if (!note) return;
+  const links = computeLinks(note, await getWorkspaceNotes(note.workspace_id));
+  const current = useStore.getState().activeNote;
+  const same = (a, b) => a.length === b.length && a.every((l, i) => l.id === b[i].id && l.direction === b[i].direction);
+  if (current?.note.id === id && !same(current.links || [], links)) useStore.setState({ activeNote: { ...current, links } });
+}
+
 export async function openNoteByTitle(workspaceId, title) {
   const all = await getWorkspaceNotes(workspaceId);
   const target = all.find(n => n.title.toLowerCase() === title.trim().toLowerCase());
@@ -263,7 +275,7 @@ export async function createNote({ workspace_id, parent_id = null, title = 'Unti
   const now = Math.floor(Date.now() / 1000);
   const note = {
     id: uuid(), workspace_id, parent_id, title, note_type,
-    content: '', rich_content: null, canvas_data: null, editor_mode: 'markdown', tags: '[]',
+    content: '', rich_content: null, canvas_data: null, editor_mode: 'rich', tags: '[]',
     position: siblings.reduce((m, n) => Math.max(m, n.position), -1) + 1,
     created_at: now, updated_at: now, server_version: null,
   };

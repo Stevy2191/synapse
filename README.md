@@ -16,9 +16,9 @@
 
 - **Workspaces** — Separate Home, Work, etc. in one instance
 - **Three note types** — Rich text notes, Flowchart diagrams, Freehand whiteboard
-- **Markdown Editor** — Live preview, split view, or editor-only
-- **Rich Text Editor** — Full Trilium-style toolbar with all formatting options
-- **Wiki Links** — Type `[[Note Title]]` to link notes with autocomplete
+- **Write as you read** — The default editor shows finished formatting while understanding Markdown as you type (`# `, `**bold**`, `- `, `[] `, `> `, ```` ``` ````). Type `/` for a menu of blocks (headings, checklists, tables, code, images…), select text for a formatting toolbar
+- **Markdown view** — Switch any note to raw Markdown (with split view and preview); notes are always kept as Markdown too, for search and export
+- **Wiki Links** — Type `[[` to search your notes and link one (or create it); click a link to open it
 - **Graph View** — Interactive D3 mind map of all note connections
 - **Full-text Search** — Fast SQLite FTS5 search (Ctrl+K)
 - **Tags** — Tag and filter notes

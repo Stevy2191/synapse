@@ -138,6 +138,14 @@ const migrations = [
   () => {
     db.exec(`UPDATE users SET theme='auto' WHERE theme='dark'`);
   },
+  // 4: The Outline-style editor ("Write") becomes the default for text notes. Notes that were in
+  // Markdown mode switch to it; their Markdown stays the source and the app converts it on
+  // open (rich_content is cleared so stale HTML from an old mode switch can't win). The version
+  // bump makes every device download the change.
+  () => {
+    db.exec(`UPDATE notes SET editor_mode='rich', rich_content=NULL, version=version+1
+             WHERE editor_mode='markdown' AND note_type='note'`);
+  },
 ];
 
 const currentVersion = db.pragma('user_version', { simple: true });

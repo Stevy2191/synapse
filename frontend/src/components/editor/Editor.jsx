@@ -12,7 +12,7 @@ import {
   PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
-import { saveNote, openNote, openNoteByTitle, createNote } from '../../offline/sync';
+import { saveNote, openNote, openNoteByTitle, createNote, refreshActiveLinks } from '../../offline/sync';
 import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
@@ -180,7 +180,6 @@ export default function Editor() {
     notes: s.notes, syncState: s.sync, sidebarOpen: s.sidebarOpen, setSidebarOpen: s.setSidebarOpen,
     rightRailOpen: s.rightRailOpen, setRightRailOpen: s.setRightRailOpen, setSearchOpen: s.setSearchOpen,
   }));
-  const [toolbarHost, setToolbarHost] = useState(null);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');       // markdown content
@@ -213,6 +212,7 @@ export default function Editor() {
     try {
       await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
       updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) });
+      refreshActiveLinks(noteId);
     } catch (err) {
       console.error(err);
       toast.error('Could not save on this device');
@@ -222,7 +222,16 @@ export default function Editor() {
   const pendingSave = useRef(null);
   const flushSave = useCallback(() => {
     clearTimeout(saveTimer.current);
-    if (pendingSave.current) { const args = pendingSave.current; pendingSave.current = null; save(...args); }
+    if (pendingSave.current) {
+      const args = pendingSave.current;
+      pendingSave.current = null;
+      const [, , , rc, , mode] = args;
+      if (mode === 'rich' && rc != null) {
+        args[2] = htmlToMarkdown(rc);
+        setContent(args[2]);
+      }
+      save(...args);
+    }
   }, [save]);
 
   const schedSave = (t, c, rc, tg, mode) => {
@@ -260,6 +269,9 @@ export default function Editor() {
     }
   };
 
+  // The editor works in HTML; keep a Markdown copy alongside it for search, [[links]],
+  // the Markdown view and export.
+  // (The Markdown copy is made in flushSave, once per save rather than per keystroke.)
   const handleRichContentChange = (html) => {
     setRichContent(html);
     schedSave(title, content, html, tags, editorMode);
@@ -489,7 +501,7 @@ export default function Editor() {
 
         {isNote && (
           <div className="seg">
-            {[['rich', <Type size={13} />, 'Rich'], ['markdown', <Code2 size={13} />, 'Markdown']].map(([mode, icon, label]) => (
+            {[['rich', <Type size={13} />, 'Write'], ['markdown', <Code2 size={13} />, 'Markdown']].map(([mode, icon, label]) => (
               <button key={mode} className={editorMode === mode ? 'on' : ''} onClick={() => { if (editorMode !== mode) toggleEditorMode(); }}>
                 {icon}<span className="hide-narrow">{label}</span>
               </button>
@@ -498,7 +510,7 @@ export default function Editor() {
         )}
         {isMarkdown && (
           <div className="seg">
-            {[['editor', <Edit size={13} />, 'Write'], ['split', <Columns size={13} />, 'Split'], ['preview', <Eye size={13} />, 'Preview']].map(([v, icon, label]) => (
+            {[['editor', <Edit size={13} />, 'Edit'], ['split', <Columns size={13} />, 'Split'], ['preview', <Eye size={13} />, 'Preview']].map(([v, icon, label]) => (
               <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)} title={label}>
                 {icon}<span className="hide-narrow">{label}</span>
               </button>
@@ -518,7 +530,6 @@ export default function Editor() {
 
       {/* Formatting toolbar */}
       {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}
-      {isNote && editorMode === 'rich' && <div ref={setToolbarHost} style={toolbarRow} />}
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {!isNote && (
@@ -535,7 +546,7 @@ export default function Editor() {
           <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }} onClick={e => { if (e.target === e.currentTarget) richEditorRef.current?.commands.focus('end'); }}>
             <div className="doc-column">
               {titleBlock}
-              <RichEditor content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} toolbarHost={toolbarHost} />
+              <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} />
             </div>
           </div>
         )}

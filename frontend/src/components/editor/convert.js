@@ -32,6 +32,18 @@ turndown.addRule('taskList', {
   filter: node => node.nodeName === 'UL' && node.getAttribute('data-type') === 'taskList',
   replacement: content => `\n\n${content}\n\n`,
 });
+// Tables -> GitHub-style Markdown tables (the first row becomes the header row).
+turndown.addRule('table', {
+  filter: 'table',
+  replacement: (content, node) => {
+    const rows = [...node.querySelectorAll('tr')].map(tr => [...tr.children].map(cell =>
+      turndown.turndown(cell.innerHTML).replace(/\n+/g, ' ').replace(/\|/g, '\\|').trim()));
+    if (rows.length === 0) return '';
+    const cols = Math.max(...rows.map(r => r.length));
+    const line = r => `| ${[...r, ...Array(cols - r.length).fill('')].join(' | ')} |`;
+    return `\n\n${line(rows[0])}\n| ${Array(cols).fill('---').join(' | ')} |\n${rows.slice(1).map(line).join('\n')}\n\n`;
+  },
+});
 turndown.addRule('underline', { filter: ['u'], replacement: content => `<u>${content}</u>` });
 turndown.addRule('strike', { filter: ['s', 'del', 'strike'], replacement: content => `~~${content}~~` });
 

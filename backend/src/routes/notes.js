@@ -166,7 +166,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const body = req.body || {};
   const { workspace_id, title = 'Untitled', content = '', note_type = 'note', canvas_data = null,
-    rich_content = null, editor_mode = 'markdown', tags = [] } = body;
+    rich_content = null, editor_mode = 'rich', tags = [] } = body;
   let parent_id = body.parent_id ?? null;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
   if (!getWorkspace(workspace_id, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
