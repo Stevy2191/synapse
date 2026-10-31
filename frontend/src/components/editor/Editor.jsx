@@ -1,13 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { synapseEditorTheme } from './cmTheme';
+import { markdownToHtml, htmlToMarkdown } from './convert';
+import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { Eye, Edit, Columns, Link2, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link } from 'lucide-react';
+import {
+  Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks,
+} from 'lucide-react';
 import { useStore } from '../../stores/useStore';
-import { saveNote, openNoteByTitle } from '../../offline/sync';
+import { saveNote, openNote, openNoteByTitle, createNote } from '../../offline/sync';
 import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
@@ -80,61 +85,102 @@ function renderMarkdown(content) {
 
 // Markdown formatting toolbar - inserts markdown syntax into CodeMirror
 function MarkdownToolbar({ onFormat }) {
-  const btn = (label, icon, action, title) => (
-    <button
-      key={label}
-      onMouseDown={e => { e.preventDefault(); onFormat(action); }}
-      title={title}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minWidth: 26, height: 26, padding: '0 4px', border: 'none', borderRadius: 5,
-        cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)',
-        fontSize: 12, fontWeight: 600, transition: 'all 0.12s', flexShrink: 0,
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-    >
-      {icon}
-    </button>
-  );
-
-  const divider = (key) => <div key={key} style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />;
-
+  const items = [
+    ['bold', <Bold size={14} />, 'Bold'], ['italic', <Italic size={14} />, 'Italic'], ['underline', <Underline size={14} />, 'Underline'],
+    '|',
+    ['h1', <b style={{ font: '700 12px var(--font-sans)' }}>H1</b>, 'Heading 1'], ['h2', <b style={{ font: '700 12px var(--font-sans)' }}>H2</b>, 'Heading 2'], ['h3', <b style={{ font: '700 12px var(--font-sans)' }}>H3</b>, 'Heading 3'],
+    '|',
+    ['ul', <List size={14} />, 'Bullet list'], ['ol', <ListOrdered size={14} />, 'Numbered list'], ['todo', <ListChecks size={14} />, 'Checklist'],
+    '|',
+    ['quote', <Quote size={14} />, 'Quote'], ['inlinecode', <Code size={14} />, 'Inline code'], ['codeblock', <Code2 size={14} />, 'Code block'],
+    '|',
+    ['hr', <Minus size={14} />, 'Divider'], ['link', <Link size={14} />, 'Link'], ['image', <ImageIcon size={14} />, 'Image'],
+  ];
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2,
-      padding: '4px 8px', background: 'var(--bg-surface)',
-      borderBottom: '1px solid var(--border)', flexShrink: 0, minHeight: 38,
-    }}>
-      {btn('bold',      <Bold size={13}/>,          'bold',        'Bold')}
-      {btn('italic',    <Italic size={13}/>,         'italic',      'Italic')}
-      {btn('underline', <Underline size={13}/>,      'underline',   'Underline')}
-      {divider('d1')}
-      {btn('h1',        <span style={{fontWeight:800,fontSize:12}}>H1</span>, 'h1', 'Heading 1')}
-      {btn('h2',        <span style={{fontWeight:800,fontSize:12}}>H2</span>, 'h2', 'Heading 2')}
-      {btn('h3',        <span style={{fontWeight:800,fontSize:12}}>H3</span>, 'h3', 'Heading 3')}
-      {divider('d2')}
-      {btn('ul',        <List size={13}/>,           'ul',          'Bullet list')}
-      {btn('ol',        <ListOrdered size={13}/>,    'ol',          'Numbered list')}
-      {btn('todo',      <span style={{fontSize:12}}>☐</span>,       'todo', 'Checklist')}
-      {divider('d3')}
-      {btn('quote',     <Quote size={13}/>,          'quote',       'Blockquote')}
-      {btn('code',      <Code size={13}/>,           'inlinecode',  'Inline code')}
-      {btn('codeblock', <span style={{fontFamily:'monospace',fontSize:11}}>{`</>`}</span>, 'codeblock', 'Code block')}
-      {divider('d4')}
-      {btn('hr',        <Minus size={13}/>,          'hr',          'Divider')}
-      {btn('link',      <Link size={13}/>,           'link',        'Insert link')}
-      {btn('image',     <span style={{fontSize:12}}>🖼</span>,       'image', 'Insert image')}
+    <div style={toolbarRow}>
+      {items.map((it, i) => it === '|'
+        ? <div key={i} style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
+        : <button key={it[0]} className="btn-ghost" title={it[2]} onMouseDown={e => { e.preventDefault(); onFormat(it[0]); }}>{it[1]}</button>
+      )}
     </div>
   );
 }
 
+const toolbarRow = {
+  display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '5px 14px',
+  borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-base)', flexShrink: 0, minHeight: 42,
+};
+
+function timeAgo(seconds) {
+  if (!seconds) return '';
+  const diff = Date.now() / 1000 - seconds;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} d ago`;
+  return new Date(seconds * 1000).toLocaleDateString();
+}
+
+// Small radial graph of the open note and everything it links with.
+function ConnectionsGraph({ note, links }) {
+  const unique = [...new Map(links.map(l => [l.id, l])).values()].slice(0, 10);
+  const W = 228, H = 150, cx = W / 2, cy = H / 2;
+  const nodes = unique.map((l, i) => {
+    const a = (i / Math.max(unique.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const r = unique.length > 5 ? 56 : 50;
+    return { ...l, x: cx + Math.cos(a) * r * 1.45, y: cy + Math.sin(a) * r };
+  });
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="card" style={{ display: 'block', background: 'radial-gradient(circle at 50% 50%, var(--accent-subtle), transparent 70%)' }}>
+      {nodes.map(n => (
+        <line key={'l' + n.id} x1={cx} y1={cy} x2={n.x} y2={n.y} stroke="var(--accent)" strokeOpacity="0.45" strokeWidth="1.2"
+          strokeDasharray={n.direction === 'incoming' ? '3 3' : undefined} />
+      ))}
+      {nodes.map(n => (
+        <g key={n.id} style={{ cursor: 'pointer' }} onClick={() => openNote(n.id)}>
+          <title>{n.title}</title>
+          <circle cx={n.x} cy={n.y} r="5" fill="var(--accent)" />
+        </g>
+      ))}
+      <circle cx={cx} cy={cy} r="9" fill="var(--accent-hover)" style={{ filter: 'drop-shadow(var(--glow))' }} />
+      {unique.length === 0 && (
+        <text x={cx} y={cy + 28} textAnchor="middle" fill="var(--text-muted)" style={{ font: '500 11px var(--font-sans)' }}>No links yet</text>
+      )}
+    </svg>
+  );
+}
+
+function RightRail({ activeNote }) {
+  const outgoing = activeNote.links.filter(l => l.direction === 'outgoing');
+  const incoming = activeNote.links.filter(l => l.direction === 'incoming');
+  const list = (items, Icon, empty) => items.length === 0
+    ? <p style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: '2px 2px 6px' }}>{empty}</p>
+    : items.map(l => (
+      <button key={l.id} className="nav-item" onClick={() => openNote(l.id)} style={{ marginBottom: 2 }}>
+        <Icon size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</span>
+      </button>
+    ));
+  return (
+    <aside style={{ width: 260, flexShrink: 0, borderLeft: '1px solid var(--border-subtle)', padding: '20px 16px', overflow: 'auto' }} className="right-rail">
+      <div className="section-label" style={{ marginBottom: 10 }}>Connections</div>
+      <ConnectionsGraph note={activeNote.note} links={activeNote.links} />
+      <div className="section-label" style={{ margin: '20px 0 8px' }}>Links to</div>
+      {list(outgoing, ArrowUpRight, <>Type <code style={{ fontFamily: 'var(--font-mono)' }}>[[</code> to link a note</>)}
+      <div className="section-label" style={{ margin: '16px 0 8px' }}>Linked from</div>
+      {list(incoming, ArrowDownLeft, 'No notes link here yet')}
+    </aside>
+  );
+}
+
 export default function Editor() {
-  const { activeNote, view, setView, updateNoteInTree, activeWorkspace, notes, syncState } = useStore(s => ({
+  const { activeNote, view, setView, updateNoteInTree, activeWorkspace, notes, syncState, sidebarOpen, setSidebarOpen, rightRailOpen, setRightRailOpen, setSearchOpen } = useStore(s => ({
     activeNote: s.activeNote, view: s.view, setView: s.setView,
     updateNoteInTree: s.updateNoteInTree, activeWorkspace: s.activeWorkspace,
-    notes: s.notes, syncState: s.sync
+    notes: s.notes, syncState: s.sync, sidebarOpen: s.sidebarOpen, setSidebarOpen: s.setSidebarOpen,
+    rightRailOpen: s.rightRailOpen, setRightRailOpen: s.setRightRailOpen, setSearchOpen: s.setSearchOpen,
   }));
+  const [toolbarHost, setToolbarHost] = useState(null);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');       // markdown content
@@ -152,7 +198,10 @@ export default function Editor() {
     if (activeNote?.note) {
       setTitle(activeNote.note.title);
       setContent(activeNote.note.content || '');
-      setRichContent(activeNote.note.rich_content || '');
+      // Older notes may be in rich mode with only markdown saved; show that text converted.
+      const rich = activeNote.note.rich_content || '';
+      const md = activeNote.note.content || '';
+      setRichContent(!rich.replace(/<[^>]+>/g, '').trim() && md.trim() ? markdownToHtml(md) : rich);
       setEditorMode(activeNote.note.editor_mode || 'markdown');
       try { setTags(JSON.parse(activeNote.note.tags || '[]')); } catch { setTags([]); }
       setLinkSuggestions([]);
@@ -240,11 +289,18 @@ export default function Editor() {
     schedSave(title, content, richContent, next, editorMode);
   };
 
+  // Switching modes converts the text you've been editing into the other format.
+  // (If the current side is empty, the other side's existing text is kept as-is.)
   const toggleEditorMode = () => {
+    flushSave();
     const next = editorMode === 'markdown' ? 'rich' : 'markdown';
+    let c = content, rc = richContent;
+    if (next === 'rich' && content.trim()) rc = markdownToHtml(content);
+    if (next === 'markdown' && richContent && richContent.replace(/<[^>]+>/g, '').trim()) c = htmlToMarkdown(richContent);
+    setContent(c);
+    setRichContent(rc);
     setEditorMode(next);
-    schedSave(title, content, richContent, tags, next);
-    toast.success(next === 'rich' ? 'Switched to Rich Text' : 'Switched to Markdown', { duration: 1500 });
+    schedSave(title, c, rc, tags, next);
   };
 
   // Insert markdown formatting at cursor or wrap selection
@@ -311,174 +367,218 @@ export default function Editor() {
     }, 500);
   }, [activeNote?.note?.id]);
 
+  // Parent chain for the breadcrumb
+  const crumbs = useMemo(() => {
+    const chain = [];
+    let parentId = activeNote?.note?.parent_id;
+    const byId = new Map(notes.map(n => [n.id, n]));
+    while (parentId && byId.has(parentId) && chain.length < 6) {
+      const p = byId.get(parentId);
+      chain.unshift(p);
+      parentId = p.parent_id;
+    }
+    return chain;
+  }, [notes, activeNote?.note?.parent_id]);
+
+  const sidebarButton = !sidebarOpen && (
+    <button className="btn-ghost" onClick={() => setSidebarOpen(true)} title="Show sidebar (Ctrl \)"><PanelLeft size={16} /></button>
+  );
+
   if (!activeNote?.note) {
+    const newNote = async () => {
+      if (!activeWorkspace) return;
+      const note = await createNote({ workspace_id: activeWorkspace.id, title: 'Untitled', note_type: 'note' });
+      openNote(note.id);
+    };
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, color: 'var(--text-muted)' }}>
-        <Logo size={96} style={{ opacity: 0.9 }} />
-        <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--text-secondary)' }}>Select a note to begin</p>
-        <p style={{ fontSize: 13 }}>Or create a new one from the sidebar</p>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={topBar}>{sidebarButton}</div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 18, padding: 24, textAlign: 'center' }} className="fade-in">
+          <Logo size={88} style={{ filter: 'drop-shadow(var(--glow))' }} />
+          <h2 className="heading-text" style={{ font: '600 28px var(--font-display)', letterSpacing: '-0.02em' }}>Your connected knowledge base</h2>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 380 }}>
+            Pick a note from the sidebar, or start a new one. Link notes by typing <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-hover)' }}>[[</code>.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button onClick={newNote} style={primaryBtn}><Plus size={15} /> New note</button>
+            <button onClick={() => setSearchOpen(true)} style={secondaryBtn}><Search size={14} /> Search <kbd style={kbd}>Ctrl K</kbd></button>
+          </div>
+        </div>
       </div>
     );
   }
 
   const showEditor = view === 'editor' || view === 'split';
   const showPreview = view === 'preview' || view === 'split';
+  const isNote = noteType === 'note';
+  const isMarkdown = isNote && editorMode === 'markdown';
 
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base)', height: '100%' }}>
-
-      {/* Top bar - mode toggle + view switcher + save status */}
-      {noteType === 'note' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 2, background: 'var(--bg-elevated)', borderRadius: 8, padding: 3 }}>
-            {[['rich', <Type size={13}/>, 'Rich'], ['markdown', <Code2 size={13}/>, 'Markdown']].map(([mode, icon, label]) => (
-              <button key={mode} onClick={() => { if (editorMode !== mode) toggleEditorMode(); }} style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                background: editorMode === mode ? 'var(--accent)' : 'transparent',
-                color: editorMode === mode ? '#fff' : 'var(--text-muted)', transition: 'all 0.15s'
-              }}>
-                {icon}<span>{label}</span>
-              </button>
-            ))}
-          </div>
-
-          {editorMode === 'markdown' && (
-            <>
-              <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
-              <div style={{ display: 'flex', gap: 2, background: 'var(--bg-elevated)', borderRadius: 8, padding: 3 }}>
-                {[['editor', <Edit size={13}/>, 'Edit'], ['split', <Columns size={13}/>, 'Split'], ['preview', <Eye size={13}/>, 'Preview']].map(([v, icon, label]) => (
-                  <button key={v} onClick={() => setView(v)} title={label} style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                    background: view === v ? 'var(--bg-hover)' : 'transparent',
-                    color: view === v ? 'var(--text-primary)' : 'var(--text-muted)', transition: 'all 0.15s'
-                  }}>
-                    {icon}<span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 60, textAlign: 'right' }}
-            title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'}>
-            {saving ? 'Saving…' : syncState.pending > 0 ? '✓ Saved on device' : '✓ Saved'}
-          </span>
-        </div>
-      )}
-
-      {/* Markdown formatting toolbar - only in markdown edit/split mode */}
-      {noteType === 'note' && editorMode === 'markdown' && (view === 'editor' || view === 'split') && (
-        <MarkdownToolbar onFormat={handleMarkdownFormat} />
-      )}
-
-      {/* Title + tags - fixed height, never scrolls */}
-      <div style={{ padding: '16px 24px 8px', background: 'var(--bg-base)', flexShrink: 0 }}>
-        <input
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Note title..."
-          style={{
-            width: '100%', background: 'none', border: 'none', outline: 'none',
-            fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800,
-            color: 'var(--text-primary)', letterSpacing: '-0.02em'
-          }}
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-          <Tag size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          {tags.map(tag => (
-            <span key={tag} onClick={() => removeTag(tag)} style={{
-              padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-              background: 'var(--accent-subtle)', color: 'var(--accent-hover)', cursor: 'pointer',
-              border: '1px solid rgba(99,102,241,0.2)', letterSpacing: '0.02em'
-            }}>
-              #{tag} ×
-            </span>
-          ))}
+  const titleBlock = (
+    <div style={{ paddingTop: isNote ? 48 : 0 }}>
+      <input value={title} onChange={handleTitleChange} placeholder="Untitled" className="doc-title" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '12px 0 28px', fontSize: 12.5, color: 'var(--text-muted)' }}>
+        {tags.map(tag => (
+          <span key={tag} className="tag-chip" onClick={() => removeTag(tag)} title="Remove tag">#{tag}</span>
+        ))}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Tag size={12} />
           <input
             value={tagInput}
             onChange={e => setTagInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-            placeholder="Add tag..."
-            style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-muted)', fontSize: 12, width: 80 }}
+            onBlur={addTag}
+            placeholder="Add tag"
+            style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-secondary)', font: '400 12.5px var(--font-sans)', width: 70 }}
           />
-        </div>
-      </div>
-
-      {/* Backlinks */}
-      {activeNote.links?.length > 0 && (
-        <div style={{ padding: '0 24px 8px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-          <Link2 size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          {activeNote.links.map(l => (
-            <span key={l.id + l.direction} onClick={() => openNoteByTitle(activeWorkspace.id, l.title)} style={{
-              padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500,
-              background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer'
-            }}>
-              {l.direction === 'incoming' ? '← ' : '→ '}{l.title}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Editor area - MUST fill remaining space */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
-
-        {noteType === 'diagram' && (
-          <DiagramEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />
-        )}
-
-        {noteType === 'draw' && (
-          <FreeDrawEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />
-        )}
-
-        {noteType === 'note' && (
-          <>
-            {editorMode === 'rich' && (
-              <RichEditor content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} />
-            )}
-
-            {editorMode === 'markdown' && (
-              <>
-                {showEditor && (
-                  <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
-                    <CodeMirror
-                      ref={cmRef}
-                      value={content}
-                      height="100%"
-                      theme={oneDark}
-                      extensions={[markdown(), listContinuation(handleContentChange)]}
-                      onChange={handleContentChange}
-                      style={{ height: '100%', fontSize: 14 }}
-                      basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
-                    />
-                    {linkSuggestions.length > 0 && (
-                      <div style={{ position: 'absolute', bottom: 16, left: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', zIndex: 100, minWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
-                        <div style={{ padding: '5px 12px', fontSize: 10, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Link to note</div>
-                        {linkSuggestions.map(s => (
-                          <div key={s.id} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            onClick={() => { const lastOpen = content.lastIndexOf('[['); handleContentChange(content.slice(0, lastOpen) + `[[${s.title}]]`); setLinkSuggestions([]); }}
-                          >📄 {s.title}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {view === 'split' && <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }} />}
-                {showPreview && (
-                  <div style={{ flex: 1, minHeight: 0, padding: '16px 24px 48px', overflow: 'auto' }}>
-                    <div className="markdown-preview"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-                      onClick={e => { const link = e.target.closest('.wiki-link'); if (link) openNoteByTitle(activeWorkspace.id, link.dataset.link); }}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
+        </span>
+        <span>· Edited {timeAgo(activeNote.note.updated_at)}</span>
       </div>
     </div>
   );
+
+  const linkPopup = linkSuggestions.length > 0 && (
+    <div className="card" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', overflow: 'hidden', zIndex: 100, minWidth: 260, boxShadow: 'var(--shadow)', background: 'var(--bg-elevated)' }}>
+      <div className="section-label" style={{ padding: '7px 12px', borderBottom: '1px solid var(--border)' }}>Link to note</div>
+      {linkSuggestions.map(s => (
+        <button key={s.id} className="nav-item" style={{ borderRadius: 0 }}
+          onClick={() => { const lastOpen = content.lastIndexOf('[['); handleContentChange(content.slice(0, lastOpen) + `[[${s.title}]]`); setLinkSuggestions([]); }}>
+          <ArrowUpRight size={13} style={{ color: 'var(--accent)' }} /> {s.title}
+        </button>
+      ))}
+    </div>
+  );
+
+  const markdownEditor = (
+    <div className="doc-cm">
+      <CodeMirror
+        ref={cmRef}
+        value={content}
+        theme="none"
+        extensions={[markdown(), synapseEditorTheme, EditorView.lineWrapping, listContinuation(handleContentChange)]}
+        onChange={handleContentChange}
+        placeholder="Start writing…"
+        basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false, highlightActiveLineGutter: false }}
+      />
+    </div>
+  );
+
+  const preview = (
+    <div className="markdown-preview"
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+      onClick={e => { const link = e.target.closest('.wiki-link'); if (link) openNoteByTitle(activeWorkspace.id, link.dataset.link); }}
+    />
+  );
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+
+      {/* Breadcrumb bar */}
+      <div style={topBar}>
+        {sidebarButton}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1, fontSize: 13, color: 'var(--text-muted)' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>{activeWorkspace?.icon} {activeWorkspace?.name}</span>
+          {crumbs.map(c => (
+            <span key={c.id} style={{ display: 'contents' }}>
+              <ChevronRight size={13} style={{ flexShrink: 0 }} />
+              <button className="btn-ghost" style={{ height: 24, padding: '0 4px', fontSize: 13 }} onClick={() => openNote(c.id)}>{c.title}</button>
+            </span>
+          ))}
+          <ChevronRight size={13} style={{ flexShrink: 0 }} />
+          <span style={{ color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || 'Untitled'}</span>
+        </div>
+
+        {isNote && (
+          <div className="seg">
+            {[['rich', <Type size={13} />, 'Rich'], ['markdown', <Code2 size={13} />, 'Markdown']].map(([mode, icon, label]) => (
+              <button key={mode} className={editorMode === mode ? 'on' : ''} onClick={() => { if (editorMode !== mode) toggleEditorMode(); }}>
+                {icon}<span className="hide-narrow">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {isMarkdown && (
+          <div className="seg">
+            {[['editor', <Edit size={13} />, 'Write'], ['split', <Columns size={13} />, 'Split'], ['preview', <Eye size={13} />, 'Preview']].map(([v, icon, label]) => (
+              <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)} title={label}>
+                {icon}<span className="hide-narrow">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 64, textAlign: 'right' }}
+          title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
+          {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
+        </span>
+        {isNote && (
+          <button className={`btn-ghost hide-narrow${rightRailOpen ? ' on' : ''}`} onClick={() => setRightRailOpen(!rightRailOpen)} title="Connections panel">
+            <PanelRight size={15} />
+          </button>
+        )}
+      </div>
+
+      {/* Formatting toolbar */}
+      {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}
+      {isNote && editorMode === 'rich' && <div ref={setToolbarHost} style={toolbarRow} />}
+
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {!isNote && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ padding: '18px 24px 0' }}>{titleBlock}</div>
+            <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', borderTop: '1px solid var(--border-subtle)' }}>
+              {noteType === 'diagram' && <DiagramEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
+              {noteType === 'draw' && <FreeDrawEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
+            </div>
+          </div>
+        )}
+
+        {isNote && editorMode === 'rich' && (
+          <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }} onClick={e => { if (e.target === e.currentTarget) richEditorRef.current?.commands.focus('end'); }}>
+            <div className="doc-column">
+              {titleBlock}
+              <RichEditor content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} toolbarHost={toolbarHost} />
+            </div>
+          </div>
+        )}
+
+        {isMarkdown && view !== 'split' && (
+          <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+            <div className="doc-column">
+              {titleBlock}
+              {showEditor ? markdownEditor : <div style={{ paddingBottom: '30vh' }}>{preview}</div>}
+            </div>
+          </div>
+        )}
+
+        {isMarkdown && view === 'split' && (
+          <>
+            <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+              <div className="doc-column" style={{ maxWidth: 640, padding: '0 28px' }}>{titleBlock}{markdownEditor}</div>
+            </div>
+            <div style={{ width: 1, background: 'var(--border-subtle)', flexShrink: 0 }} />
+            <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg-surface)' }}>
+              <div className="doc-column" style={{ maxWidth: 640, padding: '48px 28px 30vh' }}>{preview}</div>
+            </div>
+          </>
+        )}
+
+        {isNote && rightRailOpen && <RightRail activeNote={activeNote} />}
+      </div>
+      {linkPopup}
+    </div>
+  );
 }
+
+const topBar = {
+  height: 50, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px 0 16px', flexShrink: 0,
+  borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
+};
+const primaryBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none',
+  background: 'var(--accent)', color: '#fff', font: '600 13.5px var(--font-sans)', cursor: 'pointer', boxShadow: 'var(--glow)',
+};
+const secondaryBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px', borderRadius: 9,
+  border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)',
+  font: '500 13.5px var(--font-sans)', cursor: 'pointer',
+};
+const kbd = { font: '500 10.5px var(--font-sans)', border: '1px solid var(--border)', borderRadius: 4, padding: '0 5px', color: 'var(--text-muted)' };

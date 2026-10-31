@@ -133,6 +133,11 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id);
     `);
   },
+  // 3: The redesign's default theme is "auto" (Neural, following the device's light/dark
+  // setting). Move people still on the old default over; other choices are kept.
+  () => {
+    db.exec(`UPDATE users SET theme='auto' WHERE theme='dark'`);
+  },
 ];
 
 const currentVersion = db.pragma('user_version', { simple: true });

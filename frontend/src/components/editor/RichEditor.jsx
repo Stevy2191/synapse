@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -29,7 +30,9 @@ lowlight.register({ javascript, python, bash });
 
 // Rich editor stores HTML directly - no markdown conversion
 // content prop is HTML when in rich mode
-export default function RichEditor({ content, onChange, editorRef: editorRefProp }) {
+// `toolbarHost`: DOM element to render the toolbar into (the editor's toolbar row). The text itself
+// flows inside the page's document column, which does the scrolling.
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, toolbarHost }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
 
@@ -77,22 +80,21 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   }, [content]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <RichToolbar editor={editor} />
-      <div style={{ flex: 1, overflow: 'auto' }} onClick={() => editor?.commands.focus()}>
+    <div>
+      {toolbarHost && createPortal(<RichToolbar editor={editor} />, toolbarHost)}
+      <div>
         <style>{`
           .rich-editor-content {
             outline: none;
-            padding: 20px 32px 64px;
-            min-height: 100%;
+            padding: 0 0 40vh;
             font-family: var(--font-sans);
-            font-size: 15px;
-            line-height: 1.8;
+            font-size: 16px;
+            line-height: 1.75;
             color: var(--text-primary);
             cursor: text;
           }
-          .rich-editor-content h1 { font-family: var(--font-display); font-size: 2em; font-weight: 800; margin: 1em 0 0.4em; letter-spacing: -0.02em; }
-          .rich-editor-content h2 { font-family: var(--font-display); font-size: 1.5em; font-weight: 700; margin: 0.9em 0 0.3em; }
+          .rich-editor-content h1 { font-family: var(--font-display); font-size: 1.75em; font-weight: 700; margin: 1em 0 0.4em; letter-spacing: -0.02em; }
+          .rich-editor-content h2 { font-family: var(--font-display); font-size: 1.35em; font-weight: 600; margin: 0.9em 0 0.3em; letter-spacing: -0.01em; }
           .rich-editor-content h3 { font-size: 1.2em; font-weight: 600; margin: 0.8em 0 0.3em; }
           .rich-editor-content h4 { font-size: 1.05em; font-weight: 600; margin: 0.7em 0 0.2em; }
           .rich-editor-content p { margin: 0.3em 0; min-height: 1.6em; }

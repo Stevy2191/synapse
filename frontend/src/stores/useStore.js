@@ -22,7 +22,8 @@ export const useStore = create(
       // UI
       view: 'editor',    // 'editor' | 'graph' | 'split'
       sidebarOpen: true,
-      sidebarWidth: 260,
+      sidebarWidth: 264,
+      rightRailOpen: true,
       searchOpen: false,
       settingsOpen: false,
 
@@ -66,6 +67,7 @@ export const useStore = create(
       setView: (view) => set({ view }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarWidth: (w) => set({ sidebarWidth: w }),
+      setRightRailOpen: (open) => set({ rightRailOpen: open }),
       setSearchOpen: (open) => set({ searchOpen: open }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
 
@@ -77,7 +79,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, view: s.view === 'graph' ? 'editor' : s.view })
     }
   )
 );

@@ -1,4 +1,64 @@
+// Every theme sets the same CSS variables; components only ever use the variables.
+// Optional extras (--bg-sidebar, --heading, --glow) fall back to sensible values in applyTheme.
 export const THEMES = {
+  auto: {
+    label: 'Auto',
+    icon: '◐',
+    description: 'Neural, light or dark to match your device',
+    vars: {}, // resolved at runtime to neural / neural-light
+  },
+  neural: {
+    label: 'Neural',
+    icon: '✦',
+    vars: {
+      '--bg-base': '#0b0d1a',
+      '--bg-surface': '#0e1122',
+      '--bg-sidebar': 'linear-gradient(180deg, #0f1226 0%, #0b0d1a 100%)',
+      '--bg-elevated': '#141834',
+      '--bg-hover': '#1a1f42',
+      '--border': '#1f2547',
+      '--border-subtle': '#171c38',
+      '--text-primary': '#e6e8ff',
+      '--text-secondary': '#a9aedb',
+      '--text-muted': '#6a70a0',
+      '--accent': '#7c7bff',
+      '--accent-hover': '#a3a2ff',
+      '--accent-subtle': 'rgba(124,123,255,0.14)',
+      '--success': '#34d399',
+      '--warning': '#fbbf24',
+      '--danger': '#f87171',
+      '--scrollbar': '#262c55',
+      '--heading': 'linear-gradient(90deg, #ffffff 0%, #b9b8ff 100%)',
+      '--glow': '0 0 10px rgba(124,123,255,0.55)',
+      '--shadow': '0 24px 60px rgba(3,4,20,0.6)',
+    }
+  },
+  'neural-light': {
+    label: 'Neural Light',
+    icon: '✧',
+    vars: {
+      '--bg-base': '#fbfbff',
+      '--bg-surface': '#ffffff',
+      '--bg-sidebar': 'linear-gradient(180deg, #f5f5ff 0%, #f0f1fb 100%)',
+      '--bg-elevated': '#f1f2fb',
+      '--bg-hover': '#e9eafa',
+      '--border': '#e2e4f3',
+      '--border-subtle': '#eceefa',
+      '--text-primary': '#16183a',
+      '--text-secondary': '#4d5280',
+      '--text-muted': '#8a8fb5',
+      '--accent': '#5b5ae8',
+      '--accent-hover': '#4746d4',
+      '--accent-subtle': 'rgba(91,90,232,0.10)',
+      '--success': '#059669',
+      '--warning': '#d97706',
+      '--danger': '#dc2626',
+      '--scrollbar': '#d6d8ee',
+      '--heading': 'linear-gradient(90deg, #16183a 0%, #5b5ae8 100%)',
+      '--glow': '0 0 8px rgba(91,90,232,0.35)',
+      '--shadow': '0 24px 60px rgba(40,42,100,0.16)',
+    }
+  },
   dark: {
     label: 'Dark',
     icon: '🌙',
@@ -133,9 +193,36 @@ export const THEMES = {
   }
 };
 
+const LIGHT_THEMES = new Set(['light', 'neural-light']);
+const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: light)') : null;
+let currentTheme = 'auto';
+
+function resolve(themeName) {
+  if (themeName === 'auto' || !THEMES[themeName]) return media?.matches ? 'neural-light' : 'neural';
+  return themeName;
+}
+
 export function applyTheme(themeName) {
-  const theme = THEMES[themeName] || THEMES.dark;
+  currentTheme = themeName || 'auto';
+  const key = resolve(currentTheme);
+  const vars = THEMES[key].vars;
   const root = document.documentElement;
-  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-  root.setAttribute('data-theme', themeName);
+  const all = {
+    '--bg-sidebar': vars['--bg-surface'],
+    '--heading': vars['--text-primary'],
+    '--glow': 'none',
+    '--shadow': '0 24px 60px rgba(0,0,0,0.4)',
+    ...vars,
+  };
+  Object.entries(all).forEach(([k, v]) => root.style.setProperty(k, v));
+  root.setAttribute('data-theme', key);
+  root.style.colorScheme = LIGHT_THEMES.has(key) ? 'light' : 'dark';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', vars['--bg-base']);
+}
+
+// Follow the device's light/dark setting while on Auto.
+media?.addEventListener?.('change', () => { if (currentTheme === 'auto') applyTheme('auto'); });
+
+export function isLightTheme(themeName) {
+  return LIGHT_THEMES.has(resolve(themeName));
 }

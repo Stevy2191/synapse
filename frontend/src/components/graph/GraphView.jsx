@@ -3,13 +3,15 @@ import * as d3 from 'd3';
 import { useStore } from '../../stores/useStore';
 import { graphData as loadGraph, openNote } from '../../offline/sync';
 import toast from 'react-hot-toast';
+import { PanelLeft } from 'lucide-react';
 
 export default function GraphView() {
   const svgRef = useRef(null);
-  const { activeWorkspace, activeNote, setActiveNote } = useStore(s => ({
+  const { activeWorkspace, activeNote, sidebarOpen, setSidebarOpen } = useStore(s => ({
     activeWorkspace: s.activeWorkspace,
     activeNote: s.activeNote,
-    setActiveNote: s.setActiveNote
+    sidebarOpen: s.sidebarOpen,
+    setSidebarOpen: s.setSidebarOpen,
   }));
   const [graphData, setGraphData] = useState(null);
   const [hovered, setHovered] = useState(null);
@@ -22,7 +24,9 @@ export default function GraphView() {
   useEffect(() => {
     if (!graphData || !svgRef.current) return;
 
-    const { nodes, edges } = graphData;
+    // D3 mutates these objects, so work on copies; links need `source`/`target`.
+    const nodes = graphData.nodes.map(n => ({ ...n }));
+    const edges = graphData.edges.map(e => ({ source: e.source_id, target: e.target_id }));
     if (nodes.length === 0) return;
 
     const container = svgRef.current.parentElement;
@@ -54,15 +58,15 @@ export default function GraphView() {
     grad.append('stop').attr('offset', '100%').attr('stop-color', 'var(--accent)');
 
     const activeGrad = defs.append('radialGradient').attr('id', 'activeGrad');
-    activeGrad.append('stop').attr('offset', '0%').attr('stop-color', '#f0f');
+    activeGrad.append('stop').attr('offset', '0%').attr('stop-color', '#ffffff');
     activeGrad.append('stop').attr('offset', '100%').attr('stop-color', 'var(--accent)');
 
     // Links
     const link = g.append('g').selectAll('line')
       .data(edges).enter().append('line')
-      .attr('stroke', 'var(--border)')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.6);
+      .attr('stroke', 'var(--accent)')
+      .attr('stroke-width', 1.4)
+      .attr('stroke-opacity', 0.45);
 
     // Node groups
     const node = g.append('g').selectAll('g')
@@ -129,23 +133,27 @@ export default function GraphView() {
   }
 
   return (
-    <div style={{ flex: 1, position: 'relative', background: 'var(--bg-base)', overflow: 'hidden' }}>
+    <div style={{ flex: 1, position: 'relative', background: 'radial-gradient(circle at 50% 45%, var(--accent-subtle), transparent 65%), var(--bg-base)', overflow: 'hidden' }}>
       <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+      {!sidebarOpen && (
+        <button className="btn-ghost card" onClick={() => setSidebarOpen(true)} title="Show sidebar"
+          style={{ position: 'absolute', top: 14, left: 14, background: 'var(--bg-surface)' }}><PanelLeft size={16} /></button>
+      )}
       {/* Stats overlay */}
       <div style={{
         position: 'absolute', top: 16, right: 16, background: 'var(--bg-surface)',
-        border: '1px solid var(--border)', borderRadius: 10, padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)'
+        border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)'
       }}>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Graph</div>
         <div>{graphData?.nodes?.length || 0} notes · {graphData?.edges?.length || 0} connections</div>
-        {hovered && <div style={{ marginTop: 6, color: 'var(--accent-hover)', fontWeight: 600 }}>📄 {hovered.title}</div>}
+        {hovered && <div style={{ marginTop: 6, color: 'var(--accent-hover)', fontWeight: 600 }}>{hovered.title}</div>}
       </div>
       {/* Legend */}
       <div style={{
         position: 'absolute', bottom: 16, left: 16, background: 'var(--bg-surface)',
         border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 11, color: 'var(--text-muted)'
       }}>
-        <div>🖱️ Drag to pan · Scroll to zoom</div>
+        <div>Drag to pan · Scroll to zoom</div>
         <div style={{ marginTop: 3 }}>Click node to open note</div>
       </div>
     </div>

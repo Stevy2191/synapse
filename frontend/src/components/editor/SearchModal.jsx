@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, FileText, GitFork, Pencil } from 'lucide-react';
+
+const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 import { useStore } from '../../stores/useStore';
 import { searchNotes, openNote } from '../../offline/sync';
 
@@ -49,8 +51,8 @@ export default function SearchModal() {
       backdropFilter: 'blur(4px)'
     }} onClick={() => setSearchOpen(false)}>
       <div style={{
-        width: 580, background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)',
-        overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.6)'
+        width: 'min(580px, calc(100vw - 24px))', background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)',
+        overflow: 'hidden', boxShadow: 'var(--shadow)'
       }} onClick={e => e.stopPropagation()} className="fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
           <Search size={18} style={{ color: 'var(--text-muted)' }} />
@@ -82,7 +84,10 @@ export default function SearchModal() {
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>📄 {r.title}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {(() => { const Icon = TYPE_ICONS[r.note_type] || FileText; return <Icon size={14} style={{ color: 'var(--accent)' }} />; })()}
+                {r.title}
+              </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}
                 dangerouslySetInnerHTML={{ __html: r.excerpt || '' }}
               />

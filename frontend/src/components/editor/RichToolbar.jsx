@@ -33,15 +33,15 @@ function ToolBtn({ onClick, active, disabled, title, children }) {
       title={title}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minWidth: 26, height: 26, padding: '0 4px', border: 'none', borderRadius: 5,
+        minWidth: 28, height: 28, padding: '0 5px', border: 'none', borderRadius: 7,
         cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
-        background: active ? 'var(--accent)' : 'transparent',
-        color: active ? '#fff' : disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+        background: active ? 'var(--accent-subtle)' : 'transparent',
+        color: active ? 'var(--accent-hover)' : disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
         fontSize: 12, fontWeight: 600, transition: 'all 0.12s',
         opacity: disabled ? 0.4 : 1,
       }}
       onMouseEnter={e => { if (!active && !disabled) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = active ? 'var(--accent-subtle)' : 'transparent'; }}
     >
       {children}
     </button>
@@ -100,11 +100,7 @@ export default function RichToolbar({ editor }) {
   };
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2,
-      padding: '4px 8px', background: 'var(--bg-surface)',
-      borderBottom: '1px solid var(--border)', flexShrink: 0, minHeight: 38,
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
       {/* Undo/Redo */}
       <ToolBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo"><Undo size={13}/></ToolBtn>
       <ToolBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo"><Redo size={13}/></ToolBtn>

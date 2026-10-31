@@ -17,7 +17,7 @@ function App() {
   const user = useStore(s => s.user);
   
   React.useEffect(() => {
-    applyTheme(user?.theme || 'dark');
+    applyTheme(user?.theme || 'auto');
   }, [user?.theme]);
 
   return (

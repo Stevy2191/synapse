@@ -46,7 +46,7 @@ export async function createUser({ username, email, password }, canCreate) {
     const role = canCreate(userCount);
     const existing = db.prepare('SELECT id FROM users WHERE username=? COLLATE NOCASE OR email=? COLLATE NOCASE').get(username, email);
     if (existing) throw new HttpError(409, 'Username or email already taken');
-    db.prepare('INSERT INTO users (id,username,email,password_hash,role) VALUES (?,?,?,?,?)').run(id, username, email, hash, role);
+    db.prepare("INSERT INTO users (id,username,email,password_hash,role,theme) VALUES (?,?,?,?,?,'auto')").run(id, username, email, hash, role);
     db.prepare('INSERT INTO workspaces (id,user_id,name,icon,color) VALUES (?,?,?,?,?)').run(uuid(), id, 'Personal', '🧠', '#6366f1');
   })();
 

@@ -29,12 +29,12 @@ export default function Settings() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)'
     }} onClick={() => setSettingsOpen(false)}>
       <div style={{
-        width: 640, height: 480, background: 'var(--bg-surface)', borderRadius: 16,
-        border: '1px solid var(--border)', display: 'flex', overflow: 'hidden',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.6)'
+        width: 'min(680px, calc(100vw - 24px))', height: 'min(520px, calc(100vh - 24px))', background: 'var(--bg-surface)', borderRadius: 16,
+        border: '1px solid var(--border)', display: 'flex', overflow: 'hidden', position: 'relative',
+        boxShadow: 'var(--shadow)'
       }} onClick={e => e.stopPropagation()} className="fade-in">
         {/* Sidebar */}
-        <div style={{ width: 160, background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', padding: '20px 12px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 160, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', padding: '20px 12px', display: 'flex', flexDirection: 'column' }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, padding: '0 8px', marginBottom: 16, color: 'var(--text-primary)' }}>Settings</h2>
           {[
             ['appearance', <Palette size={14}/>, 'Appearance'],
@@ -66,24 +66,37 @@ export default function Settings() {
           {tab === 'appearance' && (
             <div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 20, color: 'var(--text-primary)' }}>Theme</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                {Object.entries(THEMES).map(([key, theme]) => (
-                  <div key={key} onClick={() => setTheme(key)} style={{
-                    padding: '14px 16px', borderRadius: 10, cursor: 'pointer',
-                    border: `2px solid ${user?.theme === key ? 'var(--accent)' : 'var(--border)'}`,
-                    background: theme.vars['--bg-surface'], transition: 'all 0.2s',
-                    transform: user?.theme === key ? 'scale(1.03)' : 'scale(1)'
-                  }}>
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>{theme.icon}</div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: theme.vars['--text-primary'] }}>{theme.label}</div>
-                    <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-                      {[theme.vars['--accent'], theme.vars['--success'], theme.vars['--warning']].map((c, i) => (
-                        <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: c }} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {Object.entries(THEMES).map(([key, theme]) => {
+                  const selected = (user?.theme || 'auto') === key;
+                  const v = key === 'auto' ? THEMES.neural.vars : theme.vars;
+                  const v2 = key === 'auto' ? THEMES['neural-light'].vars : null;
+                  return (
+                    <button key={key} onClick={() => setTheme(key)} style={{
+                      padding: 0, borderRadius: 10, cursor: 'pointer', overflow: 'hidden', textAlign: 'left',
+                      border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                      background: 'var(--bg-surface)', boxShadow: selected ? 'var(--glow)' : 'none', transition: 'all .15s',
+                    }}>
+                      <div style={{ height: 46, display: 'flex' }}>
+                        {[v, v2].filter(Boolean).map((vars, i) => (
+                          <div key={i} style={{ flex: 1, background: vars['--bg-base'], display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px' }}>
+                            {[vars['--accent'], vars['--text-primary'], vars['--success']].map((c, j) => (
+                              <span key={j} style={{ width: j === 0 ? 14 : 8, height: j === 0 ? 14 : 8, borderRadius: '50%', background: c }} />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text-primary)', flex: 1 }}>{theme.label}</span>
+                        {key === 'auto' && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>default</span>}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 14 }}>
+                Auto uses Neural or Neural Light to match your device's light/dark setting.
+              </p>
             </div>
           )}
 

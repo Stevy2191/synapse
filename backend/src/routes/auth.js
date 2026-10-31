@@ -60,7 +60,7 @@ router.get('/me', requireAuth, (req, res) => {
 
 router.patch('/theme', requireAuth, (req, res) => {
   const { theme } = req.body || {};
-  const valid = ['dark', 'light', 'dracula', 'nord', 'solarized', 'tokyo-night'];
+  const valid = ['auto', 'neural', 'neural-light', 'dark', 'light', 'dracula', 'nord', 'solarized', 'tokyo-night'];
   if (!valid.includes(theme)) return res.status(400).json({ error: 'Invalid theme' });
   db.prepare('UPDATE users SET theme=? WHERE id=?').run(theme, req.user.id);
   res.json({ theme });

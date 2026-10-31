@@ -23,7 +23,7 @@
 - **Full-text Search** — Fast SQLite FTS5 search (Ctrl+K)
 - **Tags** — Tag and filter notes
 - **File Attachments** — Upload images and files (50MB limit)
-- **Themes** — Dark, Light, Dracula, Nord, Solarized, Tokyo Night
+- **Themes** — Neural (default) and Neural Light, following your device's light/dark setting, plus Dark, Light, Dracula, Nord, Solarized and Tokyo Night
 - **Multi-user** — First user becomes admin and invites everyone else
 - **Hierarchical notes** — Nest notes inside each other
 - **Offline-first** — Keep writing with no connection; changes upload automatically when you're back online
@@ -146,7 +146,7 @@ cd frontend && npm install && npm run dev     # UI on :5173, proxies /api to :30
 ## Architecture
 
 - **Backend:** Node.js + Express + better-sqlite3 (WAL mode)
-- **Frontend:** React 18 + Vite + TailwindCSS + TipTap + D3.js
+- **Frontend:** React 18 + Vite + TipTap + CodeMirror + D3.js; themes are CSS variables in `frontend/src/themes/`
 - **Auth:** JWT (7-day expiry)
 - **Search:** SQLite FTS5 with porter stemmer on the server; in-browser search of the local copy in the app
 - **Offline:** Service worker (vite-plugin-pwa) caches the app; IndexedDB holds notes plus an outbox of pending changes (`frontend/src/offline/`). Notes carry a version number so the server can detect conflicting edits
