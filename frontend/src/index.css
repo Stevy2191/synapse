@@ -248,3 +248,19 @@ body {
 .toggle span { width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .toggle.on { background: var(--accent); box-shadow: var(--glow); }
 .toggle.on span { transform: translateX(18px); }
+
+/* Emoji picker */
+.emoji-picker {
+  width: 312px; padding: 8px; border-radius: 12px; background: var(--bg-elevated);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.emoji-cell {
+  height: 34px; border: none; border-radius: 7px; background: transparent; cursor: pointer;
+  font-size: 20px; line-height: 1; display: grid; place-items: center; transition: background .1s, transform .1s;
+}
+.emoji-cell:hover { background: var(--accent-subtle); transform: scale(1.15); }
+.emoji-button {
+  display: grid; place-items: center; border-radius: 10px; cursor: pointer; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg-base); transition: border-color .15s, box-shadow .15s;
+}
+.emoji-button:hover { border-color: var(--accent); box-shadow: var(--glow); }

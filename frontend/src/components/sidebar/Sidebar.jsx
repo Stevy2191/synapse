@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
 import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
+import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow } from '../../offline/sync';
 
 const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
@@ -183,7 +184,7 @@ function WorkspacePicker() {
           </button>
           {creating ? (
             <div style={{ display: 'flex', gap: 5, padding: 3 }}>
-              <input value={icon} onChange={e => setIcon(e.target.value)} style={{ ...miniInput, width: 38, textAlign: 'center' }} />
+              <EmojiButton value={icon} onChange={setIcon} size={32} />
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Workspace name" autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') create(); if (e.key === 'Escape') setCreating(false); }}
                 style={{ ...miniInput, flex: 1, minWidth: 0 }} />

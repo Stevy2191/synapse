@@ -14,6 +14,7 @@ import { THEMES } from '../../themes';
 import api from '../../api';
 import { signOut, syncNow } from '../../offline/sync';
 import { squareImage } from '../../utils/image';
+import { EmojiButton } from '../EmojiPicker';
 
 const errorText = err => err?.response?.data?.error || err?.message || 'Something went wrong';
 
@@ -284,9 +285,8 @@ function WorkspaceGeneralPage() {
   }));
   const save = useWorkspaceSaver();
   const [name, setName] = useState(ws?.name || '');
-  const [emoji, setEmoji] = useState(ws?.icon || '📁');
   const [confirmName, setConfirmName] = useState('');
-  useEffect(() => { setName(ws?.name || ''); setEmoji(ws?.icon || '📁'); setConfirmName(''); }, [ws?.id]);
+  useEffect(() => { setName(ws?.name || ''); setConfirmName(''); }, [ws?.id]);
   if (!ws) return null;
 
   const remove = async () => {
@@ -311,13 +311,15 @@ function WorkspaceGeneralPage() {
           preview={<WorkspaceIcon workspace={ws} size={72} />}
           onPick={icon_image => save({ icon_image }, 'Picture updated')}
           onRemove={() => save({ icon_image: null }, 'Picture removed')} />
-        {!ws.icon_image && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Or use an emoji:</span>
-            <input value={emoji} onChange={e => setEmoji(e.target.value)} maxLength={8} style={{ ...field, width: 56, textAlign: 'center', fontSize: 18, padding: '4px 6px' }} />
-            <button style={secondary} disabled={!emoji.trim() || emoji === ws.icon} onClick={() => save({ icon: emoji }, 'Icon updated')}>Use</button>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+          <EmojiButton value={ws.icon} onChange={async e => {
+            // Picking an emoji replaces an uploaded picture.
+            await save(ws.icon_image ? { icon: e, icon_image: null } : { icon: e }, 'Icon updated');
+          }} />
+          <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            {ws.icon_image ? 'Or use an emoji instead of the picture' : 'Or pick an emoji'}
+          </span>
+        </div>
       </section>
 
       <section style={section}>
