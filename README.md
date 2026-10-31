@@ -26,6 +26,8 @@
 - **Themes** — Dark, Light, Dracula, Nord, Solarized, Tokyo Night
 - **Multi-user** — First user becomes admin and invites everyone else
 - **Hierarchical notes** — Nest notes inside each other
+- **Offline-first** — Keep writing with no connection; changes upload automatically when you're back online
+- **Installable** — Add to your phone's home screen or desktop as an app
 - **Proxy-ready** — Works behind Nginx Proxy Manager, Cloudflare Tunnel
 
 ---
@@ -67,6 +69,23 @@ GitHub Actions automatically builds and pushes a new image on every push to main
 4. Create your first workspace and start taking notes
 
 Want open sign-ups instead? Set `ALLOW_REGISTRATION=true`.
+
+---
+
+## Offline Mode
+
+Synapse keeps a copy of your notes on each device, so you can open, search, write and organise notes without a connection.
+
+- **While offline**, the badge in the top bar shows **Offline · N waiting**. Everything you do is saved on the device right away.
+- **When you reconnect**, waiting changes upload automatically (or click the badge to sync now), and changes made on your other devices download.
+- **Conflicts never lose work.** If a note was edited on another device while you were offline, the other device's version stays, and yours is saved next to it as **"Title (conflict copy)"**. Merge them by hand and delete the copy.
+- **Install it:** in Chrome or Edge use *Install app* in the address bar; on iPhone use *Share → Add to Home Screen*.
+
+Notes:
+- Your first sign-in on a device needs a connection.
+- Offline mode needs **HTTPS** (or `localhost`) for the app to open with no connection. Your notes are still stored locally over plain HTTP, but the page itself won't load offline.
+- Creating workspaces and uploading attachments still need a connection.
+- Signing out removes the device's copy of your notes (you'll be warned if anything hasn't uploaded yet).
 
 ---
 
@@ -129,6 +148,7 @@ cd frontend && npm install && npm run dev     # UI on :5173, proxies /api to :30
 - **Backend:** Node.js + Express + better-sqlite3 (WAL mode)
 - **Frontend:** React 18 + Vite + TailwindCSS + TipTap + D3.js
 - **Auth:** JWT (7-day expiry)
-- **Search:** SQLite FTS5 with porter stemmer
+- **Search:** SQLite FTS5 with porter stemmer on the server; in-browser search of the local copy in the app
+- **Offline:** Service worker (vite-plugin-pwa) caches the app; IndexedDB holds notes plus an outbox of pending changes (`frontend/src/offline/`). Notes carry a version number so the server can detect conflicting edits
 - **Graph:** D3 force simulation
 - **Image:** Alpine Linux, hosted on GHCR

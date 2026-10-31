@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../api';
 import { applyTheme } from '../themes';
+import { refreshTree } from '../offline/sync';
 
 export const useStore = create(
   persist(
@@ -25,6 +26,9 @@ export const useStore = create(
       searchOpen: false,
       settingsOpen: false,
 
+      // Offline sync status (see offline/sync.js)
+      sync: { online: true, pending: 0, syncing: false, lastSyncAt: null },
+
       // Auth actions
       setAuth: (user, token) => {
         set({ user, token });
@@ -38,13 +42,8 @@ export const useStore = create(
       // Workspace actions
       setWorkspaces: (workspaces) => set({ workspaces }),
       setActiveWorkspace: async (ws) => {
-        set({ activeWorkspace: ws, activeNote: null });
-        if (ws) {
-          try {
-            const { data } = await api.get(`/notes/workspace/${ws.id}`);
-            set({ notes: data.notes });
-          } catch {}
-        }
+        set({ activeWorkspace: ws, activeNote: null, notes: [] });
+        if (ws) await refreshTree();
       },
 
       // Note actions

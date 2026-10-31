@@ -6,8 +6,7 @@ import Editor from '../components/editor/Editor';
 import GraphView from '../components/graph/GraphView';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
-import api from '../api';
-import toast from 'react-hot-toast';
+import { startOffline, getWorkspaces, syncNow } from '../offline/sync';
 
 export default function AppPage() {
   const { sidebarOpen, sidebarWidth, setSidebarWidth, view, workspaces, setWorkspaces, activeWorkspace, setActiveWorkspace, user } = useStore(s => ({
@@ -18,16 +17,23 @@ export default function AppPage() {
 
   const setSearchOpen = useStore(s => s.setSearchOpen);
 
-  // Load workspaces on mount
+  // Show the local copy immediately (works offline), then sync with the server.
   useEffect(() => {
-    api.get('/workspaces').then(({ data }) => {
-      setWorkspaces(data.workspaces);
-      if (data.workspaces.length > 0) {
-        const saved = activeWorkspace ? data.workspaces.find(w => w.id === activeWorkspace.id) : null;
-        setActiveWorkspace(saved || data.workspaces[0]);
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      await startOffline(user);
+      const local = await getWorkspaces();
+      if (cancelled) return;
+      if (local.length > 0) {
+        setWorkspaces(local);
+        const saved = activeWorkspace ? local.find(w => w.id === activeWorkspace.id) : null;
+        await setActiveWorkspace(saved || local[0]);
       }
-    }).catch(() => toast.error('Failed to load workspaces'));
-  }, []);
+      syncNow();
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // Keyboard shortcuts
   useEffect(() => {

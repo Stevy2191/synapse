@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { useStore } from '../../stores/useStore';
-import api from '../../api';
+import { graphData as loadGraph, openNote } from '../../offline/sync';
 import toast from 'react-hot-toast';
 
 export default function GraphView() {
@@ -16,9 +16,7 @@ export default function GraphView() {
 
   useEffect(() => {
     if (!activeWorkspace) return;
-    api.get(`/notes/workspace/${activeWorkspace.id}/graph`).then(({ data }) => {
-      setGraphData(data);
-    }).catch(() => toast.error('Failed to load graph'));
+    loadGraph(activeWorkspace.id).then(setGraphData).catch(() => toast.error('Failed to load graph'));
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
@@ -88,10 +86,7 @@ export default function GraphView() {
       .attr('stroke-width', d => activeNote?.note?.id === d.id ? 3 : 1)
       .style('filter', 'drop-shadow(0 0 8px var(--accent))')
       .on('click', async (e, d) => {
-        try {
-          const { data } = await api.get(`/notes/${d.id}`);
-          setActiveNote(data);
-        } catch {}
+        await openNote(d.id);
       })
       .on('mouseenter', (e, d) => {
         setHovered(d);

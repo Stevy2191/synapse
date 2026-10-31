@@ -4,6 +4,7 @@ import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
 import api from '../../api';
 import toast from 'react-hot-toast';
+import { signOut } from '../../offline/sync';
 
 export default function Settings() {
   const { user, setTheme, logout, settingsOpen, setSettingsOpen } = useStore(s => ({
@@ -49,7 +50,7 @@ export default function Settings() {
             </button>
           ))}
           <div style={{ flex: 1 }} />
-          <button onClick={() => { logout(); setSettingsOpen(false); }} style={{
+          <button onClick={async () => { if (await signOut()) setSettingsOpen(false); }} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'var(--danger)', fontFamily: 'var(--font-sans)'
           }}>
             <LogOut size={14} /> Sign Out

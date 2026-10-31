@@ -94,3 +94,7 @@ body {
 .cm-editor { font-family: var(--font-mono) !important; font-size: 14px; height: 100%; }
 .cm-editor.cm-focused { outline: none; }
 .cm-scroller { overflow: auto; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1.2s linear infinite; }
+@media (max-width: 640px) { .sync-label { display: none; } }

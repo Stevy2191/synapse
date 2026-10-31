@@ -4,6 +4,7 @@ import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
+import { openNote, createNote as createLocalNote, deleteNote, syncNow } from '../../offline/sync';
 
 function countDescendants(id, notes) {
   const kids = notes.filter(n => n.parent_id === id);
@@ -29,8 +30,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
       : `Delete "${note.title}"?`;
     if (!confirm(message)) return;
     try {
-      const { data } = await api.delete(`/notes/${note.id}`);
-      removeNoteFromTree(data.deleted || note.id);
+      removeNoteFromTree(await deleteNote(note.id));
       toast.success('Note deleted');
     } catch { toast.error('Failed to delete'); }
   };
@@ -94,20 +94,14 @@ export default function Sidebar({ width }) {
 
   const roots = notes.filter(n => !n.parent_id);
 
-  const selectNote = useCallback(async (id) => {
-    try {
-      const { data } = await api.get(`/notes/${id}`);
-      setActiveNote(data);
-    } catch { toast.error('Failed to load note'); }
-  }, [setActiveNote]);
+  const selectNote = useCallback((id) => openNote(id), []);
 
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
     const titles = { note: 'Untitled', diagram: 'New Diagram', draw: 'New Drawing' };
     try {
-      const { data } = await api.post('/notes', { workspace_id: activeWorkspace.id, parent_id: parentId, title: titles[type] || 'Untitled', note_type: type });
-      addNoteToTree(data.note);
-      selectNote(data.note.id);
+      const note = await createLocalNote({ workspace_id: activeWorkspace.id, parent_id: parentId, title: titles[type] || 'Untitled', note_type: type });
+      selectNote(note.id);
     } catch { toast.error('Failed to create note'); }
   };
 
@@ -120,7 +114,10 @@ export default function Sidebar({ width }) {
       setWorkspaces([...workspaces, data.workspace]);
       setActiveWorkspace(data.workspace);
       setNewWs(false); setWsName(''); setWsIcon('📁');
-    } catch { toast.error('Failed to create workspace'); }
+      syncNow();
+    } catch (err) {
+      toast.error(err.response ? 'Failed to create workspace' : 'Creating a workspace needs a connection');
+    }
   };
 
   return (

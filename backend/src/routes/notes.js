@@ -7,6 +7,10 @@ const router = Router();
 router.use(requireAuth);
 
 const NOTE_TYPES = ['note', 'diagram', 'draw'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Changing any of these bumps the note's version. Moves (parent/position) don't, so
+// reorganising the tree on one device never conflicts with edits on another.
+const CONTENT_FIELDS = ['title', 'content', 'rich_content', 'canvas_data', 'tags', 'editor_mode', 'note_type'];
 const EDITOR_MODES = ['markdown', 'rich'];
 
 function getWorkspace(wsId, userId) {
@@ -82,7 +86,18 @@ function saveSideEffects(note, previousTitle = null) {
 // All notes in a workspace (tree data, no content)
 router.get('/workspace/:wsId', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
-  const notes = db.prepare('SELECT id,parent_id,title,tags,note_type,position,created_at,updated_at FROM notes WHERE workspace_id=? ORDER BY position,created_at').all(req.params.wsId);
+  const notes = db.prepare('SELECT id,parent_id,title,tags,note_type,position,version,created_at,updated_at FROM notes WHERE workspace_id=? ORDER BY position,created_at').all(req.params.wsId);
+  res.json({ notes });
+});
+
+// Full notes by id, for devices filling their offline copy.
+router.post('/batch', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(id => typeof id === 'string').slice(0, 200) : [];
+  if (ids.length === 0) return res.json({ notes: [] });
+  const placeholders = ids.map(() => '?').join(',');
+  const notes = db.prepare(`
+    SELECT n.* FROM notes n JOIN workspaces w ON w.id=n.workspace_id
+    WHERE n.id IN (${placeholders}) AND w.user_id=?`).all(...ids, req.user.id);
   res.json({ notes });
 });
 
@@ -147,20 +162,47 @@ router.get('/:id', (req, res) => {
 });
 
 // Create
+// Create. Devices may supply their own `id` (notes made offline); repeating a create is harmless.
 router.post('/', (req, res) => {
-  const { workspace_id, parent_id = null, title = 'Untitled', content = '', note_type = 'note', canvas_data = null } = req.body || {};
+  const body = req.body || {};
+  const { workspace_id, title = 'Untitled', content = '', note_type = 'note', canvas_data = null,
+    rich_content = null, editor_mode = 'markdown', tags = [] } = body;
+  let parent_id = body.parent_id ?? null;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
   if (!getWorkspace(workspace_id, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
   if (!NOTE_TYPES.includes(note_type)) return res.status(400).json({ error: 'Invalid note type' });
+  if (!EDITOR_MODES.includes(editor_mode)) return res.status(400).json({ error: 'Invalid editor mode' });
   if (typeof title !== 'string' || typeof content !== 'string') return res.status(400).json({ error: 'Invalid note' });
-  const parentError = validateParent(parent_id, workspace_id);
-  if (parentError) return res.status(400).json({ error: parentError });
+  if (rich_content !== null && typeof rich_content !== 'string') return res.status(400).json({ error: 'Invalid rich_content' });
+  if (canvas_data !== null && typeof canvas_data !== 'string') return res.status(400).json({ error: 'Invalid canvas_data' });
+  const cleanTags = normalizeTags(tags);
+  if (!cleanTags) return res.status(400).json({ error: 'Tags must be a list' });
 
-  const id = uuid();
+  let id = uuid();
+  if (body.id !== undefined) {
+    if (typeof body.id !== 'string' || !UUID.test(body.id)) return res.status(400).json({ error: 'Invalid id' });
+    const existing = db.prepare('SELECT * FROM notes WHERE id=?').get(body.id);
+    if (existing) {
+      // Already created (e.g. the device retried after losing the response).
+      if (getOwnedNote(existing.id, req.user.id)) return res.json({ note: existing });
+      return res.status(409).json({ error: 'Note id already in use' });
+    }
+    id = body.id;
+  }
+
+  // A parent deleted on another device while this note was made offline: put it at the top level.
+  if (validateParent(parent_id, workspace_id)) {
+    if (!body.id) return res.status(400).json({ error: 'Parent note not found' });
+    parent_id = null;
+  }
+
   const note = db.transaction(() => {
     const maxPos = db.prepare('SELECT MAX(position) AS m FROM notes WHERE workspace_id=? AND parent_id IS ?').get(workspace_id, parent_id);
-    db.prepare('INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data) VALUES (?,?,?,?,?,?,?,?)')
-      .run(id, workspace_id, parent_id, title.trim() || 'Untitled', content, (maxPos.m ?? -1) + 1, note_type, canvas_data);
+    const position = Number.isInteger(body.position) ? body.position : (maxPos.m ?? -1) + 1;
+    db.prepare(`INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data,rich_content,editor_mode,tags)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, workspace_id, parent_id, title.trim() || 'Untitled', content, position, note_type, canvas_data,
+        rich_content, editor_mode, JSON.stringify(cleanTags));
     const created = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
     saveSideEffects(created);
     return created;
@@ -169,10 +211,17 @@ router.post('/', (req, res) => {
 });
 
 // Update. Only fields present in the body change; `parent_id: null` moves the note to the top level.
+//
+// Offline sync: devices send `base_version` (the version their edit started from) and `op_id`
+// (unique per save). If the note changed elsewhere in the meantime, the device's edits are saved
+// as a new "(conflict copy)" note next to the original, so nothing is lost; the response then
+// has the untouched original in `note` and the copy in `conflict_copy`.
 router.patch('/:id', (req, res) => {
   const note = getOwnedNote(req.params.id, req.user.id);
   if (!note) return res.status(404).json({ error: 'Not found' });
   const body = req.body || {};
+  const opId = typeof body.op_id === 'string' ? body.op_id.slice(0, 64) : null;
+  if (opId && note.last_op_id === opId) return res.json({ note }); // retry of a save already applied
   const next = { ...note };
 
   if (body.title !== undefined) {
@@ -208,19 +257,47 @@ router.patch('/:id', (req, res) => {
     next.position = body.position;
   }
 
+  const touchesContent = CONTENT_FIELDS.some(f => body[f] !== undefined);
+  const baseVersion = body.base_version;
+  if (touchesContent && Number.isInteger(baseVersion) && baseVersion !== note.version) {
+    const copy = createConflictCopy(note, next, opId);
+    return res.json({ note: getOwnedNote(note.id, req.user.id), conflict_copy: copy });
+  }
+
   const updated = db.transaction(() => {
     db.prepare(`
       UPDATE notes SET title=?, content=?, parent_id=?, position=?, tags=?, editor_mode=?,
-        note_type=?, canvas_data=?, rich_content=?, updated_at=unixepoch()
+        note_type=?, canvas_data=?, rich_content=?, version=version+?, last_op_id=?,
+        updated_at=CASE WHEN ? THEN unixepoch() ELSE updated_at END
       WHERE id=?
     `).run(next.title, next.content, next.parent_id, next.position, next.tags, next.editor_mode,
-      next.note_type, next.canvas_data, next.rich_content, note.id);
+      next.note_type, next.canvas_data, next.rich_content, touchesContent ? 1 : 0, opId ?? note.last_op_id,
+      touchesContent ? 1 : 0, note.id);
     const row = db.prepare('SELECT * FROM notes WHERE id=?').get(note.id);
-    saveSideEffects(row, note.title);
+    if (touchesContent) saveSideEffects(row, note.title);
     return row;
   })();
   res.json({ note: updated });
 });
+
+function createConflictCopy(original, edited, opId) {
+  return db.transaction(() => {
+    // Retried conflicting save: return the copy made the first time.
+    if (opId) {
+      const existing = db.prepare('SELECT * FROM notes WHERE last_op_id=? AND id<>?').get(opId, original.id);
+      if (existing) return existing;
+    }
+    const id = uuid();
+    const title = `${edited.title} (conflict copy)`;
+    db.prepare(`INSERT INTO notes (id,workspace_id,parent_id,title,content,position,tags,editor_mode,note_type,canvas_data,rich_content,last_op_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, original.workspace_id, original.parent_id, title, edited.content, original.position + 1, edited.tags,
+        edited.editor_mode, edited.note_type, edited.canvas_data, edited.rich_content, opId);
+    const copy = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
+    saveSideEffects(copy);
+    return copy;
+  })();
+}
 
 // Delete a note and everything nested under it.
 router.delete('/:id', (req, res) => {

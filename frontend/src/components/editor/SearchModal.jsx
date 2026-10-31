@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
-import api from '../../api';
+import { searchNotes, openNote } from '../../offline/sync';
 
 export default function SearchModal() {
-  const { searchOpen, setSearchOpen, activeWorkspace, setActiveNote } = useStore(s => ({
+  const { searchOpen, setSearchOpen, activeWorkspace } = useStore(s => ({
     searchOpen: s.searchOpen, setSearchOpen: s.setSearchOpen,
-    activeWorkspace: s.activeWorkspace, setActiveNote: s.setActiveNote
+    activeWorkspace: s.activeWorkspace
   }));
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
@@ -22,20 +22,16 @@ export default function SearchModal() {
     clearTimeout(timer.current);
     if (!q.trim() || !activeWorkspace) { setResults([]); return; }
     setLoading(true);
+    // Searches this device's copy, so it works offline too.
     timer.current = setTimeout(async () => {
-      try {
-        const { data } = await api.get(`/notes/workspace/${activeWorkspace.id}/search?q=${encodeURIComponent(q)}`);
-        setResults(data.results);
-      } finally { setLoading(false); }
-    }, 250);
+      try { setResults(await searchNotes(activeWorkspace.id, q)); }
+      finally { setLoading(false); }
+    }, 150);
   }, [q, activeWorkspace]);
 
   const select = async (id) => {
-    try {
-      const { data } = await api.get(`/notes/${id}`);
-      setActiveNote(data);
-      setSearchOpen(false);
-    } catch {}
+    await openNote(id);
+    setSearchOpen(false);
   };
 
   useEffect(() => {

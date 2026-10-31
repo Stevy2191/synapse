@@ -87,6 +87,10 @@ addColumn('notes', `note_type TEXT NOT NULL DEFAULT 'note'`);
 addColumn('notes', `canvas_data TEXT`);
 addColumn('notes', `rich_content TEXT`);
 addColumn('users', `token_version INTEGER NOT NULL DEFAULT 0`);
+// Offline sync: `version` goes up on every content change so devices can detect conflicts,
+// and `last_op_id` makes retried saves idempotent.
+addColumn('notes', `version INTEGER NOT NULL DEFAULT 1`);
+addColumn('notes', `last_op_id TEXT`);
 
 /** Plain text used for search and [[link]] detection, covering both markdown and rich-text notes. */
 export function searchableText(note) {

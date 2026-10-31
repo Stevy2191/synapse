@@ -1,5 +1,36 @@
-import { Search, GitGraph, PanelLeft, Settings, Network } from 'lucide-react';
+import { Search, PanelLeft, Settings, Network, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
+import { syncNow } from '../../offline/sync';
+
+function SyncIndicator() {
+  const sync = useStore(s => s.sync);
+  let icon, label, color, title;
+  if (!sync.online) {
+    icon = <CloudOff size={14} />;
+    color = 'var(--warning)';
+    label = sync.pending > 0 ? `Offline · ${sync.pending} waiting` : 'Offline';
+    title = 'You can keep working. Changes are saved on this device and upload when you reconnect.';
+  } else if (sync.syncing || sync.pending > 0) {
+    icon = <RefreshCw size={14} className="spin" />;
+    color = 'var(--text-muted)';
+    label = sync.pending > 0 ? `Syncing ${sync.pending}` : 'Syncing';
+    title = 'Uploading changes';
+  } else {
+    icon = <Cloud size={14} />;
+    color = 'var(--text-muted)';
+    label = 'Synced';
+    title = sync.lastSyncAt ? `Last synced ${new Date(sync.lastSyncAt).toLocaleTimeString()}` : 'Synced';
+  }
+  return (
+    <button onClick={() => syncNow()} title={`${title}\nClick to sync now.`} style={{
+      display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 14,
+      border: '1px solid var(--border)', background: 'transparent', color, cursor: 'pointer',
+      fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap'
+    }}>
+      {icon}<span className="sync-label">{label}</span>
+    </button>
+  );
+}
 
 export default function Navbar() {
   const { sidebarOpen, setSidebarOpen, view, setView, setSearchOpen, setSettingsOpen, user, activeWorkspace } = useStore(s => ({
@@ -33,6 +64,8 @@ export default function Navbar() {
       )}
 
       <div style={{ flex: 1 }} />
+
+      <SyncIndicator />
 
       {/* View switcher - only in editor */}
       <button

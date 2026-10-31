@@ -7,7 +7,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { Eye, Edit, Columns, Link2, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
-import api from '../../api';
+import { saveNote, openNoteByTitle } from '../../offline/sync';
 import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
@@ -129,10 +129,10 @@ function MarkdownToolbar({ onFormat }) {
 }
 
 export default function Editor() {
-  const { activeNote, view, setView, updateNoteInTree, setActiveNote, activeWorkspace } = useStore(s => ({
+  const { activeNote, view, setView, updateNoteInTree, activeWorkspace, notes, syncState } = useStore(s => ({
     activeNote: s.activeNote, view: s.view, setView: s.setView,
-    updateNoteInTree: s.updateNoteInTree, setActiveNote: s.setActiveNote,
-    activeWorkspace: s.activeWorkspace
+    updateNoteInTree: s.updateNoteInTree, activeWorkspace: s.activeWorkspace,
+    notes: s.notes, syncState: s.sync
   }));
 
   const [title, setTitle] = useState('');
@@ -156,22 +156,39 @@ export default function Editor() {
       try { setTags(JSON.parse(activeNote.note.tags || '[]')); } catch { setTags([]); }
       setLinkSuggestions([]);
     }
-  }, [activeNote?.note?.id]);
+  }, [activeNote?.note?.id, activeNote?.loadedAt]);
 
-  const save = useCallback(async (t, c, rc, tg, mode) => {
-    if (!activeNote?.note) return;
-    setSaving(true);
+  // Saves go to this device first (instant, works offline); offline/sync.js uploads them.
+  const save = useCallback(async (noteId, t, c, rc, tg, mode) => {
     try {
-      await api.patch(`/notes/${activeNote.note.id}`, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
-      updateNoteInTree(activeNote.note.id, { title: t });
-    } catch { toast.error('Save failed'); }
-    finally { setSaving(false); }
-  }, [activeNote?.note?.id]);
+      await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
+      updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) });
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not save on this device');
+    } finally { setSaving(false); }
+  }, []);
+
+  const pendingSave = useRef(null);
+  const flushSave = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    if (pendingSave.current) { const args = pendingSave.current; pendingSave.current = null; save(...args); }
+  }, [save]);
 
   const schedSave = (t, c, rc, tg, mode) => {
+    if (!activeNote?.note) return;
+    setSaving(true);
+    pendingSave.current = [activeNote.note.id, t, c, rc, tg, mode];
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => save(t, c, rc, tg, mode), 800);
+    saveTimer.current = setTimeout(flushSave, 500);
   };
+
+  // Don't lose the last keystrokes when switching notes or closing the tab.
+  useEffect(() => flushSave, [activeNote?.note?.id, flushSave]);
+  useEffect(() => {
+    window.addEventListener('pagehide', flushSave);
+    return () => window.removeEventListener('pagehide', flushSave);
+  }, [flushSave]);
 
   const handleTitleChange = (e) => {
     setTitle(e.target.value);
@@ -198,12 +215,12 @@ export default function Editor() {
     schedSave(title, content, html, tags, editorMode);
   };
 
-  const fetchLinkSuggestions = async (q) => {
-    if (!activeWorkspace) return;
-    try {
-      const { data } = await api.get(`/notes/workspace/${activeWorkspace.id}/titles?q=${encodeURIComponent(q)}`);
-      setLinkSuggestions(data.titles);
-    } catch {}
+  const fetchLinkSuggestions = (q) => {
+    const needle = q.toLowerCase();
+    setLinkSuggestions(notes
+      .filter(n => n.id !== activeNote?.note?.id && n.title.toLowerCase().includes(needle))
+      .slice(0, 10)
+      .map(n => ({ id: n.id, title: n.title })));
   };
 
   const addTag = () => {
@@ -283,13 +300,14 @@ export default function Editor() {
 
   const noteType = activeNote?.note?.note_type || 'note';
 
-  const handleCanvasChange = useCallback(async (canvasData) => {
-    if (!activeNote?.note) return;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try { await api.patch(`/notes/${activeNote.note.id}`, { canvas_data: canvasData }); }
-      catch { toast.error('Save failed'); }
-    }, 800);
+  const canvasTimer = useRef(null);
+  const handleCanvasChange = useCallback((canvasData) => {
+    const noteId = activeNote?.note?.id;
+    if (!noteId) return;
+    clearTimeout(canvasTimer.current);
+    canvasTimer.current = setTimeout(() => {
+      saveNote(noteId, { canvas_data: canvasData }).catch(() => toast.error('Could not save on this device'));
+    }, 500);
   }, [activeNote?.note?.id]);
 
   if (!activeNote?.note) {
@@ -341,8 +359,9 @@ export default function Editor() {
           )}
 
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 60, textAlign: 'right' }}>
-            {saving ? '💾 Saving...' : '✓ Saved'}
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 60, textAlign: 'right' }}
+            title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'}>
+            {saving ? 'Saving…' : syncState.pending > 0 ? '✓ Saved on device' : '✓ Saved'}
           </span>
         </div>
       )}
@@ -390,7 +409,7 @@ export default function Editor() {
         <div style={{ padding: '0 24px 8px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
           <Link2 size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           {activeNote.links.map(l => (
-            <span key={l.id} style={{
+            <span key={l.id + l.direction} onClick={() => openNoteByTitle(activeWorkspace.id, l.title)} style={{
               padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500,
               background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer'
             }}>
@@ -450,7 +469,7 @@ export default function Editor() {
                   <div style={{ flex: 1, minHeight: 0, padding: '16px 24px 48px', overflow: 'auto' }}>
                     <div className="markdown-preview"
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-                      onClick={e => { const link = e.target.closest('.wiki-link'); if (link) toast(`Navigate to: ${link.dataset.link}`, { icon: '🔗' }); }}
+                      onClick={e => { const link = e.target.closest('.wiki-link'); if (link) openNoteByTitle(activeWorkspace.id, link.dataset.link); }}
                     />
                   </div>
                 )}
