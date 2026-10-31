@@ -93,6 +93,12 @@ addColumn('notes', `note_type TEXT NOT NULL DEFAULT 'note'`);
 addColumn('notes', `canvas_data TEXT`);
 addColumn('notes', `rich_content TEXT`);
 addColumn('users', `token_version INTEGER NOT NULL DEFAULT 0`);
+// Profiles and workspace settings
+addColumn('users', `display_name TEXT`);
+addColumn('users', `avatar TEXT`);              // small image as a data URL
+addColumn('workspaces', `icon_image TEXT`);     // small image as a data URL (else the emoji icon)
+addColumn('workspaces', `settings TEXT NOT NULL DEFAULT '{}'`);
+
 // Two-step verification
 addColumn('users', `totp_secret TEXT`);          // base32; set while setting up, kept once enabled
 addColumn('users', `totp_enabled INTEGER NOT NULL DEFAULT 0`);

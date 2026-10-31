@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, Settings, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
+import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow } from '../../offline/sync';
 
 const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
@@ -160,9 +161,7 @@ function WorkspacePicker() {
         display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '7px 9px', cursor: 'pointer',
         color: 'var(--text-primary)', font: '500 13px var(--font-sans)', background: 'var(--bg-elevated)',
       }}>
-        <span style={{ width: 22, height: 22, borderRadius: 6, display: 'grid', placeItems: 'center', fontSize: 13, background: 'var(--accent-subtle)' }}>
-          {activeWorkspace?.icon || '📁'}
-        </span>
+        <WorkspaceIcon workspace={activeWorkspace} size={22} />
         <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {activeWorkspace?.name || 'Workspace'}
         </span>
@@ -173,12 +172,15 @@ function WorkspacePicker() {
         <div className="card fade-in" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, padding: 5, boxShadow: 'var(--shadow)', background: 'var(--bg-elevated)' }}>
           {workspaces.map(ws => (
             <button key={ws.id} className="nav-item" onClick={() => { setActiveWorkspace(ws); setOpen(false); }}>
-              <span style={{ width: 18, textAlign: 'center' }}>{ws.icon}</span>
+              <WorkspaceIcon workspace={ws} size={18} />
               <span style={{ flex: 1 }}>{ws.name}</span>
               {activeWorkspace?.id === ws.id && <Check size={13} style={{ color: 'var(--accent)' }} />}
             </button>
           ))}
           <div style={{ height: 1, background: 'var(--border)', margin: '5px 2px' }} />
+          <button className="nav-item" onClick={() => { setOpen(false); useStore.getState().setSettingsOpen('ws-general'); }} style={{ color: 'var(--text-secondary)' }}>
+            <Settings2 size={14} /> Workspace settings
+          </button>
           {creating ? (
             <div style={{ display: 'flex', gap: 5, padding: 3 }}>
               <input value={icon} onChange={e => setIcon(e.target.value)} style={{ ...miniInput, width: 38, textAlign: 'center' }} />
@@ -304,13 +306,14 @@ export default function Sidebar({ width, onNavigate }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 10px 12px', borderTop: '1px solid var(--border-subtle)' }}>
         <SyncStatus />
         <div style={{ flex: 1 }} />
-        <button onClick={() => setSettingsOpen(true)} className="btn-ghost" title="Settings"><Settings size={15} /></button>
-        <button onClick={() => setSettingsOpen(true)} title={user?.username} style={{
-          width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
-          background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))', color: '#fff',
-          font: '700 12px var(--font-sans)', boxShadow: 'var(--glow)',
+        {/* You: opens Settings (account, workspace and, for admins, server) */}
+        <button onClick={() => setSettingsOpen('profile')} title="Settings" className="btn-ghost account-button" style={{
+          height: 36, padding: '0 6px 0 4px', gap: 8, maxWidth: 150, borderRadius: 99,
         }}>
-          {user?.username?.[0]?.toUpperCase()}
+          <UserAvatar user={user} size={28} style={{ boxShadow: 'var(--glow)' }} />
+          <span className="sync-label" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {displayName(user)}
+          </span>
         </button>
       </div>
 

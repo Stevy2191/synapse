@@ -212,3 +212,39 @@ body {
 .tree-row.drop-inside { background: var(--accent-subtle); outline: 1px dashed var(--accent); outline-offset: -1px; }
 .drop-root { background: linear-gradient(to bottom, transparent calc(100% - 40px), var(--accent-subtle)); }
 .tree-row[draggable="true"] { -webkit-user-drag: element; }
+
+/* Settings window */
+.settings-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+  background: rgba(5, 6, 20, 0.6); backdrop-filter: blur(4px); padding: 12px;
+}
+.settings-window {
+  width: min(920px, 100%); height: min(640px, 100%); display: flex; overflow: hidden;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+}
+.settings-menu {
+  width: 248px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto;
+  padding: 18px 12px; background: var(--bg-sidebar); border-right: 1px solid var(--border);
+}
+.settings-page { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.settings-page-top { display: flex; align-items: center; padding: 10px 12px 0; }
+.settings-page-body { flex: 1; overflow-y: auto; padding: 4px 32px 32px; }
+.settings-back { display: none !important; }
+@media (max-width: 720px) {
+  .settings-overlay { padding: 0; }
+  .settings-window { height: 100%; border-radius: 0; }
+  .settings-menu { width: 100%; border-right: none; }
+  .settings-window.show-menu .settings-page { display: none; }
+  .settings-window.show-page .settings-menu { display: none; }
+  .settings-back { display: inline-flex !important; }
+  .settings-page-body { padding: 4px 16px 24px; }
+}
+
+/* On/off switch */
+.toggle {
+  width: 44px; height: 26px; border-radius: 99px; border: none; padding: 3px; cursor: pointer; flex-shrink: 0;
+  background: var(--border); transition: background .2s; display: flex;
+}
+.toggle span { width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.toggle.on { background: var(--accent); box-shadow: var(--glow); }
+.toggle.on span { transform: translateX(18px); }

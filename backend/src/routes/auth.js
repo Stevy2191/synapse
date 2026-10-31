@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
-import { ALLOW_REGISTRATION } from '../config.js';
+import { registrationOpen, validImage } from '../settings.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { createUser, setPassword, HttpError, PUBLIC_USER_FIELDS } from '../users.js';
@@ -26,11 +26,12 @@ router.get('/status', (req, res) => {
   res.json({
     setupRequired,
     setupCodeRequired: setupRequired && !setupCodeDisabled(),
-    registrationOpen: setupRequired || ALLOW_REGISTRATION,
+    registrationOpen: setupRequired || registrationOpen(),
   });
 });
 
-// Register. The first user becomes admin; after that, sign-up is closed unless ALLOW_REGISTRATION=true.
+// Register. The first user becomes admin; after that, sign-up is closed unless an admin opens it
+// (Settings → Server, or ALLOW_REGISTRATION=true as the starting value).
 router.post('/register', authLimiter, async (req, res, next) => {
   try {
     const body = req.body || {};
@@ -41,7 +42,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
         }
         return 'admin';
       }
-      if (!ALLOW_REGISTRATION) throw new HttpError(403, 'Registration is closed. Ask your admin for an account.');
+      if (!registrationOpen()) throw new HttpError(403, 'Registration is closed. Ask your admin for an account.');
       return 'user';
     });
     if (user.role === 'admin') clearSetupCode();
@@ -73,6 +74,41 @@ router.post('/login', authLimiter, async (req, res, next) => {
 router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare(`SELECT ${PUBLIC_USER_FIELDS} FROM users WHERE id=?`).get(req.user.id);
   res.json({ user });
+});
+
+// Profile: display name, picture, email. Changing the email needs the current password.
+router.patch('/profile', requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const updates = {};
+    if (body.display_name !== undefined) {
+      if (body.display_name !== null && typeof body.display_name !== 'string') throw new HttpError(400, 'Invalid name');
+      updates.display_name = (body.display_name || '').trim().slice(0, 60) || null;
+    }
+    if (body.avatar !== undefined) {
+      if (body.avatar !== null && !validImage(body.avatar)) throw new HttpError(400, 'Please choose a PNG, JPEG or WebP picture.');
+      updates.avatar = body.avatar;
+    }
+    if (body.email !== undefined) {
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new HttpError(400, 'Enter a valid email address');
+      const row = db.prepare('SELECT email, password_hash FROM users WHERE id=?').get(req.user.id);
+      if (email !== row.email) {
+        if (typeof body.current_password !== 'string' || !(await bcrypt.compare(body.current_password, row.password_hash))) {
+          throw new HttpError(400, 'Enter your current password to change your email.');
+        }
+        if (db.prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE AND id<>?').get(email, req.user.id)) {
+          throw new HttpError(409, 'That email is already used by another account.');
+        }
+        updates.email = email;
+      }
+    }
+    const keys = Object.keys(updates);
+    if (keys.length) {
+      db.prepare(`UPDATE users SET ${keys.map(k => `${k}=?`).join(', ')} WHERE id=?`).run(...keys.map(k => updates[k]), req.user.id);
+    }
+    res.json({ user: db.prepare(`SELECT ${PUBLIC_USER_FIELDS} FROM users WHERE id=?`).get(req.user.id) });
+  } catch (err) { next(err); }
 });
 
 router.patch('/theme', requireAuth, (req, res) => {

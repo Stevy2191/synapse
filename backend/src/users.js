@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { db, removeUploadFiles } from './db/index.js';
 import { MIN_PASSWORD_LENGTH } from './config.js';
 
-export const PUBLIC_USER_FIELDS = 'id,username,email,role,theme,created_at';
+export const PUBLIC_USER_FIELDS = 'id,username,email,role,theme,display_name,avatar,created_at';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }

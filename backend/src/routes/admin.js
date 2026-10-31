@@ -3,6 +3,10 @@ import { db } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { createUser, setPassword, deleteUser, adminCount, PUBLIC_USER_FIELDS } from '../users.js';
 import { resetMfa, mfaMethods } from '../mfa.js';
+import { getSetting, setSetting } from '../settings.js';
+import fs from 'fs';
+import path from 'path';
+import { DATA_DIR } from '../config.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -24,6 +28,48 @@ router.post('/users/:id/reset-mfa', (req, res) => {
   if (!findUser(req.params.id)) return res.status(404).json({ error: 'User not found' });
   resetMfa(req.params.id);
   res.json({ ok: true });
+});
+
+// Server-wide settings
+router.get('/settings', (req, res) => {
+  res.json({ allow_registration: getSetting('allow_registration') === 'true' });
+});
+
+router.patch('/settings', (req, res) => {
+  const body = req.body || {};
+  if (body.allow_registration !== undefined) {
+    if (typeof body.allow_registration !== 'boolean') return res.status(400).json({ error: 'Invalid value' });
+    setSetting('allow_registration', body.allow_registration);
+  }
+  res.json({ allow_registration: getSetting('allow_registration') === 'true' });
+});
+
+// About this server
+function folderSize(dir) {
+  let total = 0;
+  try {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      total += e.isDirectory() ? folderSize(p) : fs.statSync(p).size;
+    }
+  } catch {}
+  return total;
+}
+let version = 'unknown';
+try { version = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url))).version; } catch {}
+router.get('/about', (req, res) => {
+  const count = t => db.prepare(`SELECT COUNT(*) AS c FROM ${t}`).get().c;
+  res.json({
+    version,
+    node: process.version,
+    users: count('users'),
+    workspaces: count('workspaces'),
+    notes: count('notes'),
+    attachments: count('attachments'),
+    data_bytes: folderSize(DATA_DIR),
+    network_storage: process.env.SYNAPSE_NETWORK_STORAGE === 'true',
+    uptime_seconds: Math.round(process.uptime()),
+  });
 });
 
 router.post('/users', async (req, res, next) => {

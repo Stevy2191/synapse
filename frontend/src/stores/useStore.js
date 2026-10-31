@@ -26,6 +26,7 @@ export const useStore = create(
       rightRailOpen: true,
       searchOpen: false,
       settingsOpen: false,
+      settingsPage: 'profile',
 
       // Offline sync status (see offline/sync.js)
       sync: { online: true, pending: 0, syncing: false, lastSyncAt: null },
@@ -69,7 +70,10 @@ export const useStore = create(
       setSidebarWidth: (w) => set({ sidebarWidth: w }),
       setRightRailOpen: (open) => set({ rightRailOpen: open }),
       setSearchOpen: (open) => set({ searchOpen: open }),
-      setSettingsOpen: (open) => set({ settingsOpen: open }),
+      // setSettingsOpen(false) closes; true opens on Profile; a page name opens that page.
+      setSettingsOpen: (open) => set(typeof open === 'string'
+        ? { settingsOpen: true, settingsPage: open }
+        : { settingsOpen: !!open, ...(open ? { settingsPage: 'profile' } : {}) }),
 
       setTheme: async (theme) => {
         applyTheme(theme);

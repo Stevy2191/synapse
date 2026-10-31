@@ -269,13 +269,19 @@ export async function graphData(workspaceId) {
 
 // ───────────────────────── writing ─────────────────────────
 
-export async function createNote({ workspace_id, parent_id = null, title = 'Untitled', note_type = 'note' }) {
+export async function createNote({ workspace_id, parent_id = null, title = 'Untitled', note_type = 'note', editor_mode }) {
+  if (!editor_mode) {
+    // The workspace's preference (Settings → Workspace → Preferences); Write by default.
+    const ws = useStore.getState().workspaces.find(w => w.id === workspace_id);
+    try { editor_mode = JSON.parse(ws?.settings || '{}').default_editor; } catch {}
+    if (editor_mode !== 'markdown') editor_mode = 'rich';
+  }
   const d = await db();
   const siblings = (await getWorkspaceNotes(workspace_id)).filter(n => (n.parent_id ?? null) === parent_id);
   const now = Math.floor(Date.now() / 1000);
   const note = {
     id: uuid(), workspace_id, parent_id, title, note_type,
-    content: '', rich_content: null, canvas_data: null, editor_mode: 'rich', tags: '[]',
+    content: '', rich_content: null, canvas_data: null, editor_mode, tags: '[]',
     position: siblings.reduce((m, n) => Math.max(m, n.position), -1) + 1,
     created_at: now, updated_at: now, server_version: null,
   };

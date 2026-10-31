@@ -18,6 +18,7 @@ import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
 import FreeDrawEditor from './FreeDrawEditor';
 import Logo from '../Logo';
+import { WorkspaceIcon } from '../Avatar';
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -488,7 +489,7 @@ export default function Editor() {
       <div style={topBar}>
         {sidebarButton}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1, fontSize: 13, color: 'var(--text-muted)' }}>
-          <span style={{ whiteSpace: 'nowrap' }}>{activeWorkspace?.icon} {activeWorkspace?.name}</span>
+          <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}><WorkspaceIcon workspace={activeWorkspace} size={16} />{activeWorkspace?.name}</span>
           {crumbs.map(c => (
             <span key={c.id} style={{ display: 'contents' }}>
               <ChevronRight size={13} style={{ flexShrink: 0 }} />
