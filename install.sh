@@ -9,17 +9,29 @@
 #  command for updates and backups.
 #
 #  Options (all optional — you'll be asked otherwise):
-#    --dir PATH          where to install            (default /opt/synapse)
+#    --dir PATH          where to install   (default: the current folder if it suits, else /opt/synapse)
 #    --mode MODE         home | proxy | https | lan-https
 #    --port N            Synapse's port (home / proxy: from 3001; lan-https: from 8443)
 #    --trust-port N      lan-https: port for the "trust this server" page (from 8080)
 #    --domain NAME       web address for https mode, e.g. notes.example.com
+#    --storage KIND      where notes are kept: folder | volume | smb
+#    --data-path PATH    folder storage: the folder           (default: <install folder>/data)
+#    --volume NAME       volume storage: Docker volume name   (default: synapse-data)
+#    --smb-share PATH    smb storage: e.g. //nas/share/synapse  (password from $SMB_PASSWORD)
+#    --smb-user NAME     smb storage: user name
 #    --yes               accept the defaults without asking
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 REPO_RAW="https://raw.githubusercontent.com/Stevy2191/synapse/main"
-DIR="/opt/synapse"
+DIR=""
+STORAGE=""
+DATA_PATH=""
+VOLUME_NAME=""
+SMB_SHARE=""
+SMB_USER=""
+SMB_PASS="${SMB_PASSWORD:-}"
+SMB_DOMAIN=""
 MODE=""
 PORT=""
 TRUST_PORT=""
@@ -67,6 +79,11 @@ ORIG_ARGS=("$@")
 while [ $# -gt 0 ]; do
   case "$1" in
     --dir) DIR="$2"; shift 2 ;;
+    --storage) STORAGE="$2"; shift 2 ;;
+    --data-path) DATA_PATH="$2"; shift 2 ;;
+    --volume) VOLUME_NAME="$2"; shift 2 ;;
+    --smb-share) SMB_SHARE="$2"; shift 2 ;;
+    --smb-user) SMB_USER="$2"; shift 2 ;;
     --mode) MODE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --trust-port) TRUST_PORT="$2"; shift 2 ;;
@@ -77,6 +94,18 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$MODE" in ""|home|proxy|https|lan-https) ;; *) die "--mode must be home, proxy, https or lan-https" ;; esac
+case "$STORAGE" in ""|folder|volume|smb) ;; *) die "--storage must be folder, volume or smb" ;; esac
+
+# Files that ship next to this script (when run from a download of the repo rather than via curl).
+SCRIPT_DIR=""
+if [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(basename "${BASH_SOURCE[0]}")" = install.sh ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+local_or_download() { # local_or_download REPO-PATH DEST
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/$1" ]; then cp "$SCRIPT_DIR/$1" "$2"
+  else curl -fsSL "$REPO_RAW/$1" -o "$2"
+  fi
+}
 
 # ── Ports ───────────────────────────────────────────────────────────────────
 port_in_use() {
@@ -199,6 +228,84 @@ random_string() { # random_string LENGTH ALPHABET
   echo "$out"
 }
 
+# The `synapse` command, pointed at this install.
+install_cli() {
+  local dest="${SYNAPSE_CLI_DEST:-/usr/local/bin/synapse}"
+  local_or_download scripts/synapse "$dest.tmp" || die "Couldn't download the synapse command."
+  sed -i "s#^SYNAPSE_DIR=.*#SYNAPSE_DIR=\"\${SYNAPSE_DIR:-$DIR}\"#" "$dest.tmp"
+  chmod 755 "$dest.tmp" && mv "$dest.tmp" "$dest"
+  ok "Installed the 'synapse' command"
+}
+
+# Suggest an install folder: the current folder if it looks meant for Synapse,
+# a "synapse" folder inside it if it holds other things, else /opt/synapse.
+suggest_dir() {
+  local here="$PWD" home_dir="${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)}"
+  case "$here" in
+    /|/root|/home|/tmp|/var|/usr|/usr/*|/etc|/etc/*|/bin|/sbin|/boot|/boot/*|/proc*|/sys*|/dev*|/run*|/opt|/srv|/mnt|/media|/var/lib*)
+      echo /opt/synapse; return ;;
+  esac
+  if [ "$here" = "${home_dir:-/nonexistent}" ] || [ "$here" = "$HOME" ]; then echo /opt/synapse; return; fi
+  if is_synapse_install "$here" || [ -z "$(ls -A "$here" 2>/dev/null)" ] || [[ "$(basename "${here,,}")" == *synapse* ]]; then
+    echo "$here"
+  else
+    echo "$here/synapse"
+  fi
+}
+
+# Is there a Synapse docker-compose setup in this folder (from this installer or by hand)?
+is_synapse_install() {
+  local f
+  for f in "$1/docker-compose.yml" "$1/docker-compose.yaml" "$1/compose.yml" "$1/compose.yaml"; do
+    [ -f "$f" ] && grep -qiE 'stevy2191/synapse' "$f" && return 0
+  done
+  return 1
+}
+
+human_free() { df -h --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+
+# Mounted drives worth suggesting for notes (USB disks, second drives, NAS mounts).
+list_drives() {
+  df -h --output=target,size,avail,fstype -x tmpfs -x devtmpfs -x overlay -x squashfs 2>/dev/null \
+    | awk 'NR>1 && ($1 ~ "^/(mnt|media|srv|data|storage)" || $1 ~ "^/run/media") {printf "      %-32s %6s free of %s (%s)\n", $1, $3, $2, $4}'
+}
+
+# Try mounting the SMB share through Docker exactly as Synapse will, and report problems plainly.
+SMB_VERS=""
+test_smb() {
+  local host="$1" share_path="$2" ip="$3" vol out v
+  vol="synapse-smb-test-$$"
+  for v in 3.1.1 3.0 2.1; do
+    docker volume rm -f "$vol" >/dev/null 2>&1 || true
+    docker volume create --driver local --opt type=cifs --opt "device=//$host/$share_path" \
+      --opt "o=$(smb_options "$ip" "$v")" "$vol" >/dev/null
+    if out=$(docker run --rm --entrypoint sh -v "$vol:/data" ghcr.io/stevy2191/synapse:latest -c 'touch /data/.synapse-write-test && rm /data/.synapse-write-test' 2>&1); then
+      docker volume rm -f "$vol" >/dev/null 2>&1 || true
+      SMB_VERS="$v"; return 0
+    fi
+    out=$(echo "$out" | sed -E 's/password=[^,"]*/password=***/g')
+    case "${out,,}" in *"invalid argument"*|*"not supported"*) continue ;; esac
+    break
+  done
+  docker volume rm -f "$vol" >/dev/null 2>&1 || true
+  case "${out,,}" in
+    *"permission denied"*) warn "The share said no: check the user name and password, and that this user may write to the share." ;;
+    *"no such file"*|*"no such device"*) warn "The share or folder wasn't found: check the share name (and that the folder exists)." ;;
+    *"host is down"*|*"timed out"*|*"no route"*|*"refused"*) warn "Couldn't reach $host. Check it's switched on and on the same network." ;;
+    *"invalid argument"*|*"not supported"*) warn "The share didn't accept any SMB version Synapse tried (3.1.1, 3.0, 2.1)." ;;
+    *) warn "Couldn't use the share: $(echo "$out" | tail -1)" ;;
+  esac
+  return 1
+}
+
+# Mount options for the kernel's SMB client. Commas in the password are doubled, as it expects.
+smb_options() { # IP SMB_VERSION
+  local pass="${SMB_PASS//,/,,}"
+  local o="addr=$1,username=$SMB_USER,password=$pass,vers=$2,nobrl,uid=0,gid=0,file_mode=0600,dir_mode=0700"
+  [ -n "$SMB_DOMAIN" ] && o+=",domain=$SMB_DOMAIN"
+  echo "$o"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 printf '\n%s   ◉  Synapse installer%s\n' "$B$MAG" "$R"
 printf '%s   Your connected knowledge base%s\n' "$D" "$R"
@@ -241,26 +348,53 @@ if [ "$DRY_RUN" != 1 ]; then
   ok "Docker Compose $(docker compose version --short 2>/dev/null)"
 fi
 
-# Already installed? Offer an update instead.
-if [ -f "$DIR/docker-compose.yml" ]; then
-  warn "Synapse is already installed in $DIR."
-  if confirm "Update it to the latest version? (your notes are kept)" Y; then
-    [ "$DRY_RUN" = 1 ] && { ok "(dry run) would update"; exit 0; }
-    (cd "$DIR" && docker compose pull && docker compose up -d)
-    ok "Updated. Your notes are untouched."
-    exit 0
-  fi
-  die "Nothing changed. (To reinstall, remove $DIR first — or run 'synapse uninstall'.)"
-fi
-if [ "$DRY_RUN" != 1 ] && docker ps -a --format '{{.Names}}' | grep -qx synapse; then
-  die "A Docker container called \"synapse\" already exists (from an earlier manual install?). Remove it with 'docker rm -f synapse' — your notes folder is not deleted — then run this again."
-fi
-
 # ── 2. Where ────────────────────────────────────────────────────────────────
 step "Where to install"
-ask "Install folder:" "$DIR"
-DIR="$REPLY"
-ok "Synapse will live in $DIR (notes are kept in $DIR/data)"
+if [ -z "$DIR" ]; then
+  ask "Install folder:" "$(suggest_dir)"
+  DIR="$REPLY"
+fi
+DIR=$(realpath -m "$DIR")
+case "$DIR" in
+  /|/root|/home|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot|/proc*|/sys*|/dev*)
+    die "Please choose a folder of its own for Synapse, like $DIR/synapse — not $DIR itself." ;;
+esac
+
+# Already installed here (by this installer or by hand)? Offer an update instead.
+if is_synapse_install "$DIR"; then
+  warn "Synapse is already set up in $DIR."
+  if confirm "Update it to the latest version and add the 'synapse' command? (your notes are kept)" Y; then
+    if [ "$DRY_RUN" = 1 ]; then ok "(dry run) would update"; install_cli; exit 0; fi
+    (cd "$DIR" && docker compose pull && docker compose up -d)
+    ok "Updated. Your notes are untouched."
+    install_cli
+    say ""
+    say "  Run ${B}synapse status${R} to see the address, or ${B}synapse help${R} for everything else."
+    say ""
+    exit 0
+  fi
+  die "Nothing changed. (To reinstall, choose another folder or run 'synapse uninstall' first.)"
+fi
+CONTAINER=synapse
+# Never overwrite another app's setup.
+for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+  if [ -f "$DIR/$f" ]; then
+    die "$DIR already has a Docker Compose file ($f) for another app. Choose an empty folder for Synapse, e.g. $DIR/synapse"
+  fi
+done
+if [ "$DRY_RUN" != 1 ] && docker ps -a --format '{{.Names}}' | grep -qx synapse; then
+  if docker inspect -f '{{.Config.Image}}' synapse 2>/dev/null | grep -q 'stevy2191/synapse'; then
+    where=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' synapse 2>/dev/null || true)
+    if [ -n "$where" ] && [ "$where" != "<no value>" ]; then
+      die "Synapse is already running from $where. Run the installer from that folder (cd $where) to update it."
+    fi
+    die "A Synapse container already exists. Remove it with 'docker rm -f synapse' (your notes are not deleted), then run this again."
+  fi
+  # Something else (Matrix's Synapse chat server, for example) already uses the name.
+  CONTAINER=synapse-notes
+  info "Another app already has a container called \"synapse\"; this one will be called \"synapse-notes\"."
+fi
+ok "Synapse will live in $DIR"
 
 # ── 3. How people reach it ──────────────────────────────────────────────────
 step "How will you open Synapse?"
@@ -342,9 +476,97 @@ case "$MODE" in
     ;;
 esac
 
-# ── 4. Write the configuration ──────────────────────────────────────────────
+# ── 4. Where notes are kept ─────────────────────────────────────────────────
+step "Where should Synapse keep your notes?"
+SYNAPSE_DATA="./data"
+VOLUMES_BLOCK=""
+NETWORK_STORAGE=false
+while true; do
+  if [ -z "$STORAGE" ]; then
+    say ""
+    say "  ${B}1)${R} A folder on this server     ${D}easy to see and back up; can be on another drive${R}"
+    say "  ${B}2)${R} A Docker volume             ${D}Docker looks after it${R}"
+    say "  ${B}3)${R} A network share (SMB)       ${D}a NAS, or a shared folder on a Windows PC${R}"
+    say ""
+    ask "Choose 1, 2 or 3:" "1"
+    case "$REPLY" in 1) STORAGE=folder ;; 2) STORAGE=volume ;; 3) STORAGE=smb ;; *) warn "Please type 1, 2 or 3."; continue ;; esac
+  fi
+
+  case "$STORAGE" in
+    folder)
+      drives=$(list_drives)
+      if [ -n "$drives" ]; then info "Drives on this server you could use:"; say "$drives"; fi
+      if [ -z "$DATA_PATH" ]; then ask "Folder for your notes:" "$DIR/data"; DATA_PATH="$REPLY"; fi
+      DATA_PATH=$(realpath -m "$DATA_PATH")
+      if [ -f "$DATA_PATH/synapse.db" ]; then
+        ok "Found existing Synapse notes in $DATA_PATH. They'll be used."
+      elif [ -d "$DATA_PATH" ] && [ -n "$(ls -A "$DATA_PATH" 2>/dev/null)" ]; then
+        warn "$DATA_PATH already has other files in it."
+        if ! confirm "Keep Synapse's notes there anyway?" N; then DATA_PATH=""; [ "$ASSUME_YES" = 1 ] && die "Folder isn't empty"; continue; fi
+      fi
+      mkdir -p "$DATA_PATH" || { warn "Couldn't create $DATA_PATH."; DATA_PATH=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue; }
+      ok "Notes will be kept in $DATA_PATH ($(human_free "$DATA_PATH") free)"
+      if [ "$DATA_PATH" = "$DIR/data" ]; then SYNAPSE_DATA="./data"; else SYNAPSE_DATA="$DATA_PATH"; fi
+      ;;
+    volume)
+      if [ -z "$VOLUME_NAME" ]; then ask "Name for the Docker volume:" "synapse-data"; VOLUME_NAME="$REPLY"; fi
+      [[ "$VOLUME_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || { warn "Use letters, numbers, dots, dashes or underscores."; VOLUME_NAME=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue; }
+      if [ "$DRY_RUN" != 1 ] && docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
+        ok "Docker volume \"$VOLUME_NAME\" already exists. Any notes in it will be used."
+      else
+        ok "Notes will be kept in the Docker volume \"$VOLUME_NAME\""
+      fi
+      SYNAPSE_DATA="$VOLUME_NAME"
+      VOLUMES_BLOCK=$(printf 'volumes:\n  %s:\n    name: %s\n' "$VOLUME_NAME" "$VOLUME_NAME")
+      ;;
+    smb)
+      if [ -z "$SMB_SHARE" ]; then
+        info "Enter the share like \\\\nas\\notes, //nas/notes or smb://nas/notes, optionally with a folder after it."
+        ask "Network share:" ""
+        SMB_SHARE="$REPLY"
+      fi
+      # Normalise \\host\share\folder, smb://host/share/folder → host + share/folder
+      share=$(echo "$SMB_SHARE" | sed -E 's#^smb://##; s#\\#/#g; s#^/+##; s#/+$##')
+      SMB_HOST="${share%%/*}"; SMB_PATH="${share#*/}"
+      if [ -z "$SMB_HOST" ] || [ "$SMB_PATH" = "$share" ] || [ -z "$SMB_PATH" ]; then
+        warn "That should look like //server/share (with an optional /folder)."; SMB_SHARE=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue
+      fi
+      SMB_IP=$(getent ahostsv4 "$SMB_HOST" 2>/dev/null | awk 'NR==1{print $1}' || true)
+      [ -z "$SMB_IP" ] && [[ "$SMB_HOST" =~ ^[0-9.]+$ ]] && SMB_IP="$SMB_HOST"
+      if [ -z "$SMB_IP" ]; then warn "Couldn't find \"$SMB_HOST\" on the network. Try its IP address instead."; SMB_SHARE=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue; fi
+      if [ -z "$SMB_USER" ]; then ask "User name for the share:" ""; SMB_USER="$REPLY"; fi
+      if [ -z "$SMB_PASS" ] && have_tty && [ "$ASSUME_YES" != 1 ]; then
+        printf '  Password for %s (not shown): ' "$SMB_USER" >"$TTY"; IFS= read -rs SMB_PASS <"$TTY" || true; printf '\n' >"$TTY"
+      fi
+      if [[ "$SMB_PASS" == *"'"* ]]; then
+        warn "Passwords containing an apostrophe (') can't be used here. Please use a different password for this share account."
+        SMB_PASS=""; SMB_USER=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue
+      fi
+      if [[ "$SMB_USER" == *\\* ]]; then SMB_DOMAIN="${SMB_USER%%\\*}"; SMB_USER="${SMB_USER#*\\}"; fi
+      if [ "$DRY_RUN" = 1 ]; then
+        SMB_VERS=3.0; ok "(dry run) skipping the share test"
+      else
+        info "Testing //$SMB_HOST/$SMB_PATH …"
+        if ! test_smb "$SMB_HOST" "$SMB_PATH" "$SMB_IP"; then
+          SMB_SHARE=""; SMB_USER=""; SMB_PASS=""
+          [ "$ASSUME_YES" = 1 ] && die "The network share didn't work"
+          confirm "Try again?" Y && continue
+          STORAGE=""; continue
+        fi
+        ok "Connected to //$SMB_HOST/$SMB_PATH (SMB $SMB_VERS), and Synapse can write there"
+      fi
+      SYNAPSE_DATA="synapse-data"
+      NETWORK_STORAGE=true
+      VOLUMES_BLOCK=$(printf 'volumes:\n  synapse-data:\n    name: synapse-share\n    driver: local\n    driver_opts:\n      type: cifs\n      device: "//%s/%s"\n      o: "${SMB_MOUNT_OPTIONS}"\n' "$SMB_HOST" "$SMB_PATH")
+      info "The share's password is kept in $DIR/.env, readable only by root."
+      ;;
+  esac
+  break
+done
+
+# ── 5. Write the configuration ──────────────────────────────────────────────
 step "Setting up Synapse"
-mkdir -p "$DIR/data"
+mkdir -p "$DIR"
 umask 077
 
 JWT_SECRET=$(random_string 64 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
@@ -361,7 +583,17 @@ SYNAPSE_TRUST_PORT=$TRUST_PORT
 JWT_SECRET=$JWT_SECRET
 # Set to true to let anyone create an account (normally the admin adds people).
 ALLOW_REGISTRATION=false
+# One-time code for creating the admin account (unused once the admin exists).
+SETUP_CODE=$SETUP_CODE
+# Where notes are kept: a folder path, or a Docker volume name.
+SYNAPSE_STORAGE=$STORAGE
+SYNAPSE_DATA=$SYNAPSE_DATA
+SYNAPSE_NETWORK_STORAGE=$NETWORK_STORAGE
+SYNAPSE_CONTAINER=$CONTAINER
 EOF
+if [ "$STORAGE" = smb ]; then
+  printf "SMB_MOUNT_OPTIONS='%s'\n" "$(smb_options "$SMB_IP" "$SMB_VERS")" >>"$DIR/.env"
+fi
 
 if [ "$MODE" = https ]; then
   cat >"$DIR/docker-compose.yml" <<'EOF'
@@ -369,14 +601,16 @@ if [ "$MODE" = https ]; then
 services:
   synapse:
     image: ghcr.io/stevy2191/synapse:latest
-    container_name: synapse
+    container_name: ${SYNAPSE_CONTAINER:-synapse}
     restart: unless-stopped
     volumes:
-      - ./data:/data
+      - ${SYNAPSE_DATA:-./data}:/data
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - SETUP_CODE=${SETUP_CODE:-}
+      - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
 
   caddy:
     image: caddy:2
@@ -406,14 +640,16 @@ elif [ "$MODE" = lan-https ]; then
 services:
   synapse:
     image: ghcr.io/stevy2191/synapse:latest
-    container_name: synapse
+    container_name: ${SYNAPSE_CONTAINER:-synapse}
     restart: unless-stopped
     volumes:
-      - ./data:/data
+      - ${SYNAPSE_DATA:-./data}:/data
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - SETUP_CODE=${SETUP_CODE:-}
+      - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
 
   caddy:
     image: caddy:2
@@ -431,15 +667,9 @@ services:
 EOF
   write_lan_caddyfile "$DIR" "$LAN_IP" "$PORT" "$TRUST_PORT"
   mkdir -p "$DIR/trust"
-  TRUST_SRC="$(dirname "$0")/scripts/trust.html"
-  if [ -f "$TRUST_SRC" ]; then cp "$TRUST_SRC" "$DIR/trust/index.html"
-  else curl -fsSL "$REPO_RAW/scripts/trust.html" -o "$DIR/trust/index.html" || die "Couldn't download the certificate page."
-  fi
+  local_or_download scripts/trust.html "$DIR/trust/index.html" || die "Couldn't download the certificate page."
   printf 'window.SYNAPSE = { httpsPort: %s };\n' "$PORT" >"$DIR/trust/config.js"
-  LOGO_SRC="$(dirname "$0")/frontend/public/logo.svg"
-  if [ -f "$LOGO_SRC" ]; then cp "$LOGO_SRC" "$DIR/trust/logo.svg"
-  else curl -fsSL "$REPO_RAW/frontend/public/logo.svg" -o "$DIR/trust/logo.svg" 2>/dev/null || true
-  fi
+  local_or_download frontend/public/logo.svg "$DIR/trust/logo.svg" 2>/dev/null || true
   chmod 755 "$DIR/trust"; chmod 644 "$DIR/trust/"*
 else
   cat >"$DIR/docker-compose.yml" <<'EOF'
@@ -447,32 +677,26 @@ else
 services:
   synapse:
     image: ghcr.io/stevy2191/synapse:latest
-    container_name: synapse
+    container_name: ${SYNAPSE_CONTAINER:-synapse}
     restart: unless-stopped
     ports:
       - "${SYNAPSE_PORT:-3001}:3001"
     volumes:
-      - ./data:/data
+      - ${SYNAPSE_DATA:-./data}:/data
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - SETUP_CODE=${SETUP_CODE:-}
+      - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
 EOF
 fi
-printf '%s\n' "$SETUP_CODE" >"$DIR/data/.setup_code"
+if [ -n "$VOLUMES_BLOCK" ]; then printf '\n%s\n' "$VOLUMES_BLOCK" >>"$DIR/docker-compose.yml"; fi
 umask 022
 ok "Configuration written"
 
 # The `synapse` command
-CLI_SRC=""
-if [ -f "$(dirname "$0")/scripts/synapse" ]; then CLI_SRC="$(dirname "$0")/scripts/synapse"; fi
-CLI_DEST="${SYNAPSE_CLI_DEST:-/usr/local/bin/synapse}"
-if [ -n "$CLI_SRC" ]; then cp "$CLI_SRC" "$CLI_DEST.tmp"
-else curl -fsSL "$REPO_RAW/scripts/synapse" -o "$CLI_DEST.tmp" || die "Couldn't download the synapse command."
-fi
-sed -i "s#^SYNAPSE_DIR=.*#SYNAPSE_DIR=\"\${SYNAPSE_DIR:-$DIR}\"#" "$CLI_DEST.tmp"
-chmod 755 "$CLI_DEST.tmp" && mv "$CLI_DEST.tmp" "$CLI_DEST"
-ok "Installed the 'synapse' command"
+install_cli
 
 # Firewall (only if one is active)
 open_firewall() {
@@ -504,7 +728,7 @@ if [ "$DRY_RUN" != 1 ]; then
   esac
 fi
 
-# ── 5. Start ────────────────────────────────────────────────────────────────
+# ── 6. Start ────────────────────────────────────────────────────────────────
 step "Starting Synapse"
 if [ "$DRY_RUN" = 1 ]; then
   ok "(dry run) skipping docker compose pull / up"
@@ -513,7 +737,7 @@ else
   printf '  Waiting for Synapse to be ready'
   ready=0
   for _ in $(seq 1 60); do
-    if docker exec synapse wget -qO- http://127.0.0.1:3001/api/health >/dev/null 2>&1; then ready=1; break; fi
+    if (cd "$DIR" && docker compose exec -T synapse wget -qO- http://127.0.0.1:3001/api/health) >/dev/null 2>&1; then ready=1; break; fi
     printf '.'; sleep 1
   done
   echo
@@ -539,7 +763,7 @@ else
   fi
 fi
 
-# ── 6. Done ─────────────────────────────────────────────────────────────────
+# ── 7. Done ─────────────────────────────────────────────────────────────────
 case "$MODE" in
   home)  URL="http://$LAN_IP:$PORT" ;;
   proxy) URL="http://$LAN_IP:$PORT" ;;
@@ -553,6 +777,11 @@ line "${B}${GRN}Synapse is ready!${R}"
 line ""
 line "Open        ${B}$URL${R}"
 line "Setup code  ${B}$SETUP_CODE${R}"
+case "$STORAGE" in
+  folder) line "Notes in    $DATA_PATH" ;;
+  volume) line "Notes in    Docker volume \"$VOLUME_NAME\"" ;;
+  smb)    line "Notes on    //$SMB_HOST/$SMB_PATH" ;;
+esac
 line ""
 [ "$MODE" = lan-https ] && line "Trust page  ${B}$TRUST_URL${R}  (open this first on each device)" && line ""
 line "Open the address, enter the setup code and create your admin"

@@ -43,16 +43,21 @@ curl -fsSL https://raw.githubusercontent.com/Stevy2191/synapse/main/install.sh |
 The installer:
 
 - checks your system and offers to install Docker if it's missing
+- installs into the folder you run it from (e.g. `cd /srv/docker/synapse` first), or suggests `/opt/synapse`. If Synapse is already set up there, by the installer or by hand, it offers to update it and adds the `synapse` command
 - asks how you'll open Synapse:
   1. **On your home network**: `http://192.168.x.x:3001`
   2. **Through your reverse proxy** (Nginx Proxy Manager, Cloudflare Tunnel…), printing the settings to enter
   3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets a free Let's Encrypt certificate automatically
   4. **HTTPS without a domain**: `https://192.168.x.x:8443`. Caddy creates this server's own certificate, and a small **trust page** (with a QR code) walks each phone or computer through trusting it once. After that there are no warnings, and offline mode works
 - checks which ports are free, tells you what's using a busy one, and suggests a free one
+- asks where to keep your notes:
+  1. **A folder on this server**: `./data` by default, or any path, such as a second drive or USB disk (it lists mounted drives with their free space). If the folder already holds Synapse notes, they're used
+  2. **A Docker volume**: Docker manages the storage
+  3. **A network share (SMB)**: a NAS or a Windows shared folder (`\\nas\notes`, `//nas/notes` or `smb://nas/notes`). The installer tests the share before using it, and explains wrong passwords, missing folders or unreachable servers plainly. The database runs in a mode that's safe on network storage
 - opens the port in your firewall (ufw / firewalld) if one is active
 - prints the address and a **setup code** for creating the admin account
 
-Prefer no questions? Pass the answers: `… | sudo bash -s -- --yes --mode home --port 3001` (see `install.sh --help`).
+Prefer no questions? Pass the answers: `… | sudo bash -s -- --yes --mode home --port 3001 --storage folder` (see `install.sh --help`).
 
 Installing by hand with Docker Compose instead? Download [`docker-compose.yml`](docker-compose.yml), then `docker compose up -d`; the setup code is printed in `docker compose logs`.
 

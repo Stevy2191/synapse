@@ -6,6 +6,12 @@ import { DATA_DIR, UPLOADS_DIR } from '../config.js';
 const DB_PATH = path.join(DATA_DIR, 'synapse.db');
 
 const db = new Database(DB_PATH);
+// On a network share (SMB/NFS), SQLite's shared-memory WAL index doesn't work reliably.
+// Exclusive locking keeps that index in this process's memory instead; it's safe because
+// only this one Synapse server ever opens the database. Must be set before journal_mode.
+if (process.env.SYNAPSE_NETWORK_STORAGE === 'true') {
+  db.pragma('locking_mode = EXCLUSIVE');
+}
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 

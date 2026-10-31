@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # The `synapse` command — everyday management of a Synapse install.
 # Installed to /usr/local/bin/synapse by install.sh. Run `synapse help` for commands.
+#
+# Everything goes through `docker compose` in the install folder, so it works however the
+# notes are stored (a folder, a Docker volume or a network share) and with installs that
+# were set up by hand.
 set -euo pipefail
 
 SYNAPSE_DIR="${SYNAPSE_DIR:-/opt/synapse}"   # set by the installer
@@ -16,13 +20,13 @@ usage() {
   cat <<EOF
 ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
 
-  ${B}status${R}                      Is it running, and at what address?
+  ${B}status${R}                      Is it running, where, and where are the notes?
   ${B}update${R}                      Download and start the latest version
   ${B}restart${R} | ${B}stop${R} | ${B}start${R}
   ${B}logs${R} [caddy]                Show recent logs (add -f to follow)
 
   ${B}backup${R} [folder]             Save all notes, uploads and settings to a .tar.gz
-  ${B}restore${R} <file>              Restore from a backup (the current data is kept aside)
+  ${B}restore${R} <file>              Restore from a backup (a safety backup is made first)
 
   ${B}setup-code${R}                  Show the code for creating the admin account
   ${B}users${R}                       List accounts
@@ -43,10 +47,22 @@ need_docker() {
     die "Can't reach Docker. Is it running? (sudo systemctl start docker)"
   fi
 }
-[ -f "$SYNAPSE_DIR/docker-compose.yml" ] || die "No Synapse install found in $SYNAPSE_DIR. (Set SYNAPSE_DIR if it's somewhere else.)"
+
+found=0
+for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+  [ -f "$SYNAPSE_DIR/$f" ] && found=1
+done
+[ "$found" = 1 ] || die "No Synapse install found in $SYNAPSE_DIR. (Set SYNAPSE_DIR if it's somewhere else.)"
+case "$(realpath -m "$SYNAPSE_DIR")" in
+  /|/root|/home|/home/*[!/]/|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot) die "Refusing to manage $SYNAPSE_DIR: that's a system folder." ;;
+esac
 cd "$SYNAPSE_DIR"
-env_get() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2-; }
+
+env_get() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 compose() { docker compose "$@"; }
+is_running() { compose ps --status running --services 2>/dev/null | grep -qx synapse; }
+# A throwaway container with the notes mounted exactly as Synapse sees them (at /data).
+with_data() { compose run --rm --no-deps -T --entrypoint sh synapse -c "$1"; }
 
 port_in_use() {
   local p="$1"
@@ -62,13 +78,28 @@ lan_ip() {
 }
 
 address() {
+  local port
   case "$(env_get SYNAPSE_MODE)" in
-    https)     echo "https://$(env_get SYNAPSE_DOMAIN)" ;;
-    lan-https) echo "https://$(env_get SYNAPSE_IP):$(env_get SYNAPSE_PORT)" ;;
-    *)         echo "http://$(lan_ip):$(env_get SYNAPSE_PORT)" ;;
+    https)     echo "https://$(env_get SYNAPSE_DOMAIN)"; return ;;
+    lan-https) echo "https://$(env_get SYNAPSE_IP):$(env_get SYNAPSE_PORT)"; return ;;
   esac
+  port=$(env_get SYNAPSE_PORT)
+  # Installs set up by hand: ask Docker which port is published.
+  [ -z "$port" ] && port=$(compose port synapse 3001 2>/dev/null | awk -F: 'NR==1{print $NF}')
+  echo "http://$(lan_ip):${port:-3001}"
 }
 trust_address() { echo "http://$(env_get SYNAPSE_IP):$(env_get SYNAPSE_TRUST_PORT)"; }
+
+storage_description() {
+  local data
+  data=$(env_get SYNAPSE_DATA)
+  case "$(env_get SYNAPSE_STORAGE)" in
+    volume) echo "Docker volume \"$data\"" ;;
+    smb)    echo "network share $(compose config 2>/dev/null | awk '/device:/{gsub(/"/,"",$2); print $2; exit}')" ;;
+    folder) [ "$data" = ./data ] && echo "$SYNAPSE_DIR/data" || echo "$data" ;;
+    *)      echo "as set in $SYNAPSE_DIR/docker-compose.yml" ;;
+  esac
+}
 
 # Same as install.sh's write_lan_caddyfile.
 write_lan_caddyfile() { # IP HTTPS_PORT TRUST_PORT
@@ -111,26 +142,46 @@ show_qr() {
   fi
 }
 
+# backup FILE — notes (from wherever they're stored) plus this folder's settings.
+make_backup() {
+  local file="$1" tmp was_running=0
+  tmp=$(mktemp -d)
+  is_running && was_running=1
+  if [ "$was_running" = 1 ]; then echo "Pausing Synapse for a moment to take a consistent copy…"; compose stop synapse >/dev/null; fi
+  mkdir -p "$tmp/data"
+  if ! with_data 'cd /data && tar cf - .' | tar xf - -C "$tmp/data"; then
+    [ "$was_running" = 1 ] && compose start synapse >/dev/null
+    rm -rf "$tmp"; die "Couldn't read the notes."
+  fi
+  [ "$was_running" = 1 ] && compose start synapse >/dev/null
+  for f in .env docker-compose.yml Caddyfile; do [ -f "$f" ] && cp "$f" "$tmp/"; done
+  [ -d trust ] && cp -r trust "$tmp/"
+  [ -d caddy ] && cp -r caddy "$tmp/"   # includes the HTTPS-by-IP certificate authority, so devices stay trusted
+  tar czf "$file" -C "$tmp" .
+  rm -rf "$tmp"
+}
+
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   help|-h|--help) usage ;;
 
   status)
     need_docker "$cmd" "$@"
-    if [ "$(docker inspect -f '{{.State.Running}}' synapse 2>/dev/null)" = true ]; then
+    if is_running; then
       ok "Synapse is running at $(address)"
-      ver=$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' synapse 2>/dev/null || true)
-      [ -n "$ver" ] && [ "$ver" != "<no value>" ] && printf '  %sversion %s%s\n' "$D" "${ver:0:7}" "$R"
-      if [ -f data/.setup_code ]; then warn "No admin account yet — setup code: $(cat data/.setup_code)"; fi
-      if [ "$(env_get SYNAPSE_MODE)" = lan-https ]; then
-        printf '  %sdevices trust it via %s%s\n' "$D" "$(trust_address)" "$R"
-        now_ip=$(lan_ip)
-        if [ "$now_ip" != "$(env_get SYNAPSE_IP)" ]; then
-          warn "This server's address changed from $(env_get SYNAPSE_IP) to $now_ip. Run: synapse set-ip"
-        fi
-      fi
     else
       warn "Synapse is not running. Start it with: synapse start  (or check: synapse logs)"
+    fi
+    printf '  %snotes: %s%s\n' "$D" "$(storage_description)" "$R"
+    if is_running && compose exec -T synapse test -f /data/.setup_code 2>/dev/null; then
+      warn "No admin account yet — setup code: $(compose exec -T synapse cat /data/.setup_code)"
+    fi
+    if [ "$(env_get SYNAPSE_MODE)" = lan-https ]; then
+      printf '  %sdevices trust it via %s%s\n' "$D" "$(trust_address)" "$R"
+      now_ip=$(lan_ip)
+      if [ "$now_ip" != "$(env_get SYNAPSE_IP)" ]; then
+        warn "This server's address changed from $(env_get SYNAPSE_IP) to $now_ip. Run: synapse set-ip"
+      fi
     fi
     ;;
 
@@ -158,14 +209,8 @@ case "$cmd" in
     need_docker "$cmd" "$@"
     dest="${1:-$SYNAPSE_DIR/backups}"
     mkdir -p "$dest"
-    file="$dest/synapse-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
-    echo "Pausing Synapse for a moment to take a consistent copy…"
-    compose stop synapse >/dev/null
-    trap 'compose start synapse >/dev/null' EXIT
-    files=(data .env docker-compose.yml)
-    if [ -f Caddyfile ]; then files+=(Caddyfile); fi
-    tar -czf "$file" "${files[@]}"
-    compose start synapse >/dev/null; trap - EXIT
+    file="$(cd "$dest" && pwd)/synapse-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+    make_backup "$file"
     ok "Backup saved: $file ($(du -h "$file" | cut -f1))"
     ;;
 
@@ -173,22 +218,28 @@ case "$cmd" in
     need_docker "$cmd" "$@"
     file="${1:-}"
     [ -f "$file" ] || die "Usage: synapse restore <backup-file.tar.gz>"
-    tar -tzf "$file" | grep -q '^data/' || die "That file doesn't look like a Synapse backup."
+    file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+    tar -tzf "$file" | grep -qE '^(\./)?data/' || die "That file doesn't look like a Synapse backup."
     warn "This replaces the current notes with the ones in $(basename "$file")."
     confirm "Continue?" || { echo "Nothing changed."; exit 0; }
-    aside="data.before-restore-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p backups
+    safety="$SYNAPSE_DIR/backups/before-restore-$(date +%Y%m%d-%H%M%S).tar.gz"
+    echo "First, saving the current notes to $safety…"
+    make_backup "$safety"
+    tmp=$(mktemp -d)
+    tar xzf "$file" -C "$tmp"
     compose stop >/dev/null
-    mv data "$aside"
-    tar -xzf "$file" data
+    tar cf - -C "$tmp/data" . | with_data 'find /data -mindepth 1 -delete && tar xf - -C /data'
+    rm -rf "$tmp"
     compose up -d >/dev/null
-    ok "Restored. The previous data was kept in $SYNAPSE_DIR/$aside (delete it once you're happy)."
+    ok "Restored. If anything's wrong, the notes from before are in $safety"
     ;;
 
   setup-code)
-    # The code file is readable by root only.
-    if [ -e data/.setup_code ] && [ ! -r data/.setup_code ] && [ "$(id -u)" -ne 0 ]; then exec sudo "$0" setup-code; fi
-    if [ -f data/.setup_code ]; then
-      echo "Setup code: ${B}$(cat data/.setup_code)${R}"
+    need_docker "$cmd" "$@"
+    code=$(with_data 'cat /data/.setup_code 2>/dev/null' || true)
+    if [ -n "$code" ]; then
+      echo "Setup code: ${B}$code${R}"
       echo "Open $(address) and create the admin account with it."
     else
       ok "The admin account already exists, so no setup code is needed."
@@ -199,7 +250,8 @@ case "$cmd" in
   users|reset-password|make-admin)
     need_docker "$cmd" "$@"
     [ "$cmd" != users ] && [ -z "${1:-}" ] && die "Usage: synapse $cmd <username or email>"
-    docker exec synapse node src/cli.js "$cmd" "$@"
+    is_running || die "Synapse isn't running. Start it first: synapse start"
+    compose exec -T synapse node src/cli.js "$cmd" "$@"
     ;;
 
   trust)
@@ -225,6 +277,7 @@ case "$cmd" in
     need_docker "$cmd" "$@"
     new="${1:-}"
     [ "$(env_get SYNAPSE_MODE)" = https ] && die "This install uses HTTPS on ports 80/443 (through Caddy); there's no Synapse port to change."
+    [ -n "$(env_get SYNAPSE_PORT)" ] || die "This install was set up by hand; change the port in $SYNAPSE_DIR/docker-compose.yml."
     [[ "$new" =~ ^[0-9]+$ ]] && [ "$new" -ge 1024 ] && [ "$new" -le 65535 ] || die "Usage: synapse port <1024-65535>"
     [ "$new" = "$(env_get SYNAPSE_PORT)" ] && { ok "Already on port $new"; exit 0; }
     port_in_use "$new" && die "Port $new is already in use. Pick another."
@@ -242,12 +295,15 @@ case "$cmd" in
     need_docker "$cmd" "$@"
     warn "This stops and removes Synapse."
     confirm "Continue?" || { echo "Nothing changed."; exit 0; }
-    compose down
-    if confirm "Also DELETE all notes and uploads in $SYNAPSE_DIR? This cannot be undone."; then
+    where="$(storage_description)"
+    if confirm "Also DELETE all notes and uploads ($where)? This cannot be undone."; then
+      with_data 'find /data -mindepth 1 -delete' || warn "Couldn't delete everything in $where."
+      compose down -v --remove-orphans
       cd / && rm -rf "$SYNAPSE_DIR"
-      ok "Synapse and its data were removed."
+      ok "Synapse and its notes were removed."
     else
-      ok "Synapse was removed. Your notes are still in $SYNAPSE_DIR/data — run the installer again to bring it back."
+      compose down --remove-orphans
+      ok "Synapse was removed. Your notes are still in $where — run the installer in $SYNAPSE_DIR to bring it back."
     fi
     rm -f "$0" 2>/dev/null || true
     ;;
