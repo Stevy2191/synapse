@@ -8,7 +8,7 @@ import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
-import { openNote, createNote as createLocalNote, deleteNote, syncNow } from '../../offline/sync';
+import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow } from '../../offline/sync';
 
 const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 
@@ -17,8 +17,36 @@ function countDescendants(id, notes) {
   return kids.reduce((sum, k) => sum + 1 + countDescendants(k.id, notes), 0);
 }
 
+// ── Drag and drop ──
+// The note being dragged. (dataTransfer can't be read during dragover, so keep it here.)
+let draggingId = null;
+
+function isWithin(id, ancestorId, notes) {
+  const byId = new Map(notes.map(n => [n.id, n]));
+  for (let cur = byId.get(id); cur; cur = byId.get(cur.parent_id)) if (cur.id === ancestorId) return true;
+  return false;
+}
+
+// Top quarter of a row = before, bottom quarter = after, middle = inside.
+function dropZone(e) {
+  const r = e.currentTarget.getBoundingClientRect();
+  const y = (e.clientY - r.top) / r.height;
+  return y < 0.28 ? 'before' : y > 0.72 ? 'after' : 'inside';
+}
+
+async function drop(targetId, where) {
+  const id = draggingId;
+  draggingId = null;
+  if (!id) return;
+  const ok = await moveNote(id, targetId, where);
+  if (!ok) toast.error("A note can't be moved inside itself");
+}
+
 function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const [expanded, setExpanded] = useState(true);
+  const [hint, setHint] = useState(null); // 'before' | 'after' | 'inside' while something is dragged over
+  const [dragging, setDragging] = useState(false);
+  const expandTimer = useRef(null);
   const removeNoteFromTree = useStore(s => s.removeNoteFromTree);
 
   const children = notes.filter(n => n.parent_id === note.id);
@@ -41,10 +69,39 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   return (
     <div>
       <div
-        className={`tree-row nav-item${active ? ' on' : ''}`}
+        className={`tree-row nav-item${active ? ' on' : ''}${hint ? ` drop-${hint}` : ''}`}
         onClick={() => onSelect(note.id)}
-        style={{ paddingLeft: 6 + depth * 14, gap: 4 }}
+        style={{ paddingLeft: 6 + depth * 14, gap: 4, opacity: dragging ? 0.4 : 1 }}
         role="button"
+        draggable
+        onDragStart={e => {
+          draggingId = note.id;
+          setDragging(true);
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', note.title);
+        }}
+        onDragEnd={() => { draggingId = null; setDragging(false); setHint(null); }}
+        onDragOver={e => {
+          if (!draggingId || isWithin(note.id, draggingId, notes)) return; // can't drop into itself
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+          const zone = dropZone(e);
+          if (zone !== hint) setHint(zone);
+          // Hovering over a collapsed note opens it, so you can drop deeper.
+          if (zone === 'inside' && hasChildren && !expanded && !expandTimer.current) {
+            expandTimer.current = setTimeout(() => { setExpanded(true); expandTimer.current = null; }, 600);
+          }
+        }}
+        onDragLeave={() => { setHint(null); clearTimeout(expandTimer.current); expandTimer.current = null; }}
+        onDrop={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const zone = dropZone(e);
+          setHint(null);
+          if (zone === 'inside') setExpanded(true);
+          drop(note.id, zone);
+        }}
       >
         <span
           onClick={e => { e.stopPropagation(); setExpanded(x => !x); }}
@@ -171,6 +228,7 @@ export default function Sidebar({ width, onNavigate }) {
   }));
   const [showNewNote, setShowNewNote] = useState(false);
   const [pendingParent, setPendingParent] = useState(null);
+  const [rootHint, setRootHint] = useState(false);
 
   const roots = notes.filter(n => !n.parent_id);
 
@@ -221,7 +279,13 @@ export default function Sidebar({ width, onNavigate }) {
         <span className="section-label">Notes</span>
         <button onClick={() => newNote()} disabled={!activeWorkspace} className="btn-ghost" style={miniBtn} title="New note"><Plus size={14} /></button>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 10px 10px' }}>
+      <div
+        className={rootHint ? 'drop-root' : ''}
+        style={{ flex: 1, overflow: 'auto', padding: '0 10px 10px' }}
+        onDragOver={e => { if (!draggingId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setRootHint(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setRootHint(false); }}
+        onDrop={e => { e.preventDefault(); setRootHint(false); drop(null, 'root'); }}
+      >
         {!activeWorkspace ? (
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 20 }}>Loading…</p>
         ) : roots.length === 0 ? (

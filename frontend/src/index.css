@@ -205,3 +205,10 @@ body {
 }
 .rich-editor-content .wiki-link { cursor: pointer; }
 .rich-editor-content mark { background: rgba(250, 204, 21, 0.35); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* Sidebar drag and drop */
+.tree-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); border-radius: 0 0 8px 8px; }
+.tree-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); border-radius: 8px 8px 0 0; }
+.tree-row.drop-inside { background: var(--accent-subtle); outline: 1px dashed var(--accent); outline-offset: -1px; }
+.drop-root { background: linear-gradient(to bottom, transparent calc(100% - 40px), var(--accent-subtle)); }
+.tree-row[draggable="true"] { -webkit-user-drag: element; }

@@ -302,7 +302,9 @@ export async function saveNote(id, fields) {
 
   const local = { ...fields };
   if (Array.isArray(local.tags)) local.tags = JSON.stringify(local.tags);
-  await notes.put({ ...note, ...local, updated_at: Math.floor(Date.now() / 1000) });
+  // Moving a note in the tree isn't an edit, so it doesn't change "Edited … ago".
+  const isMoveOnly = Object.keys(fields).every(k => k === 'parent_id' || k === 'position');
+  await notes.put({ ...note, ...local, ...(isMoveOnly ? {} : { updated_at: Math.floor(Date.now() / 1000) }) });
 
   // Merge into the newest queued change for this note if no upload of it has been attempted,
   // so a burst of typing becomes one upload instead of hundreds. Once an upload was attempted
@@ -359,6 +361,55 @@ export async function deleteNote(id) {
   afterLocalChange();
   await refreshTree();
   return ids;
+}
+
+/**
+ * Move a note in the tree (drag and drop).
+ *   where: 'before' | 'after' — next to `targetId`, at the same level
+ *          'inside'           — last child of `targetId`
+ *          'root'             — end of the top level (`targetId` ignored)
+ * Renumbers the positions of the new siblings; children move along with the note.
+ * Returns false if the move isn't allowed (e.g. into its own sub-note).
+ */
+export async function moveNote(id, targetId, where) {
+  const d = await db();
+  const note = await d.get('notes', id);
+  if (!note || id === targetId) return false;
+  const all = await getWorkspaceNotes(note.workspace_id);
+
+  let parentId = null;
+  if (where !== 'root') {
+    const target = all.find(n => n.id === targetId);
+    if (!target) return false;
+    parentId = where === 'inside' ? target.id : (target.parent_id ?? null);
+  }
+
+  // Not into itself or anything nested under it.
+  const nested = new Set([id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const n of all) if (n.parent_id && nested.has(n.parent_id) && !nested.has(n.id)) { nested.add(n.id); grew = true; }
+  }
+  if (parentId && nested.has(parentId)) return false;
+
+  const siblings = all.filter(n => (n.parent_id ?? null) === parentId && n.id !== id).sort(byPosition);
+  let index = siblings.length;
+  if (where === 'before' || where === 'after') {
+    index = siblings.findIndex(n => n.id === targetId) + (where === 'after' ? 1 : 0);
+  }
+  siblings.splice(index, 0, note);
+
+  const parentChanged = (note.parent_id ?? null) !== parentId;
+  for (let i = 0; i < siblings.length; i++) {
+    const s = siblings[i];
+    if (s.id === id) {
+      if (parentChanged || s.position !== i) await saveNote(id, parentChanged ? { parent_id: parentId, position: i } : { position: i });
+    } else if (s.position !== i) {
+      await saveNote(s.id, { position: i });
+    }
+  }
+  await refreshTree();
+  return true;
 }
 
 function afterLocalChange() {
