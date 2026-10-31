@@ -30,6 +30,8 @@ ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
   ${B}make-admin${R} <user>           Make an account an admin
 
   ${B}port${R} <number>               Move Synapse to another port (checks it's free)
+  ${B}trust${R}                       HTTPS-by-IP: show the "trust this server" page (with QR code)
+  ${B}set-ip${R} [address]            HTTPS-by-IP: update after the server's IP address changes
   ${B}uninstall${R}                   Remove Synapse (asks before deleting notes)
 EOF
 }
@@ -61,9 +63,52 @@ lan_ip() {
 
 address() {
   case "$(env_get SYNAPSE_MODE)" in
-    https) echo "https://$(env_get SYNAPSE_DOMAIN)" ;;
-    *)     echo "http://$(lan_ip):$(env_get SYNAPSE_PORT)" ;;
+    https)     echo "https://$(env_get SYNAPSE_DOMAIN)" ;;
+    lan-https) echo "https://$(env_get SYNAPSE_IP):$(env_get SYNAPSE_PORT)" ;;
+    *)         echo "http://$(lan_ip):$(env_get SYNAPSE_PORT)" ;;
   esac
+}
+trust_address() { echo "http://$(env_get SYNAPSE_IP):$(env_get SYNAPSE_TRUST_PORT)"; }
+
+# Same as install.sh's write_lan_caddyfile.
+write_lan_caddyfile() { # IP HTTPS_PORT TRUST_PORT
+  cat >Caddyfile <<CADDY
+# HTTPS on this server's IP address. Caddy runs a private certificate authority;
+# each device trusts it once via the page on port $3. Rewritten by: synapse set-ip
+{
+	local_certs
+	skip_install_trust
+	default_sni $1
+}
+
+https://$1:$2, https://localhost:$2 {
+	encode gzip
+	reverse_proxy synapse:3001
+}
+
+# "Trust this server" page and certificate download (plain HTTP, so it opens without a warning)
+http://:$3 {
+	handle /synapse-ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=synapse-ca.crt"
+		file_server
+	}
+	handle {
+		root * /srv/trust
+		file_server
+	}
+}
+CADDY
+  printf 'window.SYNAPSE = { httpsPort: %s };\n' "$2" >trust/config.js
+}
+
+show_qr() {
+  if command -v qrencode >/dev/null 2>&1; then
+    echo "  Scan with your phone's camera:"
+    qrencode -t ANSIUTF8 -m 2 "$1" | sed 's/^/  /'
+  fi
 }
 
 cmd="${1:-help}"; shift || true
@@ -77,6 +122,13 @@ case "$cmd" in
       ver=$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' synapse 2>/dev/null || true)
       [ -n "$ver" ] && [ "$ver" != "<no value>" ] && printf '  %sversion %s%s\n' "$D" "${ver:0:7}" "$R"
       if [ -f data/.setup_code ]; then warn "No admin account yet — setup code: $(cat data/.setup_code)"; fi
+      if [ "$(env_get SYNAPSE_MODE)" = lan-https ]; then
+        printf '  %sdevices trust it via %s%s\n' "$D" "$(trust_address)" "$R"
+        now_ip=$(lan_ip)
+        if [ "$now_ip" != "$(env_get SYNAPSE_IP)" ]; then
+          warn "This server's address changed from $(env_get SYNAPSE_IP) to $now_ip. Run: synapse set-ip"
+        fi
+      fi
     else
       warn "Synapse is not running. Start it with: synapse start  (or check: synapse logs)"
     fi
@@ -150,6 +202,25 @@ case "$cmd" in
     docker exec synapse node src/cli.js "$cmd" "$@"
     ;;
 
+  trust)
+    [ "$(env_get SYNAPSE_MODE)" = lan-https ] || die "This install doesn't use HTTPS-by-IP, so there's nothing to trust."
+    echo "On each phone or computer, open ${B}$(trust_address)${R} and follow the steps."
+    show_qr "$(trust_address)"
+    ;;
+
+  set-ip)
+    need_docker "$cmd" "$@"
+    [ "$(env_get SYNAPSE_MODE)" = lan-https ] || die "Only needed for HTTPS-by-IP installs."
+    new="${1:-$(lan_ip)}"
+    [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Usage: synapse set-ip [IPv4 address]"
+    [ "$new" = "$(env_get SYNAPSE_IP)" ] && { ok "Already set to $new"; exit 0; }
+    sed -i "s/^SYNAPSE_IP=.*/SYNAPSE_IP=$new/" .env
+    write_lan_caddyfile "$new" "$(env_get SYNAPSE_PORT)" "$(env_get SYNAPSE_TRUST_PORT)"
+    compose restart caddy >/dev/null
+    ok "Synapse is now at $(address)"
+    echo "  Devices that already trust this server don't need to do anything again."
+    ;;
+
   port)
     need_docker "$cmd" "$@"
     new="${1:-}"
@@ -157,7 +228,11 @@ case "$cmd" in
     [[ "$new" =~ ^[0-9]+$ ]] && [ "$new" -ge 1024 ] && [ "$new" -le 65535 ] || die "Usage: synapse port <1024-65535>"
     [ "$new" = "$(env_get SYNAPSE_PORT)" ] && { ok "Already on port $new"; exit 0; }
     port_in_use "$new" && die "Port $new is already in use. Pick another."
+    [ "$new" = "$(env_get SYNAPSE_TRUST_PORT)" ] && die "Port $new is used by the certificate page."
     sed -i "s/^SYNAPSE_PORT=.*/SYNAPSE_PORT=$new/" .env
+    if [ "$(env_get SYNAPSE_MODE)" = lan-https ]; then
+      write_lan_caddyfile "$(env_get SYNAPSE_IP)" "$new" "$(env_get SYNAPSE_TRUST_PORT)"
+    fi
     compose up -d >/dev/null
     ok "Synapse moved to $(address)"
     warn "If a firewall or reverse proxy points at the old port, update it too."

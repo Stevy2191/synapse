@@ -46,7 +46,8 @@ The installer:
 - asks how you'll open Synapse:
   1. **On your home network**: `http://192.168.x.x:3001`
   2. **Through your reverse proxy** (Nginx Proxy Manager, Cloudflare Tunnel…), printing the settings to enter
-  3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets the certificate automatically
+  3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets a free Let's Encrypt certificate automatically
+  4. **HTTPS without a domain**: `https://192.168.x.x:8443`. Caddy creates this server's own certificate, and a small **trust page** (with a QR code) walks each phone or computer through trusting it once. After that there are no warnings, and offline mode works
 - checks which ports are free, tells you what's using a busy one, and suggests a free one
 - opens the port in your firewall (ufw / firewalld) if one is active
 - prints the address and a **setup code** for creating the admin account
@@ -83,6 +84,8 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse reset-password <user>` | New temporary password (works for the admin too) |
 | `synapse make-admin <user>` | Make someone an admin |
 | `synapse port <number>` | Move to another port (checks it's free) |
+| `synapse trust` | HTTPS without a domain: show the trust page address and QR code |
+| `synapse set-ip [address]` | HTTPS without a domain: update after the server's IP changes (devices stay trusted) |
 | `synapse restart` / `stop` / `start` | |
 | `synapse uninstall` | Remove Synapse (asks before deleting notes) |
 
@@ -99,7 +102,7 @@ Synapse keeps a copy of your notes on each device, so you can open, search, writ
 
 Notes:
 - Your first sign-in on a device needs a connection.
-- Offline mode needs **HTTPS** (or `localhost`) for the app to open with no connection. Your notes are still stored locally over plain HTTP, but the page itself won't load offline.
+- Offline mode needs **HTTPS** (or `localhost`) for the app to open with no connection. No domain? Install option 4 gives HTTPS on the server's IP address. Your notes are still stored locally over plain HTTP, but the page itself won't load offline.
 - Creating workspaces and uploading attachments still need a connection.
 - Signing out removes the device's copy of your notes (you'll be warned if anything hasn't uploaded yet).
 

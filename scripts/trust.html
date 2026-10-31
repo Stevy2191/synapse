@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust this Synapse server</title>
+<script src="config.js"></script>
+<style>
+  :root {
+    --bg: #0b0d1a; --surface: #121630; --border: #1f2547; --text: #e6e8ff; --muted: #8a8fc0;
+    --accent: #7c7bff; --accent-soft: rgba(124,123,255,.14); --ok: #34d399; --warn: #fbbf24;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #fbfbff; --surface: #ffffff; --border: #e2e4f3; --text: #16183a; --muted: #5d6290;
+      --accent: #5b5ae8; --accent-soft: rgba(91,90,232,.10); --ok: #059669; --warn: #b45309; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text);
+    background: radial-gradient(circle at 50% 0%, var(--accent-soft), transparent 60%), var(--bg); }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 12px 0 8px; letter-spacing: -.02em; }
+  p { margin: 0 0 12px; color: var(--muted); }
+  .logo { width: 56px; height: 56px; filter: drop-shadow(0 0 10px rgba(124,123,255,.5)); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin: 20px 0; }
+  .status { display: flex; gap: 12px; align-items: center; font-weight: 600; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--warn); flex-shrink: 0; }
+  .ok .dot { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 10px; border: 0;
+    background: var(--accent); color: #fff; font: 600 15px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+  .btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .tabs button { padding: 7px 12px; border-radius: 99px; border: 1px solid var(--border); background: transparent;
+    color: var(--muted); font: 500 14px system-ui, sans-serif; cursor: pointer; }
+  .tabs button.on { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+  ol { margin: 0; padding-left: 22px; }
+  li { margin: 6px 0; }
+  b { color: var(--text); }
+  code { font-family: ui-monospace, monospace; font-size: .9em; background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+  .small { font-size: 13px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="logo.svg" alt="" onerror="this.remove()">
+  <h1>Trust this Synapse server</h1>
+  <p>Synapse uses its own security certificate, because it's on a home network without a domain name.
+     Tell this device to trust it once, and you'll get a secure connection with no warnings, plus offline mode.</p>
+
+  <div class="card">
+    <div class="status" id="status"><span class="dot"></span><span id="status-text">Checking this device…</span></div>
+    <p class="small" id="status-help" style="margin:8px 0 0"></p>
+  </div>
+
+  <div class="card">
+    <p style="margin-bottom:14px"><b>Step 1.</b> Download the certificate.</p>
+    <a class="btn" href="/synapse-ca.crt" download="synapse-ca.crt">⬇ Download certificate</a>
+  </div>
+
+  <div class="card">
+    <p style="margin-bottom:14px"><b>Step 2.</b> Install it. Pick your device:</p>
+    <div class="tabs" id="tabs"></div>
+
+    <div data-os="ios">
+      <ol>
+        <li>Tap <b>Download certificate</b> above (in <b>Safari</b>), then tap <b>Allow</b>.</li>
+        <li>Open <b>Settings</b>. Tap <b>Profile Downloaded</b> near the top, then <b>Install</b> (enter your passcode), then <b>Install</b> again.</li>
+        <li>Go to <b>Settings → General → About → Certificate Trust Settings</b>.</li>
+        <li>Turn on the switch for <b>Caddy Local Authority</b>, and tap <b>Continue</b>.</li>
+      </ol>
+    </div>
+    <div data-os="android" hidden>
+      <ol>
+        <li>Tap <b>Download certificate</b> above.</li>
+        <li>Open <b>Settings → Security &amp; privacy → More security settings → Encryption &amp; credentials → Install a certificate → CA certificate</b>.
+          <span class="small">(Names vary by phone. Searching Settings for "CA certificate" finds it.)</span></li>
+        <li>Tap <b>Install anyway</b>, then choose <b>synapse-ca.crt</b> from Downloads.</li>
+        <li>Use <b>Chrome</b> to open Synapse.</li>
+      </ol>
+    </div>
+    <div data-os="windows" hidden>
+      <ol>
+        <li>Download the certificate and open <b>synapse-ca.crt</b>.</li>
+        <li>Click <b>Install Certificate…</b>, choose <b>Local Machine</b>, and click <b>Next</b>.</li>
+        <li>Choose <b>Place all certificates in the following store</b>, click <b>Browse</b>, and pick <b>Trusted Root Certification Authorities</b>.</li>
+        <li>Click <b>Next</b>, then <b>Finish</b>, then restart your browser.</li>
+      </ol>
+    </div>
+    <div data-os="mac" hidden>
+      <ol>
+        <li>Download the certificate and double-click <b>synapse-ca.crt</b>. It opens <b>Keychain Access</b>; add it to the <b>System</b> keychain.</li>
+        <li>In Keychain Access, double-click <b>Caddy Local Authority</b>, open <b>Trust</b>, and set <b>When using this certificate</b> to <b>Always Trust</b>.</li>
+        <li>Close the window (enter your password), then restart your browser.</li>
+      </ol>
+    </div>
+    <div data-os="linux" hidden>
+      <ol>
+        <li>Download the certificate, then in a terminal:
+          <br><code>sudo cp ~/Downloads/synapse-ca.crt /usr/local/share/ca-certificates/ &amp;&amp; sudo update-ca-certificates</code></li>
+        <li>Chrome on Linux uses its own list: <b>Settings → Privacy and security → Security → Manage certificates → Authorities → Import</b>, tick <b>Trust this certificate for identifying websites</b>.</li>
+      </ol>
+    </div>
+    <div data-os="firefox" hidden>
+      <ol>
+        <li>Download the certificate.</li>
+        <li>In Firefox, open <b>Settings → Privacy &amp; Security → Certificates → View Certificates → Authorities → Import…</b></li>
+        <li>Choose <b>synapse-ca.crt</b>, tick <b>Trust this CA to identify websites</b>, and click <b>OK</b>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="margin-bottom:14px"><b>Step 3.</b> Open Synapse.</p>
+    <a class="btn" id="open" href="#">Open Synapse →</a>
+    <p class="small" style="margin:12px 0 0">Always use the address with the numbers (<span id="addr"></span>). The certificate is made for that address.</p>
+  </div>
+
+  <p class="small">Why is this needed? A public certificate authority can't vouch for an address that only exists on
+     your home network, so this server has its own. Installing its certificate tells your device to trust it.
+     It only applies to this Synapse server.</p>
+</main>
+
+<script>
+  const port = (window.SYNAPSE && window.SYNAPSE.httpsPort) || 8443;
+  const httpsUrl = 'https://' + location.hostname + ':' + port;
+  document.getElementById('open').href = httpsUrl;
+  document.getElementById('addr').textContent = httpsUrl;
+
+  // Pick instructions for this device.
+  const ua = navigator.userAgent;
+  const guess = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios'
+    : /Android/.test(ua) ? 'android'
+    : /Firefox\//.test(ua) ? 'firefox'
+    : /Windows/.test(ua) ? 'windows'
+    : /Macintosh/.test(ua) ? 'mac' : 'linux';
+  const names = { ios: 'iPhone / iPad', android: 'Android', windows: 'Windows', mac: 'Mac', linux: 'Linux / ChromeOS', firefox: 'Firefox' };
+  const tabs = document.getElementById('tabs');
+  function show(os) {
+    document.querySelectorAll('[data-os]').forEach(el => { el.hidden = el.dataset.os !== os; });
+    tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.os === os));
+  }
+  Object.entries(names).forEach(([os, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.dataset.os = os; b.onclick = () => show(os);
+    tabs.appendChild(b);
+  });
+  show(guess);
+
+  // Does this device trust the server yet? A request to the HTTPS address only
+  // succeeds once the certificate is trusted.
+  async function check() {
+    const status = document.getElementById('status');
+    const text = document.getElementById('status-text');
+    const help = document.getElementById('status-help');
+    try {
+      await fetch(httpsUrl + '/api/health', { mode: 'no-cors', cache: 'no-store' });
+      status.classList.add('ok');
+      text.textContent = 'This device trusts Synapse. You\'re all set!';
+      help.textContent = 'Open Synapse with the button below.';
+      return;
+    } catch {
+      status.classList.remove('ok');
+      text.textContent = 'This device doesn\'t trust Synapse yet';
+      help.textContent = 'Follow the steps below. This page checks again every few seconds.';
+    }
+    setTimeout(check, 4000);
+  }
+  check();
+</script>
+</body>
+</html>

@@ -10,8 +10,9 @@
 #
 #  Options (all optional — you'll be asked otherwise):
 #    --dir PATH          where to install            (default /opt/synapse)
-#    --mode MODE         home | proxy | https
-#    --port N            port for home / proxy mode   (default: first free from 3001)
+#    --mode MODE         home | proxy | https | lan-https
+#    --port N            Synapse's port (home / proxy: from 3001; lan-https: from 8443)
+#    --trust-port N      lan-https: port for the "trust this server" page (from 8080)
 #    --domain NAME       web address for https mode, e.g. notes.example.com
 #    --yes               accept the defaults without asking
 # ─────────────────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ REPO_RAW="https://raw.githubusercontent.com/Stevy2191/synapse/main"
 DIR="/opt/synapse"
 MODE=""
 PORT=""
+TRUST_PORT=""
 DOMAIN=""
 ASSUME_YES=0
 DRY_RUN="${SYNAPSE_DRY_RUN:-0}"   # testing: write files only, don't touch Docker
@@ -67,13 +69,14 @@ while [ $# -gt 0 ]; do
     --dir) DIR="$2"; shift 2 ;;
     --mode) MODE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
+    --trust-port) TRUST_PORT="$2"; shift 2 ;;
     --domain) DOMAIN="$2"; shift 2 ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
   esac
 done
-case "$MODE" in ""|home|proxy|https) ;; *) die "--mode must be home, proxy or https" ;; esac
+case "$MODE" in ""|home|proxy|https|lan-https) ;; *) die "--mode must be home, proxy, https or lan-https" ;; esac
 
 # ── Ports ───────────────────────────────────────────────────────────────────
 port_in_use() {
@@ -110,32 +113,40 @@ next_free_port() {
   die "Couldn't find a free port"
 }
 
-choose_port() {
-  local suggested taken
-  suggested=$(next_free_port 3001)
-  if [ -n "$PORT" ]; then
-    port_in_use "$PORT" && die "Port $PORT is already used by $(port_owner "$PORT"). Pick another with --port."
-    ok "Using port $PORT"; return
+# pick_port VAR "what it's for" START [PORT-TO-AVOID]
+# Suggests the first free port from START, shows what's using busy ones, and checks the answer.
+# If VAR already holds a value (from a command-line option), just checks that one.
+pick_port() {
+  local -n _out="$1"
+  local label="$2" start="$3" avoid="${4:-}" suggested taken p
+  if [ -n "$_out" ]; then
+    port_in_use "$_out" && die "Port $_out is already used by $(port_owner "$_out")."
+    [ "$_out" = "$avoid" ] && die "Port $_out is already taken by the other Synapse port."
+    ok "Using port $_out for $label"; return
   fi
-  if [ "$suggested" != 3001 ]; then
-    info "Port 3001 is used by $(port_owner 3001)."
-  fi
+  suggested=$(next_free_port "$start")
+  [ "$suggested" = "$avoid" ] && suggested=$(next_free_port $((suggested + 1)))
+  if [ "$suggested" != "$start" ]; then info "Port $start is used by $(port_owner "$start")."; fi
   taken=""
-  for p in $(seq 3000 3010) 8080 8000 8888; do
-    if port_in_use "$p"; then taken+="$p "; fi
+  for p in $(seq $((start - 1)) $((start + 9))) 3001 8000 8080 8443 8888; do
+    if port_in_use "$p" && [[ " $taken " != *" $p "* ]]; then taken+="$p "; fi
   done
   [ -n "$taken" ] && info "Ports already in use nearby: ${taken% }"
   while true; do
-    ask "Which port should Synapse use?" "$suggested"
+    ask "Port for $label?" "$suggested"
     if ! [[ "$REPLY" =~ ^[0-9]+$ ]] || [ "$REPLY" -lt 1024 ] || [ "$REPLY" -gt 65535 ]; then
       warn "Enter a number between 1024 and 65535."
       [ "$ASSUME_YES" = 1 ] && die "Invalid port"; continue
+    fi
+    if [ "$REPLY" = "$avoid" ]; then
+      warn "Port $REPLY is already taken by the other Synapse port."
+      [ "$ASSUME_YES" = 1 ] && die "Port clash"; continue
     fi
     if port_in_use "$REPLY"; then
       warn "Port $REPLY is already used by $(port_owner "$REPLY"). Try $(next_free_port "$REPLY")."
       [ "$ASSUME_YES" = 1 ] && die "Port in use"; continue
     fi
-    PORT="$REPLY"; ok "Port $PORT is free"; break
+    _out="$REPLY"; ok "Port $_out is free"; break
   done
 }
 
@@ -144,6 +155,39 @@ lan_ip() {
   ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src"){print $(i+1); exit}}') || true
   [ -z "$ip" ] && ip=$(hostname -I 2>/dev/null | awk '{print $1}') || true
   echo "${ip:-localhost}"
+}
+
+# Caddy config for HTTPS on an IP address. (The same text is written by `synapse set-ip`.)
+write_lan_caddyfile() { # DIR IP HTTPS_PORT TRUST_PORT
+  cat >"$1/Caddyfile" <<CADDY
+# HTTPS on this server's IP address. Caddy runs a private certificate authority;
+# each device trusts it once via the page on port $4. Rewritten by: synapse set-ip
+{
+	local_certs
+	skip_install_trust
+	default_sni $2
+}
+
+https://$2:$3, https://localhost:$3 {
+	encode gzip
+	reverse_proxy synapse:3001
+}
+
+# "Trust this server" page and certificate download (plain HTTP, so it opens without a warning)
+http://:$4 {
+	handle /synapse-ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=synapse-ca.crt"
+		file_server
+	}
+	handle {
+		root * /srv/trust
+		file_server
+	}
+}
+CADDY
 }
 
 random_string() { # random_string LENGTH ALPHABET
@@ -227,10 +271,11 @@ while true; do
     say "  ${B}1)${R} On my home or office network   ${D}e.g. http://$LAN_IP:3001 — simplest${R}"
     say "  ${B}2)${R} Through my reverse proxy       ${D}Nginx Proxy Manager, Cloudflare Tunnel, Traefik…${R}"
     say "  ${B}3)${R} At my own web address, HTTPS   ${D}e.g. https://notes.example.com — certificate set up for you${R}"
+    say "  ${B}4)${R} HTTPS without a domain         ${D}e.g. https://$LAN_IP:8443 — each device trusts this server once${R}"
     say ""
-    say "  ${D}Tip: offline mode (opening Synapse with no connection) needs HTTPS — options 2 or 3.${R}"
-    ask "Choose 1, 2 or 3:" "1"
-    case "$REPLY" in 1) MODE=home ;; 2) MODE=proxy ;; 3) MODE=https ;; *) warn "Please type 1, 2 or 3."; continue ;; esac
+    say "  ${D}Tip: offline mode (opening Synapse with no connection) needs HTTPS — options 2, 3 or 4.${R}"
+    ask "Choose 1, 2, 3 or 4:" "1"
+    case "$REPLY" in 1) MODE=home ;; 2) MODE=proxy ;; 3) MODE=https ;; 4) MODE=lan-https ;; *) warn "Please type 1, 2, 3 or 4."; continue ;; esac
   fi
 
   if [ "$MODE" = https ]; then
@@ -253,7 +298,20 @@ done
 
 case "$MODE" in
   home|proxy)
-    choose_port ;;
+    pick_port PORT "Synapse" 3001 ;;
+  lan-https)
+    [ "$LAN_IP" = localhost ] && die "Couldn't work out this server's network address, which HTTPS-by-IP needs."
+    case "$LAN_IP" in
+      10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|100.*) ;;
+      *) info "This server's address ($LAN_IP) looks public. Option 3 with a domain gives a certificate that needs no setup on devices." ;;
+    esac
+    info "Synapse will use HTTPS on one port, plus a small plain-HTTP page on a second port"
+    info "where each device downloads this server's certificate to trust it."
+    pick_port PORT "Synapse (HTTPS)" 8443
+    pick_port TRUST_PORT "the certificate page" 8080 "$PORT"
+    info "Tip: give this server a fixed address in your router (a DHCP reservation)."
+    info "If its address ever changes, run: synapse set-ip"
+    ;;
   https)
     while true; do
       if [ -z "$DOMAIN" ]; then
@@ -297,6 +355,8 @@ cat >"$DIR/.env" <<EOF
 SYNAPSE_MODE=$MODE
 SYNAPSE_PORT=$PORT
 SYNAPSE_DOMAIN=$DOMAIN
+SYNAPSE_IP=$LAN_IP
+SYNAPSE_TRUST_PORT=$TRUST_PORT
 # Signs login sessions. Changing it signs everyone out.
 JWT_SECRET=$JWT_SECRET
 # Set to true to let anyone create an account (normally the admin adds people).
@@ -339,6 +399,48 @@ $DOMAIN {
 	reverse_proxy synapse:3001
 }
 EOF
+elif [ "$MODE" = lan-https ]; then
+  cat >"$DIR/docker-compose.yml" <<'EOF'
+# Synapse with HTTPS on this server's IP address (Caddy's own certificate authority).
+# Managed by the `synapse` command; ports are set in .env.
+services:
+  synapse:
+    image: ghcr.io/stevy2191/synapse:latest
+    container_name: synapse
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+
+  caddy:
+    image: caddy:2
+    container_name: synapse-caddy
+    restart: unless-stopped
+    depends_on: [synapse]
+    ports:
+      - "${SYNAPSE_PORT}:${SYNAPSE_PORT}"
+      - "${SYNAPSE_TRUST_PORT}:${SYNAPSE_TRUST_PORT}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./trust:/srv/trust:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+EOF
+  write_lan_caddyfile "$DIR" "$LAN_IP" "$PORT" "$TRUST_PORT"
+  mkdir -p "$DIR/trust"
+  TRUST_SRC="$(dirname "$0")/scripts/trust.html"
+  if [ -f "$TRUST_SRC" ]; then cp "$TRUST_SRC" "$DIR/trust/index.html"
+  else curl -fsSL "$REPO_RAW/scripts/trust.html" -o "$DIR/trust/index.html" || die "Couldn't download the certificate page."
+  fi
+  printf 'window.SYNAPSE = { httpsPort: %s };\n' "$PORT" >"$DIR/trust/config.js"
+  LOGO_SRC="$(dirname "$0")/frontend/public/logo.svg"
+  if [ -f "$LOGO_SRC" ]; then cp "$LOGO_SRC" "$DIR/trust/logo.svg"
+  else curl -fsSL "$REPO_RAW/frontend/public/logo.svg" -o "$DIR/trust/logo.svg" 2>/dev/null || true
+  fi
+  chmod 755 "$DIR/trust"; chmod 644 "$DIR/trust/"*
 else
   cat >"$DIR/docker-compose.yml" <<'EOF'
 # Synapse. Managed by the `synapse` command; the port is set in .env (SYNAPSE_PORT).
@@ -395,7 +497,11 @@ open_firewall() {
   return 0
 }
 if [ "$DRY_RUN" != 1 ]; then
-  if [ "$MODE" = https ]; then open_firewall 80; open_firewall 443; else open_firewall "$PORT"; fi
+  case "$MODE" in
+    https) open_firewall 80; open_firewall 443 ;;
+    lan-https) open_firewall "$PORT"; open_firewall "$TRUST_PORT" ;;
+    *) open_firewall "$PORT" ;;
+  esac
 fi
 
 # ── 5. Start ────────────────────────────────────────────────────────────────
@@ -422,6 +528,15 @@ else
     echo
     [ "$cert" = 1 ] && ok "HTTPS is working" || warn "The certificate isn't ready yet. It usually needs DNS and ports 80/443 reachable from the internet. Check with: synapse logs caddy"
   fi
+  if [ "$MODE" = lan-https ]; then
+    ROOT_CRT="$DIR/caddy/data/caddy/pki/authorities/local/root.crt"
+    cert=0
+    for _ in $(seq 1 30); do
+      if [ -f "$ROOT_CRT" ] && curl -fsS --max-time 3 --cacert "$ROOT_CRT" "https://$LAN_IP:$PORT/api/health" >/dev/null 2>&1; then cert=1; break; fi
+      sleep 1
+    done
+    [ "$cert" = 1 ] && ok "HTTPS is working with this server's own certificate" || warn "HTTPS isn't answering yet. Check with: synapse logs caddy"
+  fi
 fi
 
 # ── 6. Done ─────────────────────────────────────────────────────────────────
@@ -429,6 +544,7 @@ case "$MODE" in
   home)  URL="http://$LAN_IP:$PORT" ;;
   proxy) URL="http://$LAN_IP:$PORT" ;;
   https) URL="https://$DOMAIN" ;;
+  lan-https) URL="https://$LAN_IP:$PORT"; TRUST_URL="http://$LAN_IP:$TRUST_PORT" ;;
 esac
 
 line() { printf '  %s│%s  %s\n' "$MAG" "$R" "$1"; }
@@ -438,6 +554,7 @@ line ""
 line "Open        ${B}$URL${R}"
 line "Setup code  ${B}$SETUP_CODE${R}"
 line ""
+[ "$MODE" = lan-https ] && line "Trust page  ${B}$TRUST_URL${R}  (open this first on each device)" && line ""
 line "Open the address, enter the setup code and create your admin"
 line "account. Then add family or teammates in Settings → Admin."
 printf '  %s╰──────────────────────────────────────────────────────────%s\n' "$MAG" "$R"
@@ -449,6 +566,22 @@ if [ "$MODE" = proxy ]; then
   say "                          Turn on \"Block Common Exploits\" and request an SSL certificate."
   say "    Cloudflare Tunnel:    Service http://$LAN_IP:$PORT"
   say "    Same Docker host?     You can also forward to http://synapse:3001 if the proxy shares a Docker network."
+fi
+if [ "$MODE" = lan-https ]; then
+  say ""
+  say "  ${B}First, trust this server on each device${R} ${D}(once per phone or computer)${R}"
+  say "    Open ${B}$TRUST_URL${R} and follow the steps for that device."
+  say "    Until then the browser shows a security warning, and offline mode can't work."
+  if ! command -v qrencode >/dev/null 2>&1 && [ "$DRY_RUN" != 1 ]; then
+    if command -v apt-get >/dev/null 2>&1; then apt-get install -y -qq qrencode >/dev/null 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then dnf install -y -q qrencode >/dev/null 2>&1 || true
+    fi
+  fi
+  if command -v qrencode >/dev/null 2>&1; then
+    say ""
+    say "    Or scan this with your phone's camera:"
+    qrencode -t ANSIUTF8 -m 2 "$TRUST_URL" | sed 's/^/    /'
+  fi
 fi
 if [ "$MODE" = home ]; then
   say ""
