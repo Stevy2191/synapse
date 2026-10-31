@@ -93,6 +93,34 @@ addColumn('notes', `note_type TEXT NOT NULL DEFAULT 'note'`);
 addColumn('notes', `canvas_data TEXT`);
 addColumn('notes', `rich_content TEXT`);
 addColumn('users', `token_version INTEGER NOT NULL DEFAULT 0`);
+// Two-step verification
+addColumn('users', `totp_secret TEXT`);          // base32; set while setting up, kept once enabled
+addColumn('users', `totp_enabled INTEGER NOT NULL DEFAULT 0`);
+addColumn('users', `totp_last_step INTEGER NOT NULL DEFAULT 0`); // stops a code being used twice
+db.exec(`
+  CREATE TABLE IF NOT EXISTS passkeys (
+    id TEXT PRIMARY KEY,                -- credential ID (base64url)
+    user_id TEXT NOT NULL,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    name TEXT NOT NULL DEFAULT 'Passkey',
+    device_type TEXT,
+    backed_up INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    last_used_at INTEGER,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
+  CREATE TABLE IF NOT EXISTS recovery_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    used_at INTEGER,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_recovery_user ON recovery_codes(user_id);
+`);
 // Offline sync: `version` goes up on every content change so devices can detect conflicts,
 // and `last_op_id` makes retried saves idempotent.
 addColumn('notes', `version INTEGER NOT NULL DEFAULT 1`);

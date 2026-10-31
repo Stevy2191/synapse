@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import api from '../api';
 import { useStore } from '../stores/useStore';
 import Logo from '../components/Logo';
+import { KeyRound, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { passkeySupport, signInWithPasskey } from '../passkeys';
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');
@@ -20,13 +22,62 @@ export default function AuthPage() {
     }).catch(() => {});
   }, []);
 
+  // Second step of sign-in, when the account has two-step verification
+  const [mfa, setMfa] = useState(null);           // { token, methods }
+  const [mfaMode, setMfaMode] = useState('totp');  // 'totp' | 'recovery'
+  const [code, setCode] = useState('');
+  const passkeys = passkeySupport();
+
+  const finish = (data) => {
+    setAuth(data.user, data.token);
+    if (typeof data.recovery_codes_left === 'number') {
+      toast(data.recovery_codes_left > 0
+        ? `Recovery code used. ${data.recovery_codes_left} left. Make new ones in Settings → Security.`
+        : 'That was your last recovery code. Make new ones in Settings → Security.', { icon: '🔑', duration: 8000 });
+    }
+    navigate('/');
+  };
+
+  const usePasskey = async (mfaToken) => {
+    setLoading(true);
+    try { finish(await signInWithPasskey(mfaToken)); }
+    catch (err) { toast.error(err.message); }
+    finally { setLoading(false); }
+  };
+
+  const submitCode = async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    try {
+      const path = mfaMode === 'totp' ? '/auth/mfa/totp' : '/auth/mfa/recovery';
+      const { data } = await api.post(path, { mfa_token: mfa.token, code });
+      finish(data);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Something went wrong');
+      if (err.response?.status === 401 && /again/.test(err.response?.data?.error || '')) setMfa(null);
+      setCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handle = async () => {
     setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/auth/login' : '/auth/register';
       const { data } = await api.post(endpoint, form);
-      setAuth(data.user, data.token);
-      navigate('/');
+      if (data.mfa_required) {
+        setMfa({ token: data.mfa_token, methods: data.methods });
+        setMfaMode(data.methods.includes('totp') ? 'totp' : 'recovery');
+        setCode('');
+        // Only a passkey set up (no authenticator app)? Ask for it straight away.
+        if (!data.methods.includes('totp') && data.methods.includes('passkey') && passkeys.ok) {
+          setLoading(false);
+          usePasskey(data.mfa_token);
+        }
+        return;
+      }
+      finish(data);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Something went wrong');
     } finally {
@@ -47,6 +98,55 @@ export default function AuthPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Your connected knowledge base</p>
         </div>
 
+        {mfa ? (
+          <div className="fade-in">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <ShieldCheck size={20} style={{ color: 'var(--accent)' }} />
+              <h2 style={{ font: '600 18px var(--font-display)', color: 'var(--text-primary)' }}>Two-step verification</h2>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 18, lineHeight: 1.5 }}>
+              {mfaMode === 'totp'
+                ? 'Enter the 6-digit code from your authenticator app.'
+                : 'Enter one of the recovery codes you saved when you set up two-step verification.'}
+            </p>
+            {(mfa.methods.includes('totp') || mfaMode === 'recovery') && (
+              <>
+                <input
+                  value={code}
+                  onChange={e => setCode(mfaMode === 'totp' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && submitCode()}
+                  placeholder={mfaMode === 'totp' ? '123 456' : 'abcde-12345'}
+                  inputMode={mfaMode === 'totp' ? 'numeric' : 'text'}
+                  autoComplete="one-time-code"
+                  autoFocus
+                  style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 22, letterSpacing: '0.25em', textAlign: 'center', padding: '12px 14px' }}
+                />
+                <button onClick={submitCode} disabled={loading || !code.trim()} style={{ ...primaryBtn, opacity: loading || !code.trim() ? 0.6 : 1 }}>
+                  {loading ? '…' : 'Verify'}
+                </button>
+              </>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+              {mfa.methods.includes('passkey') && (
+                passkeys.ok
+                  ? <button onClick={() => usePasskey(mfa.token)} disabled={loading} style={secondaryBtn}><KeyRound size={15} /> Use a passkey</button>
+                  : <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{passkeys.reason}</p>
+              )}
+              {mfaMode === 'totp' && mfa.methods.includes('recovery') && (
+                <button onClick={() => { setMfaMode('recovery'); setCode(''); }} style={linkBtn}>Lost your phone? Use a recovery code</button>
+              )}
+              {mfaMode === 'recovery' && mfa.methods.includes('totp') && (
+                <button onClick={() => { setMfaMode('totp'); setCode(''); }} style={linkBtn}>Use the authenticator app instead</button>
+              )}
+              <button onClick={() => { setMfa(null); setCode(''); }} style={{ ...linkBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <ArrowLeft size={13} /> Back to sign in
+              </button>
+            </div>
+            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 18, lineHeight: 1.5, textAlign: 'center' }}>
+              No phone and no recovery codes? An admin can turn off two-step verification for you.
+            </p>
+          </div>
+        ) : (<>
         {status.setupRequired && (
           <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
             Welcome! Create the admin account to get started.
@@ -129,11 +229,23 @@ export default function AuthPage() {
           {loading ? '...' : mode === 'login' ? 'Sign In' : status.setupRequired ? 'Create Admin Account' : 'Create Account'}
         </button>
 
+        {mode === 'login' && !status.setupRequired && passkeys.ok && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 0', color: 'var(--text-muted)', fontSize: 12 }}>
+              <span style={{ flex: 1, height: 1, background: 'var(--border)' }} /> or <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+            <button onClick={() => usePasskey()} disabled={loading} style={{ ...secondaryBtn, marginTop: 14 }}>
+              <KeyRound size={15} /> Sign in with a passkey
+            </button>
+          </>
+        )}
+
         {mode === 'login' && !status.registrationOpen && (
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 16 }}>
             Need an account? Ask your Synapse admin.
           </p>
         )}
+        </>)}
       </div>
     </div>
   );
@@ -144,4 +256,18 @@ const inputStyle = {
   background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: 14,
   fontFamily: 'var(--font-sans)', outline: 'none', width: '100%',
   transition: 'border-color 0.2s'
+};
+
+const primaryBtn = {
+  width: '100%', marginTop: 14, padding: '12px 0', borderRadius: 10, border: 'none',
+  background: 'var(--accent)', color: '#fff', fontSize: 15, fontWeight: 700,
+  fontFamily: 'var(--font-display)', cursor: 'pointer', boxShadow: 'var(--glow)',
+};
+const secondaryBtn = {
+  width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  padding: '11px 0', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-elevated)',
+  color: 'var(--text-primary)', font: '600 14px var(--font-sans)', cursor: 'pointer',
+};
+const linkBtn = {
+  background: 'none', border: 'none', color: 'var(--accent-hover)', font: '500 13px var(--font-sans)', cursor: 'pointer', padding: 4,
 };

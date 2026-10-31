@@ -5,6 +5,7 @@
 import crypto from 'crypto';
 import { db } from './db/index.js';
 import { setPassword } from './users.js';
+import { resetMfa, mfaMethods } from './mfa.js';
 
 const [command, who] = process.argv.slice(2);
 
@@ -33,6 +34,13 @@ switch (command) {
     console.log('They can change it in Settings → Account after signing in. Other sessions were signed out.');
     break;
   }
+  case 'reset-mfa': {
+    const user = findUser(who);
+    resetMfa(user.id);
+    console.log(`Two-step verification is off for ${user.username} (authenticator app, passkeys and recovery codes removed).`);
+    console.log('They can set it up again in Settings → Security after signing in with their password.');
+    break;
+  }
   case 'make-admin': {
     const user = findUser(who);
     db.prepare("UPDATE users SET role='admin' WHERE id=?").run(user.id);
@@ -42,10 +50,13 @@ switch (command) {
   case 'users': {
     const users = db.prepare('SELECT username, email, role FROM users ORDER BY created_at').all();
     if (users.length === 0) console.log('No accounts yet. Open Synapse in a browser to create the admin account.');
-    for (const u of users) console.log(`${u.role === 'admin' ? '★' : ' '} ${u.username.padEnd(20)} ${u.email}`);
+    for (const u of users) {
+      const mfa = mfaMethods(db.prepare('SELECT id FROM users WHERE username=?').get(u.username).id).filter(m => m !== 'recovery');
+      console.log(`${u.role === 'admin' ? '★' : ' '} ${u.username.padEnd(20)} ${u.email.padEnd(30)} ${mfa.length ? '2-step: ' + mfa.join(', ') : ''}`);
+    }
     break;
   }
   default:
-    console.error('Commands: reset-password <user>, make-admin <user>, users');
+    console.error('Commands: reset-password <user>, reset-mfa <user>, make-admin <user>, users');
     process.exit(1);
 }

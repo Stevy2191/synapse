@@ -6,6 +6,8 @@ import { signToken, requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { createUser, setPassword, HttpError, PUBLIC_USER_FIELDS } from '../users.js';
 import { checkSetupCode, clearSetupCode, setupCodeDisabled } from '../setup.js';
+import { hasMfa, mfaMethods, signMfaToken } from '../mfa.js';
+import { sessionFor } from './security.js';
 
 const router = Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
@@ -60,8 +62,11 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
     if (!user || !valid) return res.status(401).json({ error: 'Invalid username or password' });
 
-    const { password_hash, token_version, ...safeUser } = user;
-    res.json({ token: signToken(user), user: safeUser });
+    // Two-step verification: the password was right, now ask for the second step.
+    if (hasMfa(user.id)) {
+      return res.json({ mfa_required: true, mfa_token: signMfaToken(user), methods: mfaMethods(user.id) });
+    }
+    res.json(sessionFor(user.id));
   } catch (err) { next(err); }
 });
 

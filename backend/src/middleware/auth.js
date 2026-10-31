@@ -21,6 +21,8 @@ export function requireAuth(req, res, next) {
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
+  // Only full sessions count. (A token from the first half of a two-step sign-in doesn't.)
+  if (payload.purpose) return res.status(401).json({ error: 'Invalid token' });
   const user = findUser.get(payload.id);
   if (!user || (payload.tv ?? 0) !== user.token_version) {
     return res.status(401).json({ error: 'Session expired' });

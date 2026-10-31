@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, User, Palette, Shield, LogOut } from 'lucide-react';
+import { X, User, Palette, Shield, LogOut, Lock } from 'lucide-react';
+import SecuritySettings from './SecuritySettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
 import api from '../../api';
@@ -39,6 +40,7 @@ export default function Settings() {
           {[
             ['appearance', <Palette size={14}/>, 'Appearance'],
             ['account', <User size={14}/>, 'Account'],
+            ['security', <Lock size={14}/>, 'Security'],
             ...(user?.role === 'admin' ? [['admin', <Shield size={14}/>, 'Admin']] : [])
           ].map(([id, icon, label]) => (
             <button key={id} onClick={() => { setTab(id); if (id === 'admin') loadUsers(); }} style={{
@@ -121,6 +123,8 @@ export default function Settings() {
             </div>
           )}
 
+          {tab === 'security' && <SecuritySettings />}
+
           {tab === 'admin' && (
             <div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 20, color: 'var(--text-primary)' }}>User Management</h3>
@@ -135,6 +139,7 @@ export default function Settings() {
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{u.username}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.email}</div>
                     </div>
+                    {u.mfa?.length > 0 && <span title={`Two-step: ${u.mfa.join(', ')}`} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: 'var(--bg-hover)', color: 'var(--success)', fontWeight: 600 }}>2-step</span>}
                     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: u.role === 'admin' ? 'var(--accent-subtle)' : 'var(--bg-hover)', color: u.role === 'admin' ? 'var(--accent-hover)' : 'var(--text-muted)', fontWeight: 600 }}>{u.role}</span>
                     {u.id !== user.id && (
                       <>
@@ -149,6 +154,13 @@ export default function Settings() {
                           try { await api.patch(`/admin/users/${u.id}/password`, { password }); toast.success('Password reset'); }
                           catch (err) { toast.error(errorMessage(err)); }
                         }} style={linkBtn}>Reset password</button>
+                        {u.mfa?.length > 0 && (
+                          <button onClick={async () => {
+                            if (!confirm(`Turn off two-step verification for ${u.username}? Use this if they lost their phone. They'll sign in with just their password and can set it up again.`)) return;
+                            try { await api.post(`/admin/users/${u.id}/reset-mfa`); loadUsers(); toast.success(`Two-step verification turned off for ${u.username}`); }
+                            catch (err) { toast.error(errorMessage(err)); }
+                          }} style={linkBtn}>Reset 2-step</button>
+                        )}
                         <button onClick={async () => {
                           if (!confirm(`Delete user ${u.username} and all of their notes? This cannot be undone.`)) return;
                           try { await api.delete(`/admin/users/${u.id}`); loadUsers(); toast.success('User deleted'); }

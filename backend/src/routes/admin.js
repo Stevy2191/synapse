@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { createUser, setPassword, deleteUser, adminCount, PUBLIC_USER_FIELDS } from '../users.js';
+import { resetMfa, mfaMethods } from '../mfa.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -13,8 +14,16 @@ function findUser(id) {
 }
 
 router.get('/users', (req, res) => {
-  const users = db.prepare(`SELECT ${PUBLIC_USER_FIELDS} FROM users ORDER BY created_at`).all();
+  const users = db.prepare(`SELECT ${PUBLIC_USER_FIELDS} FROM users ORDER BY created_at`).all()
+    .map(u => ({ ...u, mfa: mfaMethods(u.id).filter(m => m !== 'recovery') }));
   res.json({ users });
+});
+
+// Turn off someone's two-step verification (lost phone, etc.). Signs them out everywhere.
+router.post('/users/:id/reset-mfa', (req, res) => {
+  if (!findUser(req.params.id)) return res.status(404).json({ error: 'User not found' });
+  resetMfa(req.params.id);
+  res.json({ ok: true });
 });
 
 router.post('/users', async (req, res, next) => {

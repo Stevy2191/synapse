@@ -31,6 +31,7 @@ ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
   ${B}setup-code${R}                  Show the code for creating the admin account
   ${B}users${R}                       List accounts
   ${B}reset-password${R} <user>       Give someone a new temporary password
+  ${B}reset-mfa${R} <user>            Turn off someone's two-step verification (lost phone)
   ${B}make-admin${R} <user>           Make an account an admin
 
   ${B}port${R} <number>               Move Synapse to another port (checks it's free)
@@ -247,7 +248,7 @@ case "$cmd" in
     fi
     ;;
 
-  users|reset-password|make-admin)
+  users|reset-password|reset-mfa|make-admin)
     need_docker "$cmd" "$@"
     [ "$cmd" != users ] && [ -z "${1:-}" ] && die "Usage: synapse $cmd <username or email>"
     is_running || die "Synapse isn't running. Start it first: synapse start"

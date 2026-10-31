@@ -25,6 +25,7 @@
 - **File Attachments** — Upload images and files (50MB limit)
 - **Themes** — Neural (default) and Neural Light, following your device's light/dark setting, plus Dark, Light, Dracula, Nord, Solarized and Tokyo Night
 - **Multi-user** — First user becomes admin and invites everyone else
+- **Two-step verification** — Authenticator app codes (TOTP), passkeys (Face ID, Touch ID, Windows Hello, security keys), and one-time recovery codes. Passkeys can also sign in without a password
 - **Hierarchical notes** — Nest notes inside each other
 - **Offline-first** — Keep writing with no connection; changes upload automatically when you're back online
 - **Installable** — Add to your phone's home screen or desktop as an app
@@ -87,12 +88,27 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse setup-code` | Show the admin setup code |
 | `synapse users` | List accounts |
 | `synapse reset-password <user>` | New temporary password (works for the admin too) |
+| `synapse reset-mfa <user>` | Turn off someone's two-step verification (lost phone) |
 | `synapse make-admin <user>` | Make someone an admin |
 | `synapse port <number>` | Move to another port (checks it's free) |
 | `synapse trust` | HTTPS without a domain: show the trust page address and QR code |
 | `synapse set-ip [address]` | HTTPS without a domain: update after the server's IP changes (devices stay trusted) |
 | `synapse restart` / `stop` / `start` | |
 | `synapse uninstall` | Remove Synapse (asks before deleting notes) |
+
+---
+
+## Two-Step Verification
+
+Each person turns it on in **Settings → Security**:
+
+- **Authenticator app**: scan a QR code with Google Authenticator, Microsoft Authenticator, 1Password, Authy… Signing in then asks for the 6-digit code after the password.
+- **Passkeys**: Face ID, Touch ID, Windows Hello, an Android phone or a security key. Use one as the second step, or tap **Sign in with a passkey** to skip the password entirely.
+- **Recovery codes**: 10 one-time codes, shown when two-step verification is first turned on. Each works once if the phone is lost.
+
+Lost phone *and* recovery codes? An admin can turn it off in **Settings → Admin → Reset 2-step**, or on the server: `synapse reset-mfa <username>`.
+
+> Passkeys need Synapse on **HTTPS with a domain name** (install options 2 or 3). Browsers don't allow them on an IP address. Authenticator-app codes work everywhere.
 
 ---
 
