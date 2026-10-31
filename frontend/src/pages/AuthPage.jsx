@@ -45,12 +45,12 @@ export default function AuthPage() {
     finally { setLoading(false); }
   };
 
-  const submitCode = async () => {
-    if (!code.trim()) return;
+  const submitCode = async (value = code) => {
+    if (!value.trim() || loading) return;
     setLoading(true);
     try {
       const path = mfaMode === 'totp' ? '/auth/mfa/totp' : '/auth/mfa/recovery';
-      const { data } = await api.post(path, { mfa_token: mfa.token, code });
+      const { data } = await api.post(path, { mfa_token: mfa.token, code: value });
       finish(data);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Something went wrong');
@@ -110,21 +110,54 @@ export default function AuthPage() {
                 : 'Enter one of the recovery codes you saved when you set up two-step verification.'}
             </p>
             {(mfa.methods.includes('totp') || mfaMode === 'recovery') && (
-              <>
-                <input
-                  value={code}
-                  onChange={e => setCode(mfaMode === 'totp' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && submitCode()}
-                  placeholder={mfaMode === 'totp' ? '123 456' : 'abcde-12345'}
-                  inputMode={mfaMode === 'totp' ? 'numeric' : 'text'}
-                  autoComplete="one-time-code"
-                  autoFocus
-                  style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 22, letterSpacing: '0.25em', textAlign: 'center', padding: '12px 14px' }}
-                />
-                <button onClick={submitCode} disabled={loading || !code.trim()} style={{ ...primaryBtn, opacity: loading || !code.trim() ? 0.6 : 1 }}>
+              // A real form with a field marked as a one-time code, so password managers
+              // (Bitwarden, 1Password, the browser's own) recognise it and offer to fill it.
+              <form id="mfa-form" name="mfa" method="post" action="#" autoComplete="on"
+                onSubmit={e => { e.preventDefault(); submitCode(); }}>
+                <input type="text" name="username" autoComplete="username" value={form.username} readOnly hidden />
+                {mfaMode === 'totp' ? (
+                  <input
+                    key="totp"
+                    id="totp"
+                    name="totp"
+                    type="text"
+                    aria-label="Authenticator code"
+                    value={code}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setCode(digits);
+                      // Six digits typed, pasted or filled in by a password manager: sign in straight away.
+                      if (digits.length === 6) submitCode(digits);
+                    }}
+                    placeholder="6-digit code"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    autoFocus
+                    style={codeStyle}
+                  />
+                ) : (
+                  <input
+                    key="recovery"
+                    id="recovery-code"
+                    name="recovery_code"
+                    type="text"
+                    aria-label="Recovery code"
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    placeholder="abcde-12345"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    autoFocus
+                    style={codeStyle}
+                  />
+                )}
+                <button type="submit" disabled={loading || !code.trim()} style={{ ...primaryBtn, opacity: loading || !code.trim() ? 0.6 : 1 }}>
                   {loading ? '…' : 'Verify'}
                 </button>
-              </>
+              </form>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
               {mfa.methods.includes('passkey') && (
@@ -156,7 +189,7 @@ export default function AuthPage() {
         {/* Tabs */}
         {status.registrationOpen && !status.setupRequired && <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 4, marginBottom: 24, gap: 4 }}>
           {['login', 'register'].map(m => (
-            <button key={m} onClick={() => setMode(m)} style={{
+            <button key={m} type="button" onClick={() => setMode(m)} style={{
               flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
               fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-sans)',
               background: mode === m ? 'var(--accent)' : 'transparent',
@@ -168,7 +201,9 @@ export default function AuthPage() {
           ))}
         </div>}
 
-        {/* Fields */}
+        {/* Fields: a real form with named fields, so password managers can fill them */}
+        <form id="login-form" name={mode === 'login' ? 'login' : 'register'} method="post" action="#" autoComplete="on"
+          onSubmit={e => { e.preventDefault(); handle(); }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mode === 'register' && status.setupCodeRequired && (
             <div>
@@ -176,7 +211,7 @@ export default function AuthPage() {
                 placeholder="Setup code (e.g. K7QF-M2XP)"
                 value={form.setup_code}
                 onChange={e => setForm(f => ({ ...f, setup_code: e.target.value.toUpperCase() }))}
-                onKeyDown={e => e.key === 'Enter' && handle()}
+                name="setup_code"
                 style={{ ...inputStyle, fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textAlign: 'center' }}
                 autoComplete="one-time-code"
                 autoFocus
@@ -190,7 +225,10 @@ export default function AuthPage() {
             placeholder={mode === 'register' ? 'Username' : 'Username or email'}
             value={form.username}
             onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-            onKeyDown={e => e.key === 'Enter' && handle()}
+            id="username"
+            name="username"
+            type="text"
+            autoCapitalize="none"
             style={inputStyle}
             autoComplete="username"
           />
@@ -200,7 +238,8 @@ export default function AuthPage() {
               type="email"
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              onKeyDown={e => e.key === 'Enter' && handle()}
+              id="email"
+              name="email"
               style={inputStyle}
               autoComplete="email"
             />
@@ -210,14 +249,15 @@ export default function AuthPage() {
             type="password"
             value={form.password}
             onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-            onKeyDown={e => e.key === 'Enter' && handle()}
+            id="password"
+            name="password"
             style={inputStyle}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </div>
 
         <button
-          onClick={handle}
+          type="submit"
           disabled={loading}
           style={{
             width: '100%', marginTop: 20, padding: '12px 0', borderRadius: 10, border: 'none',
@@ -228,6 +268,7 @@ export default function AuthPage() {
         >
           {loading ? '...' : mode === 'login' ? 'Sign In' : status.setupRequired ? 'Create Admin Account' : 'Create Account'}
         </button>
+        </form>
 
         {mode === 'login' && !status.setupRequired && passkeys.ok && (
           <>
@@ -270,4 +311,7 @@ const secondaryBtn = {
 };
 const linkBtn = {
   background: 'none', border: 'none', color: 'var(--accent-hover)', font: '500 13px var(--font-sans)', cursor: 'pointer', padding: 4,
+};
+const codeStyle = {
+  ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 22, letterSpacing: '0.25em', textAlign: 'center', padding: '12px 14px',
 };
