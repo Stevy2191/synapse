@@ -25,7 +25,7 @@ export function markdownToHtml(md) {
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-', emDelimiter: '*' });
 turndown.addRule('taskItem', {
-  filter: node => node.nodeName === 'LI' && node.getAttribute('data-type') === 'taskItem',
+  filter: node => node.nodeName === 'LI' && (node.getAttribute('data-type') === 'taskItem' || node.parentNode?.getAttribute?.('data-type') === 'taskList'),
   replacement: (content, node) => `- [${node.getAttribute('data-checked') === 'true' ? 'x' : ' '}] ${content.trim().replace(/\n+/g, ' ')}\n`,
 });
 turndown.addRule('taskList', {

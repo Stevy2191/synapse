@@ -58,6 +58,8 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       LinkExt.configure({ openOnClick: false, autolink: true }),
     ],
     content: content || '<p></p>',
+    // The styles below are scoped to this class.
+    editorProps: { attributes: { class: 'rich-editor-content' } },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       lastHtmlRef.current = html;
@@ -119,7 +121,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
             padding-left: 0;
             margin: 0.5em 0;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"] {
+          .rich-editor-content ul[data-type="taskList"] > li {
             display: flex;
             flex-direction: row;
             align-items: flex-start;
@@ -127,14 +129,14 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
             margin: 0.4em 0;
             padding: 2px 0;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"] > label {
+          .rich-editor-content ul[data-type="taskList"] > li > label {
             display: flex;
             align-items: center;
             flex-shrink: 0;
             padding-top: 3px;
             cursor: pointer;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"] > label > input[type="checkbox"] {
+          .rich-editor-content ul[data-type="taskList"] > li > label > input[type="checkbox"] {
             width: 16px;
             height: 16px;
             accent-color: var(--accent);
@@ -142,16 +144,16 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
             margin: 0;
             flex-shrink: 0;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"] > div {
+          .rich-editor-content ul[data-type="taskList"] > li > div {
             flex: 1;
             min-width: 0;
             cursor: text;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"] > div > p {
+          .rich-editor-content ul[data-type="taskList"] > li > div > p {
             margin: 0;
             min-height: 1.6em;
           }
-          .rich-editor-content ul[data-type="taskList"] > li[data-type="taskItem"][data-checked="true"] > div > p {
+          .rich-editor-content ul[data-type="taskList"] > li[data-checked="true"] > div > p {
             text-decoration: line-through;
             color: var(--text-muted);
           }
