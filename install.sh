@@ -21,6 +21,11 @@
 #    --smb-user NAME     smb storage: user name
 #    --yes               accept the defaults without asking
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Everything is inside { … } so bash reads the whole script before running any of it. When
+# piped from curl, the script arrives on standard input, and a command that reads input (like
+# `docker compose exec`) would otherwise swallow the rest of it and the installer would stop early.
+{
 set -euo pipefail
 
 REPO_RAW="https://raw.githubusercontent.com/Stevy2191/synapse/main"
@@ -279,7 +284,7 @@ test_smb() {
     docker volume rm -f "$vol" >/dev/null 2>&1 || true
     docker volume create --driver local --opt type=cifs --opt "device=//$host/$share_path" \
       --opt "o=$(smb_options "$ip" "$v")" "$vol" >/dev/null
-    if out=$(docker run --rm --entrypoint sh -v "$vol:/data" ghcr.io/stevy2191/synapse:latest -c 'touch /data/.synapse-write-test && rm /data/.synapse-write-test' 2>&1); then
+    if out=$(docker run --rm --entrypoint sh -v "$vol:/data" ghcr.io/stevy2191/synapse:latest -c 'touch /data/.synapse-write-test && rm /data/.synapse-write-test' </dev/null 2>&1); then
       docker volume rm -f "$vol" >/dev/null 2>&1 || true
       SMB_VERS="$v"; return 0
     fi
@@ -365,7 +370,7 @@ if is_synapse_install "$DIR"; then
   warn "Synapse is already set up in $DIR."
   if confirm "Update it to the latest version and add the 'synapse' command? (your notes are kept)" Y; then
     if [ "$DRY_RUN" = 1 ]; then ok "(dry run) would update"; install_cli; exit 0; fi
-    (cd "$DIR" && docker compose pull && docker compose up -d)
+    (cd "$DIR" && docker compose pull </dev/null && docker compose up -d </dev/null)
     ok "Updated. Your notes are untouched."
     install_cli
     say ""
@@ -733,11 +738,11 @@ step "Starting Synapse"
 if [ "$DRY_RUN" = 1 ]; then
   ok "(dry run) skipping docker compose pull / up"
 else
-  (cd "$DIR" && docker compose pull --quiet && docker compose up -d) || die "Couldn't start Synapse. See the messages above, or run: cd $DIR && docker compose logs"
+  (cd "$DIR" && docker compose pull --quiet </dev/null && docker compose up -d </dev/null) || die "Couldn't start Synapse. See the messages above, or run: cd $DIR && docker compose logs"
   printf '  Waiting for Synapse to be ready'
   ready=0
   for _ in $(seq 1 60); do
-    if (cd "$DIR" && docker compose exec -T synapse wget -qO- http://127.0.0.1:3001/api/health) >/dev/null 2>&1; then ready=1; break; fi
+    if (cd "$DIR" && docker compose exec -T synapse wget -qO- http://127.0.0.1:3001/api/health </dev/null) >/dev/null 2>&1; then ready=1; break; fi
     printf '.'; sleep 1
   done
   echo
@@ -825,3 +830,6 @@ say "    synapse backup            save a backup of all notes"
 say "    synapse reset-password    if someone forgets their password"
 say "    synapse help              everything else"
 say ""
+
+exit 0
+}
