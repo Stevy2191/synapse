@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api';
@@ -73,6 +73,14 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const setAuth = useStore(s => s.setAuth);
+  const [status, setStatus] = useState({ setupRequired: false, registrationOpen: false });
+
+  useEffect(() => {
+    api.get('/auth/status').then(({ data }) => {
+      setStatus(data);
+      if (data.setupRequired) setMode('register');
+    }).catch(() => {});
+  }, []);
 
   const handle = async () => {
     setLoading(true);
@@ -101,8 +109,14 @@ export default function AuthPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Your connected knowledge base</p>
         </div>
 
+        {status.setupRequired && (
+          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
+            Welcome! Create the admin account to get started.
+          </p>
+        )}
+
         {/* Tabs */}
-        <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 4, marginBottom: 24, gap: 4 }}>
+        {status.registrationOpen && !status.setupRequired && <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 4, marginBottom: 24, gap: 4 }}>
           {['login', 'register'].map(m => (
             <button key={m} onClick={() => setMode(m)} style={{
               flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
@@ -114,7 +128,7 @@ export default function AuthPage() {
               {m === 'login' ? 'Sign In' : 'Register'}
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -158,12 +172,12 @@ export default function AuthPage() {
             letterSpacing: '0.02em', transition: 'all 0.2s'
           }}
         >
-          {loading ? '...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+          {loading ? '...' : mode === 'login' ? 'Sign In' : status.setupRequired ? 'Create Admin Account' : 'Create Account'}
         </button>
 
-        {mode === 'register' && (
+        {mode === 'login' && !status.registrationOpen && (
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 16 }}>
-            First registered user becomes admin
+            Need an account? Ask your Synapse admin.
           </p>
         )}
       </div>

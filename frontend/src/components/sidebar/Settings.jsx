@@ -103,12 +103,14 @@ export default function Settings() {
                   )}
                 </div>
               </div>
+              <ChangePassword />
             </div>
           )}
 
           {tab === 'admin' && (
             <div>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 20, color: 'var(--text-primary)' }}>User Management</h3>
+              <AddUser onAdded={loadUsers} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {adminUsers.map(u => (
                   <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -121,10 +123,24 @@ export default function Settings() {
                     </div>
                     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: u.role === 'admin' ? 'var(--accent-subtle)' : 'var(--bg-hover)', color: u.role === 'admin' ? 'var(--accent-hover)' : 'var(--text-muted)', fontWeight: 600 }}>{u.role}</span>
                     {u.id !== user.id && (
-                      <button onClick={async () => {
-                        if (!confirm(`Delete user ${u.username}?`)) return;
-                        try { await api.delete(`/admin/users/${u.id}`); loadUsers(); toast.success('User deleted'); } catch { toast.error('Failed'); }
-                      }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 11, fontWeight: 600 }}>Remove</button>
+                      <>
+                        <button onClick={async () => {
+                          const role = u.role === 'admin' ? 'user' : 'admin';
+                          try { await api.patch(`/admin/users/${u.id}/role`, { role }); loadUsers(); toast.success(`${u.username} is now ${role === 'admin' ? 'an admin' : 'a user'}`); }
+                          catch (err) { toast.error(errorMessage(err)); }
+                        }} style={linkBtn}>{u.role === 'admin' ? 'Make user' : 'Make admin'}</button>
+                        <button onClick={async () => {
+                          const password = prompt(`New password for ${u.username} (min 8 characters):`);
+                          if (!password) return;
+                          try { await api.patch(`/admin/users/${u.id}/password`, { password }); toast.success('Password reset'); }
+                          catch (err) { toast.error(errorMessage(err)); }
+                        }} style={linkBtn}>Reset password</button>
+                        <button onClick={async () => {
+                          if (!confirm(`Delete user ${u.username} and all of their notes? This cannot be undone.`)) return;
+                          try { await api.delete(`/admin/users/${u.id}`); loadUsers(); toast.success('User deleted'); }
+                          catch (err) { toast.error(errorMessage(err)); }
+                        }} style={{ ...linkBtn, color: 'var(--danger)' }}>Remove</button>
+                      </>
                     )}
                   </div>
                 ))}
@@ -134,5 +150,95 @@ export default function Settings() {
         </div>
       </div>
     </div>
+  );
+}
+
+const linkBtn = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-sans)', padding: '2px 4px' };
+
+const fieldStyle = {
+  padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-base)',
+  color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font-sans)', outline: 'none', width: '100%'
+};
+
+const primaryBtn = {
+  padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff',
+  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', alignSelf: 'flex-start'
+};
+
+const sectionStyle = { background: 'var(--bg-elevated)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 };
+const sectionTitle = { fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginBottom: 4 };
+
+function errorMessage(err) {
+  return err?.response?.data?.error || 'Something went wrong';
+}
+
+function ChangePassword() {
+  const setToken = useStore(s => s.setToken);
+  const [form, setForm] = useState({ current: '', next: '', confirm: '' });
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (form.next !== form.confirm) return toast.error('New passwords do not match');
+    setBusy(true);
+    try {
+      const { data } = await api.patch('/auth/password', { current_password: form.current, new_password: form.next });
+      setToken(data.token);
+      setForm({ current: '', next: '', confirm: '' });
+      toast.success('Password changed. Other devices were signed out.');
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} style={sectionStyle}>
+      <div style={sectionTitle}>Change password</div>
+      <input type="password" placeholder="Current password" autoComplete="current-password" value={form.current} onChange={e => setForm(f => ({ ...f, current: e.target.value }))} style={fieldStyle} />
+      <input type="password" placeholder="New password (min 8 characters)" autoComplete="new-password" value={form.next} onChange={e => setForm(f => ({ ...f, next: e.target.value }))} style={fieldStyle} />
+      <input type="password" placeholder="Confirm new password" autoComplete="new-password" value={form.confirm} onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))} style={fieldStyle} />
+      <button type="submit" disabled={busy || !form.current || !form.next} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>Update password</button>
+    </form>
+  );
+}
+
+function AddUser({ onAdded }) {
+  const empty = { username: '', email: '', password: '', role: 'user' };
+  const [form, setForm] = useState(empty);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post('/admin/users', form);
+      toast.success(`Created ${form.username}`);
+      setForm(empty);
+      onAdded();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} style={{ ...sectionStyle, marginTop: 0, marginBottom: 16 }}>
+      <div style={sectionTitle}>Add a user</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input placeholder="Username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} style={fieldStyle} />
+        <input placeholder="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={fieldStyle} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input placeholder="Temporary password" type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} style={fieldStyle} />
+        <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ ...fieldStyle, width: 110 }}>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>Create user</button>
+    </form>
   );
 }

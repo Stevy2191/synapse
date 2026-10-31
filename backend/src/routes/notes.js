@@ -1,158 +1,240 @@
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { db } from '../db/index.js';
+import { db, indexNote, searchableText, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
 
-// Verify workspace belongs to user
+const NOTE_TYPES = ['note', 'diagram', 'draw'];
+const EDITOR_MODES = ['markdown', 'rich'];
+
 function getWorkspace(wsId, userId) {
   return db.prepare('SELECT * FROM workspaces WHERE id=? AND user_id=?').get(wsId, userId);
 }
 
-// Parse [[links]] from content and sync note_links table
-function syncLinks(noteId, content, workspaceId) {
-  const pattern = /\[\[([^\]]+)\]\]/g;
-  const titles = [];
-  let m;
-  while ((m = pattern.exec(content)) !== null) titles.push(m[1]);
+function getOwnedNote(id, userId) {
+  return db.prepare(`
+    SELECT n.* FROM notes n JOIN workspaces w ON w.id=n.workspace_id
+    WHERE n.id=? AND w.user_id=?`).get(id, userId);
+}
 
-  db.prepare('DELETE FROM note_links WHERE source_id=?').run(noteId);
+// IDs of a note and everything nested under it.
+function subtreeIds(noteId) {
+  return db.prepare(`
+    WITH RECURSIVE sub(id) AS (
+      SELECT ? UNION SELECT n.id FROM notes n JOIN sub ON n.parent_id = sub.id
+    ) SELECT id FROM sub`).all(noteId).map(r => r.id);
+}
 
+// Make sure a parent is in the same workspace and doesn't create a cycle.
+function validateParent(parentId, workspaceId, noteId = null) {
+  if (parentId === null) return null;
+  if (typeof parentId !== 'string') return 'Invalid parent';
+  const parent = db.prepare('SELECT id, workspace_id FROM notes WHERE id=?').get(parentId);
+  if (!parent || parent.workspace_id !== workspaceId) return 'Parent note not found';
+  if (noteId && subtreeIds(noteId).includes(parentId)) return 'A note cannot be moved inside itself';
+  return null;
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return null;
+  return [...new Set(tags.filter(t => typeof t === 'string').map(t => t.trim().toLowerCase()).filter(Boolean))].slice(0, 50);
+}
+
+// Parse [[links]] from the note's text and sync note_links.
+function syncLinks(note) {
+  const titles = new Set();
+  const pattern = /\[\[([^\[\]\n]+)\]\]/g;
+  for (const m of searchableText(note).matchAll(pattern)) {
+    titles.add(m[1].split('|')[0].trim());
+  }
+
+  db.prepare('DELETE FROM note_links WHERE source_id=?').run(note.id);
+  const findTarget = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND title=? COLLATE NOCASE');
+  const insert = db.prepare('INSERT INTO note_links (id,source_id,target_id,workspace_id) VALUES (?,?,?,?)');
+  const linked = new Set();
   for (const title of titles) {
-    const target = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND title=?').get(workspaceId, title);
-    if (target && target.id !== noteId) {
-      const existing = db.prepare('SELECT id FROM note_links WHERE source_id=? AND target_id=?').get(noteId, target.id);
-      if (!existing) {
-        db.prepare('INSERT INTO note_links (id,source_id,target_id,workspace_id) VALUES (?,?,?,?)').run(uuid(), noteId, target.id, workspaceId);
-      }
+    const target = findTarget.get(note.workspace_id, title);
+    if (target && target.id !== note.id && !linked.has(target.id)) {
+      linked.add(target.id);
+      insert.run(uuid(), note.id, target.id, note.workspace_id);
     }
   }
 }
 
-// Get all notes in workspace (tree structure)
+// Notes whose [[links]] mention a title. Used to re-link when a note is created or renamed.
+function relinkNotesMentioning(workspaceId, titles) {
+  const others = db.prepare('SELECT * FROM notes WHERE workspace_id=?').all(workspaceId);
+  const needles = titles.filter(Boolean).map(t => `[[${t.toLowerCase()}`);
+  for (const n of others) {
+    const text = searchableText(n).toLowerCase();
+    if (needles.some(nd => text.includes(nd))) syncLinks(n);
+  }
+}
+
+function saveSideEffects(note, previousTitle = null) {
+  indexNote(note);
+  syncLinks(note);
+  if (previousTitle !== note.title) relinkNotesMentioning(note.workspace_id, [note.title, previousTitle]);
+}
+
+// All notes in a workspace (tree data, no content)
 router.get('/workspace/:wsId', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
-  const notes = db.prepare('SELECT id,parent_id,title,tags,position,created_at,updated_at FROM notes WHERE workspace_id=? ORDER BY position,created_at').all(req.params.wsId);
+  const notes = db.prepare('SELECT id,parent_id,title,tags,note_type,position,created_at,updated_at FROM notes WHERE workspace_id=? ORDER BY position,created_at').all(req.params.wsId);
   res.json({ notes });
-});
-
-// Get single note with content
-router.get('/:id', (req, res) => {
-  const note = db.prepare('SELECT * FROM notes WHERE id=?').get(req.params.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
-  if (!getWorkspace(note.workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
-
-  const links = db.prepare(`
-    SELECT n.id, n.title, 'outgoing' as direction FROM note_links nl 
-    JOIN notes n ON n.id = nl.target_id WHERE nl.source_id=?
-    UNION
-    SELECT n.id, n.title, 'incoming' as direction FROM note_links nl 
-    JOIN notes n ON n.id = nl.source_id WHERE nl.target_id=?
-  `).all(note.id, note.id);
-
-  const attachments = db.prepare('SELECT id,filename,original_name,mime_type,size,created_at FROM attachments WHERE note_id=?').all(note.id);
-
-  res.json({ note, links, attachments });
-});
-
-// Create note
-router.post('/', (req, res) => {
-  const { workspace_id, parent_id = null, title = 'Untitled', content = '', note_type = 'note', canvas_data = null } = req.body;
-  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-  if (!getWorkspace(workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
-
-  const maxPos = db.prepare('SELECT MAX(position) as m FROM notes WHERE workspace_id=? AND parent_id IS ?').get(workspace_id, parent_id);
-  const position = (maxPos.m ?? -1) + 1;
-
-  const id = uuid();
-  db.prepare('INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data) VALUES (?,?,?,?,?,?,?,?)').run(id, workspace_id, parent_id, title, content, position, note_type, canvas_data);
-  syncLinks(id, content, workspace_id);
-
-  const note = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
-  res.json({ note });
-});
-
-// Update note
-router.patch('/:id', (req, res) => {
-  const note = db.prepare('SELECT * FROM notes WHERE id=?').get(req.params.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
-  if (!getWorkspace(note.workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
-
-  const { title, content, parent_id, position, tags, editor_mode, note_type, canvas_data, rich_content } = req.body;
-  const newTitle = title !== undefined ? title : note.title;
-  const newContent = content !== undefined ? content : note.content;
-  const newTags = tags !== undefined ? JSON.stringify(tags) : note.tags;
-  const newMode = editor_mode !== undefined ? editor_mode : note.editor_mode;
-  const newType = note_type !== undefined ? note_type : note.note_type;
-  const newCanvas = canvas_data !== undefined ? canvas_data : note.canvas_data;
-  const newRich = rich_content !== undefined ? rich_content : note.rich_content;
-
-  db.prepare(`
-    UPDATE notes SET 
-      title=?, content=?, 
-      parent_id=COALESCE(?,parent_id),
-      position=COALESCE(?,position),
-      tags=?,
-      editor_mode=?,
-      note_type=?,
-      canvas_data=?,
-      rich_content=?,
-      updated_at=unixepoch()
-    WHERE id=?
-  `).run(newTitle, newContent, parent_id !== undefined ? parent_id : null, position !== undefined ? position : null, newTags, newMode, newType, newCanvas, newRich, note.id);
-
-  syncLinks(note.id, newContent, note.workspace_id);
-  const updated = db.prepare('SELECT * FROM notes WHERE id=?').get(note.id);
-  res.json({ note: updated });
-});
-
-// Delete note
-router.delete('/:id', (req, res) => {
-  const note = db.prepare('SELECT * FROM notes WHERE id=?').get(req.params.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
-  if (!getWorkspace(note.workspace_id, req.user.id)) return res.status(403).json({ error: 'Forbidden' });
-  db.prepare('DELETE FROM notes WHERE id=?').run(note.id);
-  res.json({ ok: true });
 });
 
 // Full-text search
 router.get('/workspace/:wsId/search', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
-  const q = req.query.q;
-  if (!q) return res.json({ results: [] });
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  // Quote each word so user input can't break FTS5 query syntax; prefix-match each one.
+  const terms = q.match(/[\p{L}\p{N}_]+/gu) || [];
+  if (terms.length === 0) return res.json({ results: [] });
+  const match = terms.slice(0, 10).map(t => `"${t}"*`).join(' ');
 
-  try {
-    const results = db.prepare(`
-      SELECT n.id, n.title, snippet(notes_fts, 2, '<mark>', '</mark>', '...', 20) as excerpt
-      FROM notes_fts 
-      JOIN notes n ON n.id = notes_fts.id
-      WHERE notes_fts MATCH ? AND n.workspace_id=?
-      ORDER BY rank LIMIT 20
-    `).all(q + '*', req.params.wsId);
-    res.json({ results });
-  } catch {
-    res.json({ results: [] });
+  const results = db.prepare(`
+    SELECT n.id, n.title, n.note_type, snippet(notes_fts, 2, '<mark>', '</mark>', '...', 20) AS excerpt
+    FROM notes_fts
+    JOIN notes n ON n.id = notes_fts.id
+    WHERE notes_fts MATCH ? AND n.workspace_id=?
+    ORDER BY rank LIMIT 30
+  `).all(match, req.params.wsId);
+
+  // Snippets come from user content; escape everything except our <mark> tags.
+  for (const r of results) {
+    r.excerpt = r.excerpt
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/&lt;mark&gt;/g, '<mark>').replace(/&lt;\/mark&gt;/g, '</mark>');
   }
+  res.json({ results });
 });
 
-// Graph data for workspace
+// Graph data
 router.get('/workspace/:wsId/graph', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
-
-  const nodes = db.prepare('SELECT id, title, tags FROM notes WHERE workspace_id=?').all(req.params.wsId);
+  const nodes = db.prepare('SELECT id, title, tags, note_type FROM notes WHERE workspace_id=?').all(req.params.wsId);
   const edges = db.prepare('SELECT source_id, target_id FROM note_links WHERE workspace_id=?').all(req.params.wsId);
-
   res.json({ nodes, edges });
 });
 
-// Note title suggestions for [[linking]]
+// Title suggestions for [[linking]]
 router.get('/workspace/:wsId/titles', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
-  const q = req.query.q || '';
-  const titles = db.prepare("SELECT id, title FROM notes WHERE workspace_id=? AND title LIKE ? LIMIT 10").all(req.params.wsId, `%${q}%`);
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  const escaped = q.replace(/[\\%_]/g, c => '\\' + c);
+  const titles = db.prepare("SELECT id, title FROM notes WHERE workspace_id=? AND title LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 10").all(req.params.wsId, `%${escaped}%`);
   res.json({ titles });
+});
+
+// Single note with content, links and attachments
+router.get('/:id', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ error: 'Not found' });
+
+  const links = db.prepare(`
+    SELECT n.id, n.title, 'outgoing' AS direction FROM note_links nl
+    JOIN notes n ON n.id = nl.target_id WHERE nl.source_id=?
+    UNION
+    SELECT n.id, n.title, 'incoming' AS direction FROM note_links nl
+    JOIN notes n ON n.id = nl.source_id WHERE nl.target_id=?
+  `).all(note.id, note.id);
+
+  const attachments = db.prepare('SELECT id,filename,original_name,mime_type,size,created_at FROM attachments WHERE note_id=?').all(note.id);
+  res.json({ note, links, attachments });
+});
+
+// Create
+router.post('/', (req, res) => {
+  const { workspace_id, parent_id = null, title = 'Untitled', content = '', note_type = 'note', canvas_data = null } = req.body || {};
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  if (!getWorkspace(workspace_id, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
+  if (!NOTE_TYPES.includes(note_type)) return res.status(400).json({ error: 'Invalid note type' });
+  if (typeof title !== 'string' || typeof content !== 'string') return res.status(400).json({ error: 'Invalid note' });
+  const parentError = validateParent(parent_id, workspace_id);
+  if (parentError) return res.status(400).json({ error: parentError });
+
+  const id = uuid();
+  const note = db.transaction(() => {
+    const maxPos = db.prepare('SELECT MAX(position) AS m FROM notes WHERE workspace_id=? AND parent_id IS ?').get(workspace_id, parent_id);
+    db.prepare('INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data) VALUES (?,?,?,?,?,?,?,?)')
+      .run(id, workspace_id, parent_id, title.trim() || 'Untitled', content, (maxPos.m ?? -1) + 1, note_type, canvas_data);
+    const created = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
+    saveSideEffects(created);
+    return created;
+  })();
+  res.json({ note });
+});
+
+// Update. Only fields present in the body change; `parent_id: null` moves the note to the top level.
+router.patch('/:id', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ error: 'Not found' });
+  const body = req.body || {};
+  const next = { ...note };
+
+  if (body.title !== undefined) {
+    if (typeof body.title !== 'string') return res.status(400).json({ error: 'Invalid title' });
+    next.title = body.title.trim() || 'Untitled';
+  }
+  for (const field of ['content', 'rich_content', 'canvas_data']) {
+    if (body[field] !== undefined) {
+      if (body[field] !== null && typeof body[field] !== 'string') return res.status(400).json({ error: `Invalid ${field}` });
+      next[field] = field === 'content' ? (body[field] ?? '') : body[field];
+    }
+  }
+  if (body.tags !== undefined) {
+    const tags = normalizeTags(body.tags);
+    if (!tags) return res.status(400).json({ error: 'Tags must be a list' });
+    next.tags = JSON.stringify(tags);
+  }
+  if (body.editor_mode !== undefined) {
+    if (!EDITOR_MODES.includes(body.editor_mode)) return res.status(400).json({ error: 'Invalid editor mode' });
+    next.editor_mode = body.editor_mode;
+  }
+  if (body.note_type !== undefined) {
+    if (!NOTE_TYPES.includes(body.note_type)) return res.status(400).json({ error: 'Invalid note type' });
+    next.note_type = body.note_type;
+  }
+  if (body.parent_id !== undefined) {
+    const parentError = validateParent(body.parent_id, note.workspace_id, note.id);
+    if (parentError) return res.status(400).json({ error: parentError });
+    next.parent_id = body.parent_id;
+  }
+  if (body.position !== undefined) {
+    if (!Number.isInteger(body.position)) return res.status(400).json({ error: 'Invalid position' });
+    next.position = body.position;
+  }
+
+  const updated = db.transaction(() => {
+    db.prepare(`
+      UPDATE notes SET title=?, content=?, parent_id=?, position=?, tags=?, editor_mode=?,
+        note_type=?, canvas_data=?, rich_content=?, updated_at=unixepoch()
+      WHERE id=?
+    `).run(next.title, next.content, next.parent_id, next.position, next.tags, next.editor_mode,
+      next.note_type, next.canvas_data, next.rich_content, note.id);
+    const row = db.prepare('SELECT * FROM notes WHERE id=?').get(note.id);
+    saveSideEffects(row, note.title);
+    return row;
+  })();
+  res.json({ note: updated });
+});
+
+// Delete a note and everything nested under it.
+router.delete('/:id', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ error: 'Not found' });
+
+  const ids = subtreeIds(note.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const files = db.prepare(`SELECT filename FROM attachments WHERE note_id IN (${placeholders})`).all(...ids).map(r => r.filename);
+  db.transaction(() => {
+    db.prepare(`DELETE FROM notes WHERE id IN (${placeholders})`).run(...ids);
+  })();
+  removeUploadFiles(files);
+  res.json({ ok: true, deleted: ids });
 });
 
 export default router;

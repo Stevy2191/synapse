@@ -5,6 +5,11 @@ import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
 
+function countDescendants(id, notes) {
+  const kids = notes.filter(n => n.parent_id === id);
+  return kids.reduce((sum, k) => sum + 1 + countDescendants(k.id, notes), 0);
+}
+
 function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const [expanded, setExpanded] = useState(true);
   const { removeNoteFromTree, activeWorkspace } = useStore(s => ({
@@ -19,10 +24,13 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
 
   const handleDelete = async (e) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${note.title}"?`)) return;
+    const message = hasChildren
+      ? `Delete "${note.title}" and the ${countDescendants(note.id, notes)} note(s) inside it?`
+      : `Delete "${note.title}"?`;
+    if (!confirm(message)) return;
     try {
-      await api.delete(`/notes/${note.id}`);
-      removeNoteFromTree(note.id);
+      const { data } = await api.delete(`/notes/${note.id}`);
+      removeNoteFromTree(data.deleted || note.id);
       toast.success('Note deleted');
     } catch { toast.error('Failed to delete'); }
   };

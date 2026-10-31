@@ -30,6 +30,7 @@ export const useStore = create(
         set({ user, token });
         if (user?.theme) applyTheme(user.theme);
       },
+      setToken: (token) => set({ token }),
       logout: () => {
         set({ user: null, token: null, workspaces: [], activeWorkspace: null, notes: [], activeNote: null });
       },
@@ -53,7 +54,14 @@ export const useStore = create(
         notes: s.notes.map(n => n.id === id ? { ...n, ...updates } : n)
       })),
       addNoteToTree: (note) => set(s => ({ notes: [...s.notes, note] })),
-      removeNoteFromTree: (id) => set(s => ({ notes: s.notes.filter(n => n.id !== id) })),
+      // Accepts one id or a list (a deleted note plus its children).
+      removeNoteFromTree: (ids) => set(s => {
+        const gone = new Set(Array.isArray(ids) ? ids : [ids]);
+        return {
+          notes: s.notes.filter(n => !gone.has(n.id)),
+          activeNote: s.activeNote && gone.has(s.activeNote.note?.id) ? null : s.activeNote,
+        };
+      }),
 
       // UI actions
       setView: (view) => set({ view }),

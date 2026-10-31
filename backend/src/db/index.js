@@ -1,15 +1,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { DATA_DIR, UPLOADS_DIR } from '../config.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../data');
 const DB_PATH = path.join(DATA_DIR, 'synapse.db');
-const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
-
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -44,19 +38,11 @@ db.exec(`
     content TEXT NOT NULL DEFAULT '',
     tags TEXT NOT NULL DEFAULT '[]',
     position INTEGER NOT NULL DEFAULT 0,
-    editor_mode TEXT NOT NULL DEFAULT 'markdown',
-    note_type TEXT NOT NULL DEFAULT 'note',
-    canvas_data TEXT,
-    rich_content TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_id) REFERENCES notes(id) ON DELETE SET NULL
   );
-
-  -- Migration: add editor_mode to existing DBs
-  CREATE TRIGGER IF NOT EXISTS add_editor_mode_if_missing
-    AFTER INSERT ON notes BEGIN SELECT 1; END;
 
   CREATE TABLE IF NOT EXISTS note_links (
     id TEXT PRIMARY KEY,
@@ -85,24 +71,79 @@ db.exec(`
     tokenize='porter ascii'
   );
 
-  CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
-    INSERT INTO notes_fts(id, title, content) VALUES (new.id, new.title, new.content);
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
-    UPDATE notes_fts SET title=new.title, content=new.content WHERE id=new.id;
-  END;
-
   CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
     DELETE FROM notes_fts WHERE id=old.id;
   END;
 `);
 
-// Migrations for existing databases
-try { db.exec(`ALTER TABLE notes ADD COLUMN editor_mode TEXT NOT NULL DEFAULT 'markdown'`); } catch {}
-try { db.exec(`ALTER TABLE notes ADD COLUMN note_type TEXT NOT NULL DEFAULT 'note'`); } catch {}
-try { db.exec(`ALTER TABLE notes ADD COLUMN canvas_data TEXT`); } catch {}
-try { db.exec(`ALTER TABLE notes ADD COLUMN rich_content TEXT`); } catch {}
+// Older databases were created before these columns existed.
+function addColumn(table, ddl) {
+  const name = ddl.split(/\s+/)[0];
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some(c => c.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+addColumn('notes', `editor_mode TEXT NOT NULL DEFAULT 'markdown'`);
+addColumn('notes', `note_type TEXT NOT NULL DEFAULT 'note'`);
+addColumn('notes', `canvas_data TEXT`);
+addColumn('notes', `rich_content TEXT`);
+addColumn('users', `token_version INTEGER NOT NULL DEFAULT 0`);
+
+/** Plain text used for search and [[link]] detection, covering both markdown and rich-text notes. */
+export function searchableText(note) {
+  const rich = (note.rich_content || '')
+    .replace(/<(br|\/p|\/div|\/li|\/h\d|\/tr|\/blockquote)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  return note.editor_mode === 'rich' ? `${rich}\n${note.content || ''}` : `${note.content || ''}\n${rich}`;
+}
+
+const ftsDelete = db.prepare('DELETE FROM notes_fts WHERE id=?');
+const ftsInsert = db.prepare('INSERT INTO notes_fts(id, title, content) VALUES (?,?,?)');
+
+export function indexNote(note) {
+  ftsDelete.run(note.id);
+  ftsInsert.run(note.id, note.title, searchableText(note));
+}
+
+// Versioned migrations. PRAGMA user_version records the last one applied.
+const migrations = [
+  // 1: Index rich-text content for search. Search indexing moves from SQL triggers to indexNote().
+  () => {
+    db.exec(`
+      DROP TRIGGER IF EXISTS notes_ai;
+      DROP TRIGGER IF EXISTS notes_au;
+      DROP TRIGGER IF EXISTS add_editor_mode_if_missing;
+      DELETE FROM notes_fts;
+    `);
+    for (const note of db.prepare('SELECT * FROM notes').all()) indexNote(note);
+  },
+  // 2: Indexes for the lookups every request makes.
+  () => {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_notes_workspace ON notes(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_notes_parent ON notes(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_links_source ON note_links(source_id);
+      CREATE INDEX IF NOT EXISTS idx_links_target ON note_links(target_id);
+      CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id);
+      CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id);
+    `);
+  },
+];
+
+const currentVersion = db.pragma('user_version', { simple: true });
+for (let v = currentVersion; v < migrations.length; v++) {
+  db.transaction(() => {
+    migrations[v]();
+    db.pragma(`user_version = ${v + 1}`);
+  })();
+}
+
+/** Delete attachment files from disk. Call after the DB rows are gone (or about to be). */
+export function removeUploadFiles(filenames) {
+  for (const f of filenames) {
+    try { fs.unlinkSync(path.join(UPLOADS_DIR, path.basename(f))); } catch {}
+  }
+}
 
 export { db, UPLOADS_DIR };
-

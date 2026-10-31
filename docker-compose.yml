@@ -1,6 +1,7 @@
 services:
   synapse:
-    build: .
+    image: ghcr.io/stevy2191/synapse:latest
+    # To build from source instead of pulling, replace the line above with:  build: .
     container_name: synapse
     restart: unless-stopped
     ports:
@@ -11,8 +12,10 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - DATA_DIR=/data
-      - JWT_SECRET=${JWT_SECRET:-change-me-to-something-secure-in-production}
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      # Optional: if unset, a random secret is generated and stored in ./data/.jwt_secret
+      - JWT_SECRET=${JWT_SECRET:-}
+      # Set to "true" to let anyone sign up. By default only the first user can register (as admin).
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
 
 # For Nginx Proxy Manager:
 # - Set proxy host to: http://synapse:3001

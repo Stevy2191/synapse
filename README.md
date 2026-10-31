@@ -24,7 +24,7 @@
 - **Tags** — Tag and filter notes
 - **File Attachments** — Upload images and files (50MB limit)
 - **Themes** — Dark, Light, Dracula, Nord, Solarized, Tokyo Night
-- **Multi-user** — JWT auth, first user becomes admin
+- **Multi-user** — First user becomes admin and invites everyone else
 - **Hierarchical notes** — Nest notes inside each other
 - **Proxy-ready** — Works behind Nginx Proxy Manager, Cloudflare Tunnel
 
@@ -39,7 +39,6 @@ curl -O https://raw.githubusercontent.com/Stevy2191/synapse/main/docker-compose.
 
 cat > .env << EOF
 JWT_SECRET=$(openssl rand -base64 48)
-CORS_ORIGIN=https://synapse.yourdomain.com
 EOF
 
 docker compose pull
@@ -63,9 +62,11 @@ GitHub Actions automatically builds and pushes a new image on every push to main
 ## First Run
 
 1. Navigate to your domain
-2. Click **Register** — fill in username, email, password
-3. First registered user is automatically **admin**
+2. Create the **admin account** (only the first user can sign up)
+3. Add family members or teammates from **Settings → Admin** (you can reset their passwords there too)
 4. Create your first workspace and start taking notes
+
+Want open sign-ups instead? Set `ALLOW_REGISTRATION=true`.
 
 ---
 
@@ -85,8 +86,9 @@ GitHub Actions automatically builds and pushes a new image on every push to main
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | (weak default) | **Change this!** `openssl rand -base64 48` |
-| `CORS_ORIGIN` | `*` | Set to your domain |
+| `JWT_SECRET` | auto-generated | Signs login tokens. If unset, a random one is created and saved to `data/.jwt_secret` |
+| `ALLOW_REGISTRATION` | `false` | `true` lets anyone create an account. Otherwise only the first user (admin) can register |
+| `CORS_ORIGIN` | unset | Only needed if a different site calls the API from a browser (comma-separated list) |
 | `PORT` | `3001` | Internal port |
 | `DATA_DIR` | `/data` | Database and uploads location |
 
@@ -109,6 +111,15 @@ tar -czf synapse-backup-$(date +%Y%m%d).tar.gz /opt/stacks/synapse/data/
 └── data/
     ├── synapse.db
     └── uploads/
+```
+
+---
+
+## Local Development
+
+```bash
+cd backend && npm install && npm run dev      # API on :3001 (data in ./data)
+cd frontend && npm install && npm run dev     # UI on :5173, proxies /api to :3001
 ```
 
 ---
