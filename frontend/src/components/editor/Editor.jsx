@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
 import FreeDrawEditor from './FreeDrawEditor';
+import Logo from '../Logo';
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -313,7 +314,7 @@ export default function Editor() {
   if (!activeNote?.note) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, color: 'var(--text-muted)' }}>
-        <div style={{ fontSize: 72 }}>🧠</div>
+        <Logo size={96} style={{ opacity: 0.9 }} />
         <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--text-secondary)' }}>Select a note to begin</p>
         <p style={{ fontSize: 13 }}>Or create a new one from the sidebar</p>
       </div>

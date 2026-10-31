@@ -1,6 +1,7 @@
 import { Search, PanelLeft, Settings, Network, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import { syncNow } from '../../offline/sync';
+import Logo from '../Logo';
 
 function SyncIndicator() {
   const sync = useStore(s => s.sync);
@@ -51,7 +52,7 @@ export default function Navbar() {
         <PanelLeft size={16} />
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
-        <span style={{ fontSize: 18 }}>🧠</span>
+        <Logo size={26} />
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>Synapse</span>
       </div>
 
