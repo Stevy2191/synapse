@@ -31,6 +31,7 @@ export default function DrawioEditor({ preview, onSave, onClose }) {
   const [src, setSrc] = useState(null);
   const [origin, setOrigin] = useState(null);
   const [failed, setFailed] = useState(false);
+  const ready = useRef(false); // draw.io said hello ("init")
   const theme = useStore(s => s.user?.theme);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function DrawioEditor({ preview, onSave, onClose }) {
   // If draw.io hasn't said hello after a while, it probably can't be reached (offline, blocked…).
   useEffect(() => {
     if (!src) return;
-    const t = setTimeout(() => setFailed(f => (f === false ? 'slow' : f)), 15000);
+    const t = setTimeout(() => { if (!ready.current) setFailed('slow'); }, 15000);
     return () => clearTimeout(t);
   }, [src]);
 
@@ -60,6 +61,7 @@ export default function DrawioEditor({ preview, onSave, onClose }) {
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
       if (msg.event === 'init') {
+        ready.current = true;
         setFailed(false);
         send({ action: 'load', xml: diagramXml(preview), autosave: 0, title: 'Diagram' });
       } else if (msg.event === 'save') {
