@@ -575,6 +575,11 @@ while true; do
       drives=$(list_drives)
       if [ -n "$drives" ]; then info "Drives on this server you could use:"; say "$drives"; fi
       if [ -z "$DATA_PATH" ]; then ask "Folder for your notes:" "$DIR/data"; DATA_PATH="$REPLY"; fi
+      # Accept a path typed the way a shell would want it: 'Synapse Notes', "Synapse Notes",
+      # Synapse\ Notes, or ~/notes.
+      DATA_PATH="${DATA_PATH#"${DATA_PATH%%[![:space:]]*}"}"; DATA_PATH="${DATA_PATH%"${DATA_PATH##*[![:space:]]}"}"
+      DATA_PATH=$(printf '%s' "$DATA_PATH" | sed -E "s/^'(.*)'\$/\1/; s/^\"(.*)\"\$/\1/; s#/'([^']*)'#/\1#g; s#/\"([^\"]*)\"#/\1#g; s/\\\\ / /g")
+      case "$DATA_PATH" in "~"|"~/"*) DATA_PATH="$HOME${DATA_PATH#\~}" ;; esac
       DATA_PATH=$(realpath -m "$DATA_PATH")
       if [ -f "$DATA_PATH/synapse.db" ]; then
         ok "Found existing Synapse notes in $DATA_PATH. They'll be used."
@@ -584,6 +589,12 @@ while true; do
       fi
       mkdir -p "$DATA_PATH" || { warn "Couldn't create $DATA_PATH."; DATA_PATH=""; [ "$ASSUME_YES" = 1 ] && exit 1; continue; }
       ok "Notes will be kept in $DATA_PATH ($(human_free "$DATA_PATH") free)"
+      # A folder that is really a mounted network share (NFS/SMB) needs network-safe database settings.
+      fstype=$(stat -f -c %T "$DATA_PATH" 2>/dev/null || true)
+      case "$fstype" in
+        nfs*|cifs|smb*|fuse.sshfs|9p|ceph|glusterfs|fuse.glusterfs|fuse.rclone)
+          NETWORK_STORAGE=true; info "That folder is on a network share ($fstype) — Synapse will use network-safe settings for it." ;;
+      esac
       if [ "$DATA_PATH" = "$DIR/data" ]; then SYNAPSE_DATA="./data"; else SYNAPSE_DATA="$DATA_PATH"; fi
       ;;
     volume)
@@ -603,6 +614,13 @@ while true; do
         ask "Network share:" ""
         SMB_SHARE="$REPLY"
       fi
+      # A folder on this server (an already-mounted share like /mnt/nas/notes) belongs in option 1.
+      case "$SMB_SHARE" in
+        /[!/]*|"'/"*|'"/'*|"~"*)
+          info "That's a folder on this server, not a network address — using it as a folder (option 1)."
+          info "(The network-share option is for addresses like //nas/notes, which Synapse connects to itself.)"
+          STORAGE=folder; DATA_PATH="$SMB_SHARE"; SMB_SHARE=""; continue ;;
+      esac
       # Normalise \\host\share\folder, smb://host/share/folder → host + share/folder
       share=$(echo "$SMB_SHARE" | sed -E 's#^smb://##; s#\\#/#g; s#^/+##; s#/+$##')
       SMB_HOST="${share%%/*}"; SMB_PATH="${share#*/}"
@@ -685,7 +703,7 @@ services:
     container_name: ${SYNAPSE_CONTAINER:-synapse}
     restart: unless-stopped
     volumes:
-      - ${SYNAPSE_DATA:-./data}:/data
+      - "${SYNAPSE_DATA:-./data}:/data"
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
@@ -725,7 +743,7 @@ services:
     container_name: ${SYNAPSE_CONTAINER:-synapse}
     restart: unless-stopped
     volumes:
-      - ${SYNAPSE_DATA:-./data}:/data
+      - "${SYNAPSE_DATA:-./data}:/data"
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
@@ -765,7 +783,7 @@ services:
     ports:
       - "${SYNAPSE_PORT:-3001}:3001"
     volumes:
-      - ${SYNAPSE_DATA:-./data}:/data
+      - "${SYNAPSE_DATA:-./data}:/data"
     environment:
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET}
