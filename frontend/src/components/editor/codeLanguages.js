@@ -67,7 +67,25 @@ const EXTRA = {
   haskell, http, julia, latex, ldif, lisp, matlab, mathematica, nginx, nim, nix, ocaml, pgsql, powershell, prolog,
   properties, protobuf, puppet, routeros, sas, scala, scheme, stata, tcl, twig, vbscript, verilog, vhdl, vim, x86asm,
 };
-const ALL = { ...common, ...EXTRA };
+// Mermaid charts: just enough colouring for the keywords, arrows, comments and labels.
+function mermaid(hljs) {
+  return {
+    name: 'Mermaid',
+    keywords: {
+      keyword: 'graph flowchart sequenceDiagram classDiagram stateDiagram stateDiagram-v2 erDiagram journey gantt pie gitGraph mindmap timeline quadrantChart requirementDiagram C4Context sankey-beta xychart-beta block-beta subgraph end participant actor loop alt else opt par and rect note over of left right title section dateFormat axisFormat class state direction click style linkStyle classDef',
+      literal: 'TD TB BT RL LR',
+    },
+    contains: [
+      hljs.COMMENT('%%', '$'),
+      hljs.QUOTE_STRING_MODE,
+      { className: 'operator', begin: /-->|---|-\.->|==>|-\.-|->>|-->>|--x|--o|<-->|~~~|:::/ },
+      { className: 'string', begin: /\[/, end: /\]/ },
+      { className: 'string', begin: /\{/, end: /\}/ },
+      { className: 'string', begin: /\|/, end: /\|/ },
+    ],
+  };
+}
+const ALL = { ...common, ...EXTRA, mermaid };
 
 export const lowlight = createLowlight(ALL);
 for (const [name, def] of Object.entries(ALL)) hljs.registerLanguage(name, def);
@@ -110,6 +128,7 @@ const LANGUAGE_LIST = [
   { id: 'r', label: 'R' },
   { id: 'julia', label: 'Julia' },
   { id: 'matlab', label: 'MATLAB' },
+  { id: 'mermaid', label: 'Mermaid chart', aliases: 'diagram flowchart chart mmd' },
   { id: 'haskell', label: 'Haskell', aliases: 'hs' },
   { id: 'elixir', label: 'Elixir', aliases: 'ex' },
   { id: 'erlang', label: 'Erlang' },

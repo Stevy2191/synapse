@@ -4,6 +4,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
+import { extractMath, restoreMath, renderMath, videoElementHtml, renderMermaid } from './embeds';
 import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
 import { Marked } from 'marked';
@@ -102,8 +103,10 @@ function renderMarkdown(content) {
     } catch { return ''; }
   });
   const withLinks = content.replace(/\[\[([^\]]+)\]\]/g, '<span class="wiki-link" data-link="$1">$1</span>');
-  const html = DOMPurify.sanitize(previewMarked.parse(withLinks), { ADD_ATTR: ['data-link'] });
-  if (!/\[!|\[TOC\]/i.test(html)) return html;
+  const math = extractMath(withLinks);
+  let html = DOMPurify.sanitize(previewMarked.parse(math.md), { ADD_ATTR: ['data-link'] });
+  html = restoreMath(html, math.items, m => (m.block ? `<div class="math-block">${renderMath(m.latex, true)}</div>` : renderMath(m.latex, false)));
+  if (!/\[!|\[TOC\]|>▶/i.test(html)) return html;
   // Callouts ("> [!NOTE]") and a table of contents ("[TOC]")
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   convertCallouts(doc, (box, type) => {
@@ -113,6 +116,13 @@ function renderMarkdown(content) {
     title.textContent = CALLOUTS[type].label;
     box.prepend(title);
   });
+  // "[▶ Video](link)" on its own line plays the video
+  for (const p of doc.querySelectorAll('p')) {
+    const a = p.children.length === 1 ? p.querySelector(':scope > a') : null;
+    if (!a || p.textContent.trim() !== a.textContent.trim() || !a.textContent.trim().startsWith('▶')) continue;
+    const v = videoElementHtml(a.getAttribute('href'));
+    if (v) p.outerHTML = v;
+  }
   for (const p of doc.querySelectorAll('p')) {
     if (p.textContent.trim().toUpperCase() !== '[TOC]') continue;
     const toc = doc.createElement('div');
@@ -130,6 +140,25 @@ function renderMarkdown(content) {
     p.replaceWith(toc);
   }
   return doc.body.innerHTML;
+}
+
+// The rendered Markdown. Mermaid code blocks are drawn as charts once the HTML is on the page.
+function PreviewHtml({ html, onClick }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    for (const code of ref.current?.querySelectorAll('pre > code.language-mermaid') || []) {
+      renderMermaid(code.textContent).then(r => {
+        if (cancelled || !r.svg || !code.isConnected) return;
+        const div = document.createElement('div');
+        div.className = 'mermaid-preview';
+        div.innerHTML = r.svg;
+        code.parentElement.replaceWith(div);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [html]);
+  return <div ref={ref} className="markdown-preview" dangerouslySetInnerHTML={{ __html: html }} onClick={onClick} />;
 }
 
 // Markdown formatting toolbar - inserts markdown syntax into CodeMirror
@@ -551,8 +580,7 @@ export default function Editor() {
   );
 
   const preview = (
-    <div className="markdown-preview"
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+    <PreviewHtml html={renderMarkdown(content)}
       onClick={e => { const link = e.target.closest('.wiki-link'); if (link) openNoteByTitle(activeWorkspace.id, link.dataset.link); }}
     />
   );

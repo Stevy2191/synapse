@@ -10,6 +10,7 @@ import { useStore } from '../../stores/useStore';
 import { openNoteByTitle, createNote } from '../../offline/sync';
 import { fitImage } from '../../utils/image';
 import toast from 'react-hot-toast';
+import { videoSource, MERMAID_SAMPLE } from './embeds';
 
 // `getUi` returns the React side's handlers ({ open, keyDown, close }), so the menus can be
 // drawn by React while ProseMirror keeps track of what's being typed.
@@ -27,7 +28,7 @@ function notInCode({ state }) {
 }
 
 // The "/" menu, in groups. `id` also picks the icon (RichEditor's SLASH_ICONS).
-export const SLASH_GROUPS = ['Basic', 'Lists', 'Callouts', 'Media', 'Diagrams', 'Notes & links', 'Date & time'];
+export const SLASH_GROUPS = ['Basic', 'Lists', 'Callouts', 'Media', 'Math', 'Diagrams', 'Notes & links', 'Date & time'];
 
 const today = () => new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 const now = () => new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -89,13 +90,28 @@ export const SLASH_ITEMS = [
       const src = window.prompt('Image address (URL):');
       if (src) e.chain().focus().setImage({ src }).run();
     } },
+  { id: 'video', group: 'Media', title: 'Video', desc: 'YouTube, Vimeo, Loom or a video file link', keywords: 'youtube vimeo loom embed movie mp4 film',
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).run();
+      const url = window.prompt('Video link (YouTube, Vimeo, Loom, or a .mp4 / .webm file):')?.trim();
+      if (!url) return;
+      if (!videoSource(url)) { toast.error('That link isn’t a YouTube, Vimeo or Loom video, or a video file.'); return; }
+      e.chain().focus().insertContent([{ type: 'video', attrs: { url } }, { type: 'paragraph' }]).run();
+    } },
   { id: 'table', group: 'Media', title: 'Table', desc: '3 × 3 table', keywords: 'grid spreadsheet', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { id: 'code', group: 'Media', title: 'Code block', desc: 'Code with syntax colors', keywords: '``` script snippet', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
+  // Math
+  { id: 'math', group: 'Math', title: 'Math equation', desc: 'A formula on its own line', keywords: 'latex katex formula equation tex block $$',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:math', { inline: false }); } },
+  { id: 'math-inline', group: 'Math', title: 'Inline math', desc: 'A formula inside a sentence', keywords: 'latex katex formula equation tex $',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:math', { inline: true }); } },
   // Diagrams
   { id: 'drawio', group: 'Diagrams', title: 'draw.io diagram', desc: 'Flowcharts, network & org diagrams', keywords: 'diagram flowchart drawio diagrams.net chart network uml',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'drawio' } }).run() },
   { id: 'excalidraw', group: 'Diagrams', title: 'Excalidraw drawing', desc: 'Hand-drawn style sketches & whiteboard', keywords: 'excalidraw sketch draw whiteboard drawing',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'excalidraw' } }).run() },
+  { id: 'mermaid', group: 'Diagrams', title: 'Mermaid chart', desc: 'Flowcharts, sequences, Gantt & more, written as text', keywords: 'mermaid flowchart sequence gantt pie chart graph timeline mindmap text diagram',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: MERMAID_SAMPLE }] }).run() },
   // Notes & links
   { id: 'link', group: 'Notes & links', title: 'Link to note', desc: 'Connect to another note', keywords: 'wiki [[ backlink', run: (e, r) => e.chain().focus().deleteRange(r).insertContent('[[').run() },
   { id: 'subnote', group: 'Notes & links', title: 'New sub-note', desc: 'Create a note inside this one and link it', keywords: 'page child subpage nested new',
@@ -132,6 +148,7 @@ export const SlashCommand = Extension.create({
       editor: this.editor,
       pluginKey: new PluginKey('slashCommand'),
       char: '/',
+      allowSpaces: true, // so "/inline math" works
       allow: notInCode,
       items: ({ query }) => filterSlashItems(query),
       command: ({ editor, range, props }) => props.run(editor, range),

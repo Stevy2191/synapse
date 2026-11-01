@@ -6,6 +6,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { textblockTypeInputRule } from '@tiptap/core';
 import { Check, ChevronDown, Copy, Search } from 'lucide-react';
 import { editorLowlight, filterLanguages, findLanguage, detectLanguage } from './codeLanguages';
+import { MermaidPreview } from './embeds';
 
 function LanguagePicker({ value, detected, onPick, onClose }) {
   const [query, setQuery] = useState('');
@@ -60,8 +61,28 @@ function LanguagePicker({ value, detected, onPick, onClose }) {
   );
 }
 
-function CodeBlockView({ node, updateAttributes, editor }) {
+// Is the cursor inside this block? (Mermaid charts show their code only while you're editing it.)
+function useCursorInside(editor, getPos, node, active) {
+  const [inside, setInside] = useState(false);
+  useEffect(() => {
+    if (!active) return undefined;
+    const check = () => {
+      const pos = typeof getPos === 'function' ? getPos() : null;
+      if (pos == null) return;
+      const { from, to } = editor.state.selection;
+      setInside(editor.isFocused && from > pos && to < pos + node.nodeSize);
+    };
+    check();
+    editor.on('selectionUpdate', check); editor.on('focus', check); editor.on('blur', check);
+    return () => { editor.off('selectionUpdate', check); editor.off('focus', check); editor.off('blur', check); };
+  }, [editor, getPos, node, active]);
+  return inside;
+}
+
+function CodeBlockView({ node, updateAttributes, editor, getPos }) {
   const language = node.attrs.language || null;
+  const isMermaid = language === 'mermaid';
+  const editingCode = useCursorInside(editor, getPos, node, isMermaid);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const text = node.textContent;
@@ -93,7 +114,7 @@ function CodeBlockView({ node, updateAttributes, editor }) {
   };
 
   return (
-    <NodeViewWrapper className="code-block">
+    <NodeViewWrapper className={`code-block${isMermaid ? ' mermaid-block' : ''}${isMermaid && !editingCode && node.textContent.trim() ? ' code-hidden' : ''}`}>
       <div className="code-block-bar" contentEditable={false}>
         {editor.isEditable ? (
           <button type="button" className="code-lang-btn" onClick={() => setOpen(o => !o)} title="Choose the language">
@@ -108,6 +129,12 @@ function CodeBlockView({ node, updateAttributes, editor }) {
       <pre spellCheck={false}>
         <NodeViewContent as="code" className={`hljs${language ? ` language-${language}` : ''}`} />
       </pre>
+      {isMermaid && (
+        <MermaidPreview code={text} onClick={() => {
+          const pos = getPos?.();
+          if (editor.isEditable && pos != null) editor.chain().focus().setTextSelection(pos + node.nodeSize - 1).run();
+        }} />
+      )}
     </NodeViewWrapper>
   );
 }

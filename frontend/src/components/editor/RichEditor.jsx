@@ -22,10 +22,12 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
-  ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
+  Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { Callout, TableOfContents, ToggleBlocks } from './blocks';
+import { Mathematics } from '@tiptap/extension-mathematics';
+import { VideoEmbed, MathDialog } from './embeds';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
@@ -35,7 +37,7 @@ const SLASH_ICONS = {
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
   drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
-  date: CalendarDays, time: Clock, datetime: CalendarClock,
+  date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
 const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
@@ -52,6 +54,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
+  const [math, setMath] = useState(null);   // math dialog: { inline, latex, pos, editing }
+  const mathClick = useRef(() => {});
+  mathClick.current = (node, pos) => setMath({ inline: node.type.name === 'inlineMath', latex: node.attrs.latex, pos, editing: true });
   const menuRef = useRef(null);
   menuRef.current = menu;
 
@@ -107,6 +112,12 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       Callout,
       TableOfContents,
       ...ToggleBlocks,
+      VideoEmbed,
+      Mathematics.configure({
+        katexOptions: { throwOnError: false },
+        blockOptions: { onClick: (node, pos) => mathClick.current(node, pos) },
+        inlineOptions: { onClick: (node, pos) => mathClick.current(node, pos) },
+      }),
     ],
     content: content || '<p></p>',
     // The styles below are scoped to this class.
@@ -121,6 +132,33 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   useEffect(() => {
     if (editorRefProp) editorRefProp.current = editor;
   }, [editor, editorRefProp]);
+
+  // "/" → Math opens the equation dialog
+  useEffect(() => {
+    if (!editor) return undefined;
+    const open = ({ inline }) => setMath({ inline, latex: '', pos: null, editing: false });
+    editor.on('synapse:math', open);
+    return () => editor.off('synapse:math', open);
+  }, [editor]);
+
+  const saveMath = (latex, inline) => {
+    const m = math;
+    setMath(null);
+    if (m.editing) {
+      if (inline) editor.chain().focus().updateInlineMath({ latex, pos: m.pos }).run();
+      else editor.chain().focus().updateBlockMath({ latex, pos: m.pos }).run();
+    } else if (inline) {
+      editor.chain().focus().insertInlineMath({ latex }).run();
+    } else {
+      editor.chain().focus().insertContent([{ type: 'blockMath', attrs: { latex } }, { type: 'paragraph' }]).run();
+    }
+  };
+  const deleteMath = () => {
+    const m = math;
+    setMath(null);
+    if (m.inline) editor.chain().focus().deleteInlineMath({ pos: m.pos }).run();
+    else editor.chain().focus().deleteBlockMath({ pos: m.pos }).run();
+  };
 
   // Only reload when the content changes from outside (another note, a sync, a mode switch)
   useEffect(() => {
@@ -303,6 +341,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       </BubbleMenu>
 
       <EditorContent editor={editor} />
+
+      {math && <MathDialog initial={math.latex} inline={math.inline} editing={math.editing}
+        onSave={saveMath} onDelete={deleteMath} onClose={() => { setMath(null); editor.commands.focus(); }} />}
 
       {/* "/" and "[[" menus */}
       {menu && menu.rect && menu.items.length > 0 && (

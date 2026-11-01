@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import DOMPurify from 'dompurify';
 import { CALLOUTS, CALLOUT_FROM_MD } from './blocks';
+import { extractMath, restoreMath, mathNodeHtml, videoSource } from './embeds';
 
 // Diagrams (draw.io / Excalidraw) are kept in Markdown as a fenced block, so they survive
 // switching a note between Write and Markdown:
@@ -13,7 +14,9 @@ import { CALLOUTS, CALLOUT_FROM_MD } from './blocks';
 export const DIAGRAM_FENCE = /```synapse-diagram\n([\s\S]*?)\n```/g;
 
 export function markdownToHtml(md) {
-  const html = DOMPurify.sanitize(marked.parse(md || '', { gfm: true, breaks: true }));
+  // $…$ and $$…$$ math is set aside first so Markdown doesn't eat its _ and \ characters.
+  const math = extractMath(md);
+  const html = restoreMath(DOMPurify.sanitize(marked.parse(math.md, { gfm: true, breaks: true })), math.items, mathNodeHtml);
   // GFM checklists come out as <li><input type=checkbox> …</li>; the rich editor wants task lists.
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   for (const code of doc.querySelectorAll('pre > code.language-synapse-diagram')) {
@@ -31,6 +34,15 @@ export function markdownToHtml(md) {
   convertCallouts(doc, (box, type) => {
     box.setAttribute('data-callout', type);
   });
+  // A paragraph that is just "[▶ …](video link)" → video
+  for (const p of doc.querySelectorAll('p')) {
+    const a = p.children.length === 1 ? p.querySelector(':scope > a') : null;
+    if (!a || p.textContent.trim() !== a.textContent.trim() || !a.textContent.trim().startsWith('▶')) continue;
+    if (!videoSource(a.getAttribute('href'))) continue;
+    const v = doc.createElement('div');
+    v.setAttribute('data-video', a.getAttribute('href'));
+    p.replaceWith(v);
+  }
   // "[TOC]" on its own line → table of contents
   for (const p of doc.querySelectorAll('p')) {
     if (p.textContent.trim().toUpperCase() === '[TOC]') {
@@ -64,6 +76,17 @@ export function markdownToHtml(md) {
   return doc.body.innerHTML;
 }
 
+// Blocks that have no text of their own (Turndown would otherwise drop them as empty).
+function special(node) {
+  if (node.nodeType !== 1) return null;
+  if (node.hasAttribute('data-toc')) return '\n\n[TOC]\n\n';
+  const type = node.getAttribute('data-type');
+  if (type === 'inline-math') return `$${node.getAttribute('data-latex') || ''}$`;
+  if (type === 'block-math') return `\n\n$$\n${node.getAttribute('data-latex') || ''}\n$$\n\n`;
+  if (node.hasAttribute('data-video')) return `\n\n[▶ Video](${node.getAttribute('data-video')})\n\n`;
+  return null;
+}
+
 /**
  * GitHub-style alerts ("> [!NOTE]" as the first line of a quote) → callout boxes.
  * `make(box, type)` finishes the new element (editor and preview mark it up differently).
@@ -89,7 +112,7 @@ export function convertCallouts(doc, make) {
 const turndown = new TurndownService({
   headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-', emDelimiter: '*',
   // Empty elements are normally dropped; the table of contents is empty by design.
-  blankReplacement: (content, node) => (node.nodeName === 'DIV' && node.hasAttribute('data-toc') ? '\n\n[TOC]\n\n' : node.isBlock ? '\n\n' : ''),
+  blankReplacement: (content, node) => special(node) ?? (node.isBlock ? '\n\n' : ''),
 });
 turndown.addRule('taskItem', {
   filter: node => node.nodeName === 'LI' && (node.getAttribute('data-type') === 'taskItem' || node.parentNode?.getAttribute?.('data-type') === 'taskList'),
@@ -126,9 +149,9 @@ turndown.addRule('callout', {
     return `\n\n> [!${kind}]\n${body}\n\n`;
   },
 });
-turndown.addRule('toc', {
-  filter: node => node.nodeName === 'DIV' && node.hasAttribute('data-toc'),
-  replacement: () => '\n\n[TOC]\n\n',
+turndown.addRule('special', {
+  filter: node => special(node) !== null,
+  replacement: (content, node) => special(node),
 });
 turndown.addRule('details', {
   filter: 'details',
@@ -144,6 +167,13 @@ turndown.addRule('strike', { filter: ['s', 'del', 'strike'], replacement: conten
 
 export function htmlToMarkdown(html) {
   if (!html) return '';
+  // Inline math has no text of its own, and Turndown drops the spaces around empty inline
+  // elements; a placeholder character keeps them (the math rule replaces the whole element).
+  if (html.includes('inline-math')) {
+    const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+    for (const el of doc.querySelectorAll('[data-type="inline-math"]')) el.textContent = '\u2060';
+    html = doc.body.innerHTML;
+  }
   return turndown.turndown(html)
     .replace(/\\\[\\\[/g, '[[').replace(/\\\]\\\]/g, ']]') // keep [[wiki links]] unescaped
     .replace(/\n{3,}/g, '\n\n')
