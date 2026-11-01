@@ -119,6 +119,12 @@ export async function pendingChanges() {
   return (await db()).count('outbox');
 }
 
+/** Deletions made on this device that haven't reached the server (and its Trash) yet. */
+export async function pendingDeletes() {
+  if (!userId) return 0;
+  return (await (await db()).getAll('outbox')).filter(e => e.op === 'delete').length;
+}
+
 let syncPromise = null;
 /** Upload queued changes, then refresh from the server. Safe to call any time. */
 export function syncNow() {
@@ -365,16 +371,19 @@ export async function deleteNote(id) {
   const tx = d.transaction(['notes', 'outbox'], 'readwrite');
   const outbox = tx.objectStore('outbox');
   let rootCreateAttempted = false;
+  const droppedOps = [];
   let cursor = await outbox.openCursor();
   while (cursor) {
     const entry = cursor.value;
     if (gone.has(entry.noteId)) {
       // An attempted upload may have reached the server; leave it so the delete follows it.
       if (entry.attempted) { if (entry.noteId === id && entry.op === 'create') rootCreateAttempted = true; }
-      else await cursor.delete();
+      else { droppedOps.push(entry); await cursor.delete(); }
     }
     cursor = await cursor.continue();
   }
+  // Kept so "Undo" can put everything back exactly, even before the delete has been uploaded.
+  undoable.set(id, { notes: all.filter(n => gone.has(n.id)), ops: droppedOps });
   for (const nid of ids) await tx.objectStore('notes').delete(nid);
   // The server deletes the whole subtree, so one request for the root is enough.
   // Notes that never reached the server need no request at all.
@@ -384,6 +393,72 @@ export async function deleteNote(id) {
   afterLocalChange();
   await refreshTree();
   return ids;
+}
+
+const undoable = new Map(); // deleted note id → { notes, ops } for Undo
+
+/**
+ * Undo deleting a note. If the delete hasn't been uploaded yet it's simply cancelled; otherwise
+ * the note is restored from the server's Trash. Returns false if that needs a connection.
+ */
+export async function undoDelete(id) {
+  const saved = undoable.get(id);
+  const d = await db();
+  const tx = d.transaction(['notes', 'outbox'], 'readwrite');
+  let pendingDelete = null; // the queued delete, if any
+  let cursor = await tx.objectStore('outbox').openCursor();
+  while (cursor) {
+    if (cursor.value.noteId === id && cursor.value.op === 'delete') pendingDelete = cursor.value;
+    cursor = await cursor.continue();
+  }
+  const neverUploaded = saved && saved.notes.find(n => n.id === id)?.server_version === null && !pendingDelete;
+  if (saved && ((pendingDelete && !pendingDelete.attempted) || neverUploaded)) {
+    if (pendingDelete) await tx.objectStore('outbox').delete(pendingDelete.seq);
+    for (const n of saved.notes) await tx.objectStore('notes').put(n);
+    for (const op of saved.ops) { const { seq: _seq, attempted: _a, ...rest } = op; await tx.objectStore('outbox').add(rest); }
+    await tx.done;
+    undoable.delete(id);
+    afterLocalChange();
+    await refreshTree();
+    return true;
+  }
+  await tx.done;
+  try {
+    // The delete has to reach the server before it can be restored from the Trash.
+    for (let i = 0; i < 40; i++) {
+      await push();
+      const waiting = (await d.getAll('outbox')).some(e => e.noteId === id && e.op === 'delete');
+      if (!waiting) break;
+      if (!navigator.onLine) return false;
+      await new Promise(r => setTimeout(r, 250));
+    }
+    await api.post(`/notes/${id}/restore`);
+    undoable.delete(id);
+    await pull();
+    return true;
+  } catch (err) {
+    if (isNetworkError(err)) return false;
+    throw err;
+  }
+}
+
+// ── Trash (lives on the server; needs a connection) ──
+export async function fetchTrash(workspaceId) {
+  const { data } = await api.get(`/notes/workspace/${workspaceId}/trash`);
+  return data;
+}
+export async function restoreFromTrash(id) {
+  await api.post(`/notes/${id}/restore`);
+  await pull();
+  window.dispatchEvent(new Event('synapse:trash-changed'));
+}
+export async function deleteForever(id) {
+  await api.delete(`/notes/${id}/permanent`);
+  window.dispatchEvent(new Event('synapse:trash-changed'));
+}
+export async function emptyTrash(workspaceId) {
+  await api.delete(`/notes/workspace/${workspaceId}/trash`);
+  window.dispatchEvent(new Event('synapse:trash-changed'));
 }
 
 /**
@@ -485,6 +560,7 @@ async function send(entry) {
   if (entry.op === 'delete') {
     try { await api.delete(`/notes/${entry.noteId}`); }
     catch (err) { if (err.response?.status !== 404) throw err; }
+    window.dispatchEvent(new Event('synapse:trash-changed'));
     return;
   }
 

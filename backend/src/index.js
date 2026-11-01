@@ -5,7 +5,7 @@ import compression from 'compression';
 import path from 'path';
 import multer from 'multer';
 
-import { FRONTEND_DIST } from './config.js';
+import { FRONTEND_DIST, TRASH_DAYS } from './config.js';
 import { db } from './db/index.js';
 import { prepareSetupCode } from './setup.js';
 import authRoutes from './routes/auth.js';
@@ -13,7 +13,7 @@ import securityRoutes from './routes/security.js';
 import calendarRoutes from './routes/calendars.js';
 import { startCalendarSync } from './calendars.js';
 import workspaceRoutes from './routes/workspaces.js';
-import noteRoutes from './routes/notes.js';
+import noteRoutes, { purgeTrash } from './routes/notes.js';
 import attachmentRoutes from './routes/attachments.js';
 import adminRoutes from './routes/admin.js';
 
@@ -42,7 +42,7 @@ const DRAWIO_URL = (() => {
     return (u.origin + u.pathname).replace(/\/+$/, '');
   } catch { return 'https://embed.diagrams.net'; }
 })();
-app.get('/api/config', (req, res) => res.json({ drawio_url: DRAWIO_URL }));
+app.get('/api/config', (req, res) => res.json({ drawio_url: DRAWIO_URL, trash_days: TRASH_DAYS }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', securityRoutes);
@@ -80,6 +80,9 @@ app.use((err, req, res, next) => {
 
 prepareSetupCode(db.prepare('SELECT COUNT(*) AS c FROM users').get().c);
 startCalendarSync();
+// Empty old notes out of the Trash now and every 6 hours.
+purgeTrash();
+setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧠 Synapse running on port ${PORT}`);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, indexNote, searchableText, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { TRASH_DAYS } from '../config.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -35,8 +36,8 @@ function subtreeIds(noteId) {
 function validateParent(parentId, workspaceId, noteId = null) {
   if (parentId === null) return null;
   if (typeof parentId !== 'string') return 'Invalid parent';
-  const parent = db.prepare('SELECT id, workspace_id FROM notes WHERE id=?').get(parentId);
-  if (!parent || parent.workspace_id !== workspaceId) return 'Parent note not found';
+  const parent = db.prepare('SELECT id, workspace_id, deleted_at FROM notes WHERE id=?').get(parentId);
+  if (!parent || parent.workspace_id !== workspaceId || parent.deleted_at) return 'Parent note not found';
   if (noteId && subtreeIds(noteId).includes(parentId)) return 'A note cannot be moved inside itself';
   return null;
 }
@@ -55,7 +56,7 @@ function syncLinks(note) {
   }
 
   db.prepare('DELETE FROM note_links WHERE source_id=?').run(note.id);
-  const findTarget = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND title=? COLLATE NOCASE');
+  const findTarget = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND title=? COLLATE NOCASE AND deleted_at IS NULL');
   const insert = db.prepare('INSERT INTO note_links (id,source_id,target_id,workspace_id) VALUES (?,?,?,?)');
   const linked = new Set();
   for (const title of titles) {
@@ -69,7 +70,7 @@ function syncLinks(note) {
 
 // Notes whose [[links]] mention a title. Used to re-link when a note is created or renamed.
 function relinkNotesMentioning(workspaceId, titles) {
-  const others = db.prepare('SELECT * FROM notes WHERE workspace_id=?').all(workspaceId);
+  const others = db.prepare('SELECT * FROM notes WHERE workspace_id=? AND deleted_at IS NULL').all(workspaceId);
   const needles = titles.filter(Boolean).map(t => `[[${t.toLowerCase()}`);
   for (const n of others) {
     const text = searchableText(n).toLowerCase();
@@ -86,7 +87,7 @@ function saveSideEffects(note, previousTitle = null) {
 // All notes in a workspace (tree data, no content)
 router.get('/workspace/:wsId', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
-  const notes = db.prepare('SELECT id,parent_id,title,tags,note_type,position,version,created_at,updated_at FROM notes WHERE workspace_id=? ORDER BY position,created_at').all(req.params.wsId);
+  const notes = db.prepare('SELECT id,parent_id,title,tags,note_type,position,version,created_at,updated_at FROM notes WHERE workspace_id=? AND deleted_at IS NULL ORDER BY position,created_at').all(req.params.wsId);
   res.json({ notes });
 });
 
@@ -97,7 +98,7 @@ router.post('/batch', (req, res) => {
   const placeholders = ids.map(() => '?').join(',');
   const notes = db.prepare(`
     SELECT n.* FROM notes n JOIN workspaces w ON w.id=n.workspace_id
-    WHERE n.id IN (${placeholders}) AND w.user_id=?`).all(...ids, req.user.id);
+    WHERE n.id IN (${placeholders}) AND w.user_id=? AND n.deleted_at IS NULL`).all(...ids, req.user.id);
   res.json({ notes });
 });
 
@@ -114,7 +115,7 @@ router.get('/workspace/:wsId/search', (req, res) => {
     SELECT n.id, n.title, n.note_type, snippet(notes_fts, 2, '<mark>', '</mark>', '...', 20) AS excerpt
     FROM notes_fts
     JOIN notes n ON n.id = notes_fts.id
-    WHERE notes_fts MATCH ? AND n.workspace_id=?
+    WHERE notes_fts MATCH ? AND n.workspace_id=? AND n.deleted_at IS NULL
     ORDER BY rank LIMIT 30
   `).all(match, req.params.wsId);
 
@@ -130,8 +131,10 @@ router.get('/workspace/:wsId/search', (req, res) => {
 // Graph data
 router.get('/workspace/:wsId/graph', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
-  const nodes = db.prepare('SELECT id, title, tags, note_type FROM notes WHERE workspace_id=?').all(req.params.wsId);
-  const edges = db.prepare('SELECT source_id, target_id FROM note_links WHERE workspace_id=?').all(req.params.wsId);
+  const nodes = db.prepare('SELECT id, title, tags, note_type FROM notes WHERE workspace_id=? AND deleted_at IS NULL').all(req.params.wsId);
+  const edges = db.prepare(`SELECT l.source_id, l.target_id FROM note_links l
+    JOIN notes s ON s.id = l.source_id JOIN notes t ON t.id = l.target_id
+    WHERE l.workspace_id=? AND s.deleted_at IS NULL AND t.deleted_at IS NULL`).all(req.params.wsId);
   res.json({ nodes, edges });
 });
 
@@ -140,14 +143,14 @@ router.get('/workspace/:wsId/titles', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
   const q = typeof req.query.q === 'string' ? req.query.q : '';
   const escaped = q.replace(/[\\%_]/g, c => '\\' + c);
-  const titles = db.prepare("SELECT id, title FROM notes WHERE workspace_id=? AND title LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 10").all(req.params.wsId, `%${escaped}%`);
+  const titles = db.prepare("SELECT id, title FROM notes WHERE workspace_id=? AND deleted_at IS NULL AND title LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 10").all(req.params.wsId, `%${escaped}%`);
   res.json({ titles });
 });
 
 // Single note with content, links and attachments
 router.get('/:id', (req, res) => {
   const note = getOwnedNote(req.params.id, req.user.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
+  if (!note || (note.deleted_at && req.query.trash !== '1')) return res.status(404).json({ error: 'Not found' });
 
   const links = db.prepare(`
     SELECT n.id, n.title, 'outgoing' AS direction FROM note_links nl
@@ -221,7 +224,12 @@ router.patch('/:id', (req, res) => {
   if (!note) return res.status(404).json({ error: 'Not found' });
   const body = req.body || {};
   const opId = typeof body.op_id === 'string' ? body.op_id.slice(0, 64) : null;
-  if (opId && note.last_op_id === opId) return res.json({ note }); // retry of a save already applied
+  if (opId && note.last_op_id === opId && !note.deleted_at) return res.json({ note }); // retry of a save already applied
+  // Edited on a device that didn't know it was deleted: bring it back rather than lose the edit.
+  if (note.deleted_at) {
+    restoreFromTrash(note.trash_root === note.id ? note.id : null, note.id, note.id);
+    Object.assign(note, db.prepare('SELECT * FROM notes WHERE id=?').get(note.id));
+  }
   const next = { ...note };
 
   if (body.title !== undefined) {
@@ -299,19 +307,114 @@ function createConflictCopy(original, edited, opId) {
   })();
 }
 
-// Delete a note and everything nested under it.
+// ─────────────────────────────── Trash ───────────────────────────────
+
+const now = () => Math.floor(Date.now() / 1000);
+
+/** Remove notes for good, with their attachment files. */
+function destroy(ids) {
+  if (!ids.length) return;
+  const placeholders = ids.map(() => '?').join(',');
+  const files = db.prepare(`SELECT filename FROM attachments WHERE note_id IN (${placeholders})`).all(...ids).map(r => r.filename);
+  db.transaction(() => { db.prepare(`DELETE FROM notes WHERE id IN (${placeholders})`).run(...ids); })();
+  removeUploadFiles(files);
+}
+
+/**
+ * Take notes out of the Trash: the whole group deleted together with `rootId`, or (when rootId
+ * is null) just `singleId`. A note whose parent is gone or still in the Trash goes to the top level.
+ */
+function restoreFromTrash(rootId, singleId = null, keepVersionId = null) {
+  return db.transaction(() => {
+    const rows = rootId
+      ? db.prepare('SELECT * FROM notes WHERE trash_root=?').all(rootId)
+      : db.prepare('SELECT * FROM notes WHERE id=?').all(singleId);
+    const ids = new Set(rows.map(r => r.id));
+    for (const r of rows) {
+      let parentId = r.parent_id;
+      if (parentId && !ids.has(parentId)) {
+        const parent = db.prepare('SELECT deleted_at FROM notes WHERE id=?').get(parentId);
+        if (!parent || parent.deleted_at) parentId = null;
+      }
+      let position = r.position;
+      if (parentId !== r.parent_id) {
+        position = (db.prepare('SELECT MAX(position) AS m FROM notes WHERE workspace_id=? AND parent_id IS NULL AND deleted_at IS NULL').get(r.workspace_id).m ?? -1) + 1;
+      }
+      // version+1 so every device downloads it again (except a note being edited right now,
+      // whose edit bumps it anyway and must not look like a conflicting change)
+      db.prepare('UPDATE notes SET deleted_at=NULL, trash_root=NULL, parent_id=?, position=?, version=version+? WHERE id=?')
+        .run(parentId, position, r.id === keepVersionId ? 0 : 1, r.id);
+    }
+    // Links to and from these notes work again
+    for (const r of rows) syncLinks(db.prepare('SELECT * FROM notes WHERE id=?').get(r.id));
+    if (rows[0]) relinkNotesMentioning(rows[0].workspace_id, rows.map(r => r.title));
+    return [...ids];
+  })();
+}
+
+// Delete a note: it and everything nested under it go to the Trash for TRASH_DAYS.
 router.delete('/:id', (req, res) => {
   const note = getOwnedNote(req.params.id, req.user.id);
   if (!note) return res.status(404).json({ error: 'Not found' });
-
-  const ids = subtreeIds(note.id);
+  if (note.deleted_at) return res.json({ ok: true, deleted: [] });
+  const ids = subtreeIds(note.id).filter(id => !db.prepare('SELECT deleted_at FROM notes WHERE id=?').get(id).deleted_at);
   const placeholders = ids.map(() => '?').join(',');
-  const files = db.prepare(`SELECT filename FROM attachments WHERE note_id IN (${placeholders})`).all(...ids).map(r => r.filename);
   db.transaction(() => {
-    db.prepare(`DELETE FROM notes WHERE id IN (${placeholders})`).run(...ids);
+    db.prepare(`UPDATE notes SET deleted_at=?, trash_root=? WHERE id IN (${placeholders})`).run(now(), note.id, ...ids);
+    // Links pointing at these notes no longer resolve
+    relinkNotesMentioning(note.workspace_id, db.prepare(`SELECT title FROM notes WHERE id IN (${placeholders})`).all(...ids).map(r => r.title));
   })();
-  removeUploadFiles(files);
+  res.json({ ok: true, deleted: ids, trash_days: TRASH_DAYS });
+});
+
+// What's in the Trash: one entry per deleted note (its sub-notes are counted with it)
+router.get('/workspace/:wsId/trash', (req, res) => {
+  if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
+  const roots = db.prepare(`SELECT * FROM notes WHERE workspace_id=? AND deleted_at IS NOT NULL AND trash_root=id ORDER BY deleted_at DESC`).all(req.params.wsId);
+  const count = db.prepare('SELECT COUNT(*) AS c FROM notes WHERE trash_root=? AND id<>?');
+  const items = roots.map(n => ({
+    id: n.id, title: n.title, note_type: n.note_type, deleted_at: n.deleted_at,
+    purge_at: n.deleted_at + TRASH_DAYS * 86400,
+    children: count.get(n.id, n.id).c,
+    excerpt: (n.editor_mode === 'rich' && n.rich_content ? n.rich_content.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') : (n.content || '')).replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`|[\]-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180),
+  }));
+  res.json({ items, trash_days: TRASH_DAYS });
+});
+
+router.post('/:id/restore', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ error: 'Not found' });
+  if (!note.deleted_at) return res.json({ ok: true, restored: [] });
+  const restored = restoreFromTrash(note.trash_root === note.id ? note.id : null, note.id);
+  res.json({ ok: true, restored });
+});
+
+// Delete forever (only from the Trash)
+router.delete('/:id/permanent', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ error: 'Not found' });
+  if (!note.deleted_at) return res.status(400).json({ error: 'Move the note to the Trash first' });
+  const ids = note.trash_root === note.id
+    ? db.prepare('SELECT id FROM notes WHERE trash_root=?').all(note.id).map(r => r.id)
+    : [note.id];
+  destroy(ids);
   res.json({ ok: true, deleted: ids });
 });
+
+router.delete('/workspace/:wsId/trash', (req, res) => {
+  if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
+  const ids = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND deleted_at IS NOT NULL').all(req.params.wsId).map(r => r.id);
+  destroy(ids);
+  res.json({ ok: true, deleted: ids.length });
+});
+
+/** Delete notes that have been in the Trash longer than TRASH_DAYS. */
+export function purgeTrash() {
+  const cutoff = now() - TRASH_DAYS * 86400;
+  const ids = db.prepare('SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?').all(cutoff).map(r => r.id);
+  destroy(ids);
+  if (ids.length) console.log(`🗑️  Removed ${ids.length} note(s) that were in the Trash for over ${TRASH_DAYS} days`);
+  return ids.length;
+}
 
 export default router;

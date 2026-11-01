@@ -86,7 +86,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div style={{ background: 'radial-gradient(circle at 50% 35%, var(--accent-subtle), transparent 60%), var(--bg-base)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ background: 'radial-gradient(circle at 50% 35%, var(--accent-subtle), transparent 60%), var(--bg-base)', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: 'min(400px, 100%)', padding: 40, background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }} className="fade-in">
 
         {/* Logo */}

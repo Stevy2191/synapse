@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, ListTodo, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
@@ -10,7 +10,7 @@ import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
 import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
-import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow } from '../../offline/sync';
+import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
 
 const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
@@ -57,15 +57,25 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const Icon = TYPE_ICONS[note.note_type] || FileText;
   const active = activeId === note.id;
 
+  // Deleting moves the note (and anything inside it) to the Trash, with an Undo.
   const handleDelete = async (e) => {
     e.stopPropagation();
-    const message = hasChildren
-      ? `Delete "${note.title}" and the ${countDescendants(note.id, notes)} note(s) inside it?`
-      : `Delete "${note.title}"?`;
-    if (!confirm(message)) return;
     try {
+      const inside = hasChildren ? countDescendants(note.id, notes) : 0;
       removeNoteFromTree(await deleteNote(note.id));
-      toast.success('Note deleted');
+      toast(t => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>Moved “{note.title}”{inside ? ` and ${inside} inside it` : ''} to the Trash</span>
+          <button className="btn-ghost on" style={{ padding: '0 10px', height: 28 }} onClick={async () => {
+            toast.dismiss(t.id);
+            try {
+              if (await undoDelete(note.id)) toast.success('Restored');
+              else toast('You’re offline — restore it from the Trash when you’re back online.', { icon: '🗑️' });
+            } catch { toast.error('Couldn’t restore it — try from the Trash'); }
+          }}>Undo</button>
+        </span>
+      ), { icon: '🗑️', duration: 6000 });
+      window.dispatchEvent(new Event('synapse:trash-changed'));
     } catch { toast.error('Failed to delete'); }
   };
 
@@ -116,7 +126,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 4 }}>{note.title}</span>
         <span className="note-actions" style={{ display: 'flex', gap: 1 }}>
           <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title="Add a note inside"><Plus size={13} /></button>
-          <button onClick={handleDelete} className="btn-ghost" style={{ ...miniBtn, color: 'var(--danger)' }} title="Delete"><Trash2 size={12} /></button>
+          <button onClick={handleDelete} className="btn-ghost" style={{ ...miniBtn, color: 'var(--danger)' }} title="Move to Trash"><Trash2 size={12} /></button>
         </span>
       </div>
       {expanded && children.map(child => (
@@ -238,9 +248,21 @@ export default function Sidebar({ width, onNavigate }) {
 
   const selectNote = useCallback(async (id) => {
     await openNote(id);
-    if (view === 'graph' || view === 'tasks') setView('editor');
+    if (view === 'graph' || view === 'tasks' || view === 'trash') setView('editor');
     onNavigate?.();
   }, [view, setView, onNavigate]);
+
+  // How many notes are in the Trash (it lives on the server)
+  const [trashCount, setTrashCount] = useState(null);
+  useEffect(() => {
+    if (!activeWorkspace) return undefined;
+    let cancelled = false;
+    const load = () => fetchTrash(activeWorkspace.id).then(d => { if (!cancelled) setTrashCount(d.items.length); }).catch(() => {});
+    load();
+    window.addEventListener('synapse:trash-changed', load);
+    window.addEventListener('online', load);
+    return () => { cancelled = true; window.removeEventListener('synapse:trash-changed', load); window.removeEventListener('online', load); };
+  }, [activeWorkspace?.id]);
 
   // Tasks due today or overdue, for the badge next to "Tasks"
   const [dueCount, setDueCount] = useState(0);
@@ -321,8 +343,16 @@ export default function Sidebar({ width, onNavigate }) {
         )}
       </div>
 
+      {/* Trash, just above the footer */}
+      <div style={{ padding: '6px 10px 4px', borderTop: '1px solid var(--border-subtle)' }}>
+        <button className={`nav-item${view === 'trash' ? ' on' : ''}`} onClick={() => { setView(view === 'trash' ? 'editor' : 'trash'); onNavigate?.(); }}>
+          <TrashIcon size={14} /> Trash
+          {trashCount > 0 && <span className="nav-count" title="Notes in the Trash">{trashCount}</span>}
+        </button>
+      </div>
+
       {/* Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 10px 12px', borderTop: '1px solid var(--border-subtle)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px calc(12px + env(safe-area-inset-bottom, 0px))' }}>
         <SyncStatus />
         <div style={{ flex: 1 }} />
         {/* You: opens Settings (account, workspace and, for admins, server) */}

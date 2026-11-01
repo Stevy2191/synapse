@@ -49,6 +49,12 @@ export const ALLOW_REGISTRATION = process.env.ALLOW_REGISTRATION === 'true';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
+/** Days a deleted note stays in the Trash before it's removed for good (TRASH_DAYS, default 30). */
+export const TRASH_DAYS = (() => {
+  const n = Number.parseInt(process.env.TRASH_DAYS || '30', 10);
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 3650) : 30;
+})();
+
 function resolveFrontendDist() {
   const candidates = [
     process.env.FRONTEND_DIST,

@@ -4,6 +4,7 @@ import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
 import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
+import TrashView from '../components/trash/TrashView';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
 import api from '../api';
@@ -76,7 +77,7 @@ export default function AppPage() {
   const closeOnPhone = useCallback(() => { if (narrow) setSidebarOpen(false); }, [narrow]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}>
+    <div className="app-shell" style={{ display: 'flex', overflow: 'hidden', background: 'var(--bg-base)' }}>
       {sidebarOpen && (narrow ? (
         <>
           <div onClick={() => setSidebarOpen(false)} className="fade-in"
@@ -92,7 +93,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : <Editor />}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : <Editor />}
       </main>
       <SearchModal />
       <Settings />

@@ -131,6 +131,11 @@ db.exec(`
 // and `last_op_id` makes retried saves idempotent.
 addColumn('notes', `version INTEGER NOT NULL DEFAULT 1`);
 addColumn('notes', `last_op_id TEXT`);
+// Trash: deleted notes keep their place for TRASH_DAYS. `trash_root` is the note that was
+// deleted (its sub-notes went with it), so they're restored together.
+addColumn('notes', `deleted_at INTEGER`);
+addColumn('notes', `trash_root TEXT`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_notes_trash ON notes(deleted_at) WHERE deleted_at IS NOT NULL`);
 
 /** Plain text used for search and [[link]] detection, covering both markdown and rich-text notes. */
 export function searchableText(note) {

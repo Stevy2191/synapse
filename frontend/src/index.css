@@ -41,9 +41,13 @@ body {
   line-height: 1.6;
   overflow: hidden;
   height: 100vh;
+  /* On tablets and phones 100vh includes the space behind the browser's toolbars, which pushed
+     the bottom of the sidebar off screen; dvh is the height actually visible. */
+  height: 100dvh;
 }
 
-#root { height: 100vh; display: flex; flex-direction: column; }
+#root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.app-shell { height: 100vh; height: 100dvh; }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -778,3 +782,21 @@ body {
 .drawing-picker-list button:hover { background: var(--bg-hover); }
 .drawing-picker-list button.new { color: var(--accent); }
 .drawing-picker-empty { padding: 8px 10px; font-size: 13px; color: var(--text-muted); }
+
+/* Trash */
+.nav-count { margin-left: auto; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.trash-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg-elevated); color: var(--text-secondary); font-size: 13px; margin-bottom: 14px; }
+.trash-tools { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.trash-search { flex: 1; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); color: var(--text-muted); }
+.trash-search:focus-within { border-color: var(--accent); }
+.trash-search input { flex: 1; border: none; outline: none; background: none; color: var(--text-primary); font-size: 13.5px; min-width: 0; }
+.trash-tools .cp-btn { display: inline-flex; align-items: center; gap: 6px; }
+.trash-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-surface); margin-bottom: 8px; }
+.trash-icon { color: var(--text-muted); margin-top: 3px; flex-shrink: 0; }
+.trash-main { flex: 1; min-width: 0; }
+.trash-title { font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trash-count { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg-elevated); padding: 1px 7px; border-radius: 99px; }
+.trash-excerpt { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+.trash-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.trash-actions .cp-btn { display: inline-flex; align-items: center; gap: 6px; }

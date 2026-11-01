@@ -87,7 +87,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, view: s.view === 'graph' || s.view === 'tasks' ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, view: ['graph', 'tasks', 'trash'].includes(s.view) ? 'editor' : s.view })
     }
   )
 );

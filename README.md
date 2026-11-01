@@ -90,6 +90,7 @@ Install it to your home screen and it works like an app — online or off.
 **Organizing**
 - **Workspaces**: keep Home, Work and so on apart, each with its own icon, color and settings
 - **Nested notes** with drag and drop
+- **Trash**: deleted notes (with anything inside them) go to the Trash, with Undo, and are deleted for good after 30 days. Restore or delete them forever from **Trash** at the bottom of the sidebar
 - **Wiki links**: type `[[` to link a note (or create it); backlinks show in the side panel
 - **Graph view** of every connection
 - **Tags** and **full-text search** (<kbd>Ctrl</kbd> + <kbd>K</kbd>)
@@ -243,6 +244,7 @@ Notes:
 |----------|---------|-------------|
 | `JWT_SECRET` | auto-generated | Signs login tokens. If unset, a random one is created and saved to `data/.jwt_secret` |
 | `DRAWIO_URL` | `https://embed.diagrams.net` | Where the draw.io editor loads from. Run your own (`docker run -p 8080:8080 jgraph/drawio`) and set this to keep diagrams fully self-hosted and usable offline |
+| `TRASH_DAYS` | `30` | Days a deleted note stays in the Trash before it's removed for good |
 | `SETUP_CODE` | random | Code needed to create the admin account. `off` to skip it (trusted networks only) |
 | `ALLOW_REGISTRATION` | `false` | `true` lets anyone create an account. Otherwise only the first user (admin) can register |
 | `CORS_ORIGIN` | unset | Only needed if a different site calls the API from a browser (comma-separated list) |
