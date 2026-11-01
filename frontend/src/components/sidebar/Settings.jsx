@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
+  CalendarDays, RefreshCw, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
@@ -43,6 +44,7 @@ export default function Settings() {
       ['profile', <User size={15} />, 'Profile'],
       ['appearance', <Palette size={15} />, 'Appearance'],
       ['security', <Lock size={15} />, 'Security'],
+      ['calendars', <CalendarDays size={15} />, 'Calendars'],
     ] },
     { label: activeWorkspace ? `Workspace · ${activeWorkspace.name}` : 'Workspace', workspace: true, items: [
       ['ws-general', <Settings2 size={15} />, 'General'],
@@ -94,6 +96,7 @@ export default function Settings() {
             {page === 'profile' && <ProfilePage />}
             {page === 'appearance' && <AppearancePage />}
             {page === 'security' && <SecuritySettings />}
+            {page === 'calendars' && <CalendarsPage />}
             {page === 'ws-general' && <WorkspaceGeneralPage />}
             {page === 'ws-preferences' && <WorkspacePreferencesPage />}
             {page === 'server-users' && isAdmin && <ServerUsersPage />}
@@ -252,6 +255,129 @@ function AppearancePage() {
         })}
       </div>
       <p style={{ ...hint, marginTop: 14 }}>Auto uses Neural or Neural Light to match your device's light/dark setting.</p>
+    </div>
+  );
+}
+
+// ─────────────────────────── Calendars ───────────────────────────
+
+const PROVIDERS = [
+  ['Outlook / Microsoft 365', [
+    'In Outlook on the web, open Settings (⚙) → Calendar → Shared calendars.',
+    'Under "Publish a calendar", choose the calendar and "Can view all details", then Publish.',
+    'Copy the ICS link and paste it here.',
+    'Work account? Your organisation may have publishing turned off. Ask IT, or use a personal calendar.',
+  ]],
+  ['Google Calendar', [
+    'On calendar.google.com, open Settings → choose the calendar on the left.',
+    'Scroll to "Integrate calendar" and copy the "Secret address in iCal format".',
+  ]],
+  ['Apple iCloud', [
+    'In the Calendar app (or icloud.com), share the calendar as a Public Calendar.',
+    'Copy the link (it starts with webcal://) and paste it here.',
+  ]],
+  ['Proton, Fastmail, Nextcloud & others', [
+    'Look for "Share", "Subscribe" or "Export" on the calendar and copy the ICS/iCal link.',
+  ]],
+];
+
+function CalendarsPage() {
+  const [calendars, setCalendars] = useState(null);
+  const [form, setForm] = useState({ name: '', url: '', color: '#3b82f6' });
+  const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(null);
+  const load = () => api.get('/calendars').then(({ data }) => setCalendars(data.calendars)).catch(() => setCalendars([]));
+  useEffect(() => { load(); }, []);
+
+  const add = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { data } = await api.post('/calendars', form);
+      toast.success(`Connected "${data.calendar.name}" (${data.calendar.events} events)`);
+      setForm({ name: '', url: '', color: COLORS[(calendars?.length + 3) % COLORS.length] });
+      load();
+    } catch (err) { toast.error(errorText(err)); }
+    finally { setBusy(false); }
+  };
+  const update = async (c, body, msg) => {
+    try { await api.patch(`/calendars/${c.id}`, body); load(); if (msg) toast.success(msg); }
+    catch (err) { toast.error(errorText(err)); }
+  };
+  const refresh = async (c) => {
+    try { const { data } = await api.post(`/calendars/${c.id}/refresh`); toast.success(`Updated: ${data.calendar.events} events`); }
+    catch (err) { toast.error(errorText(err)); }
+    load();
+  };
+  const ago = t => {
+    if (!t) return 'never';
+    const m = Math.round((Date.now() / 1000 - t) / 60);
+    return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+  };
+
+  return (
+    <div>
+      <h3 style={heading}>Calendars</h3>
+      <p style={lead}>See your meetings in the calendar panel (the right-hand side). Synapse only reads your calendars; it never changes them. They refresh every 15 minutes.</p>
+
+      {calendars?.map(c => (
+        <section key={c.id} style={{ ...section, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px' }}>
+          <input type="color" value={c.color} onChange={e => update(c, { color: e.target.value })} title="Colour"
+            style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: '50%', background: 'none', cursor: 'pointer' }} />
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text-primary)' }}>{c.name}</div>
+            <div style={{ fontSize: 11.5, color: c.last_error ? 'var(--danger)' : 'var(--text-muted)' }}>
+              {c.last_error ? c.last_error : `${c.events} events · updated ${ago(c.last_synced_at)}`}
+            </div>
+          </div>
+          <button role="switch" aria-checked={c.enabled} title={c.enabled ? 'Shown' : 'Hidden'} className={`toggle${c.enabled ? ' on' : ''}`}
+            onClick={() => update(c, { enabled: !c.enabled })}><span /></button>
+          <button className="btn-ghost" title="Refresh now" onClick={() => refresh(c)}><RefreshCw size={14} /></button>
+          <button className="btn-ghost" title="Rename" onClick={() => { const name = prompt('Calendar name:', c.name); if (name) update(c, { name }); }}><Settings2 size={14} /></button>
+          <button className="btn-ghost" title="Remove" style={{ color: 'var(--danger)' }} onClick={async () => {
+            if (!confirm(`Remove "${c.name}" from Synapse? (Your calendar itself isn't touched.)`)) return;
+            try { await api.delete(`/calendars/${c.id}`); load(); toast.success('Calendar removed'); } catch (err) { toast.error(errorText(err)); }
+          }}><Trash2 size={14} /></button>
+        </section>
+      ))}
+
+      <form onSubmit={add} style={{ ...section, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={labelStyle}>Connect a calendar</label>
+        <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Calendar link (https://… or webcal://…, ends in .ics)"
+          style={field} required spellCheck={false} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Name (e.g. Work)" maxLength={60} style={{ ...field, minWidth: 140 }} />
+          <div style={{ display: 'flex', gap: 5 }}>
+            {COLORS.slice(0, 8).map(c => (
+              <button type="button" key={c} onClick={() => setForm(f => ({ ...f, color: c }))} title={c} style={{
+                width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
+                border: form.color === c ? '2px solid var(--text-primary)' : '2px solid transparent',
+              }} />
+            ))}
+          </div>
+          <button type="submit" style={primary} disabled={busy || !form.url.trim()}>
+            {busy ? <RefreshCw size={13} className="spin" /> : <Plus size={13} />} {busy ? 'Checking…' : 'Connect'}
+          </button>
+        </div>
+      </form>
+
+      <section style={section}>
+        <label style={labelStyle}>Where do I find my calendar link?</label>
+        {PROVIDERS.map(([name, steps]) => (
+          <div key={name} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <button type="button" onClick={() => setHelp(help === name ? null : name)} style={{
+              width: '100%', display: 'flex', justifyContent: 'space-between', padding: '9px 2px', background: 'none', border: 'none',
+              cursor: 'pointer', color: 'var(--text-primary)', font: '500 13px var(--font-sans)',
+            }}>{name}<span style={{ color: 'var(--text-muted)' }}>{help === name ? '−' : '+'}</span></button>
+            {help === name && (
+              <ol style={{ margin: '0 0 10px', paddingLeft: 20, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                {steps.map(st => <li key={st}>{st}</li>)}
+              </ol>
+            )}
+          </div>
+        ))}
+        <p style={hint}>Treat these links like passwords: anyone with the link can see the calendar. Synapse keeps them private to your account.</p>
+      </section>
     </div>
   );
 }

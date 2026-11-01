@@ -5,6 +5,7 @@
 //   notes       — full notes. `server_version` is the server version this copy is based on
 //                 (null for notes created offline that haven't been uploaded yet).
 //   outbox      — changes waiting to be sent to the server, in order.
+//   calendar    — calendar events by month ("2026-11"), for offline viewing.
 import { openDB } from 'idb';
 
 let dbPromise = null;
@@ -14,12 +15,16 @@ export function openUserDb(userId) {
   if (currentUserId === userId && dbPromise) return dbPromise;
   currentUserId = userId;
   // One database per user so people sharing a browser never see each other's notes.
-  dbPromise = openDB(`synapse-${userId}`, 1, {
-    upgrade(db) {
-      db.createObjectStore('workspaces', { keyPath: 'id' });
-      const notes = db.createObjectStore('notes', { keyPath: 'id' });
-      notes.createIndex('workspace_id', 'workspace_id');
-      db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+  dbPromise = openDB(`synapse-${userId}`, 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('workspaces', { keyPath: 'id' });
+        const notes = db.createObjectStore('notes', { keyPath: 'id' });
+        notes.createIndex('workspace_id', 'workspace_id');
+        db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+      }
+      // v2: calendar events, cached per month so the calendar works offline
+      if (oldVersion < 2) db.createObjectStore('calendar');
     },
   });
   return dbPromise;

@@ -24,6 +24,8 @@ export const useStore = create(
       sidebarOpen: true,
       sidebarWidth: 264,
       rightRailOpen: true,
+      rightRailTab: 'calendar',   // 'calendar' | 'links'
+      calendarDay: null,          // the day selected in the calendar panel (kept while switching notes)
       searchOpen: false,
       settingsOpen: false,
       settingsPage: 'profile',
@@ -69,6 +71,8 @@ export const useStore = create(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarWidth: (w) => set({ sidebarWidth: w }),
       setRightRailOpen: (open) => set({ rightRailOpen: open }),
+      setRightRailTab: (tab) => set({ rightRailTab: tab }),
+      setCalendarDay: (day) => set({ calendarDay: day }),
       setSearchOpen: (open) => set({ searchOpen: open }),
       // setSettingsOpen(false) closes; true opens on Profile; a page name opens that page.
       setSettingsOpen: (open) => set(typeof open === 'string'
@@ -83,7 +87,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, view: s.view === 'graph' ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, view: s.view === 'graph' ? 'editor' : s.view })
     }
   )
 );

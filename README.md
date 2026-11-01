@@ -20,6 +20,7 @@
 - **Markdown view** — Switch any note to raw Markdown (with split view and preview); notes are always kept as Markdown too, for search and export
 - **Wiki Links** — Type `[[` to search your notes and link one (or create it); click a link to open it
 - **Graph View** — Interactive D3 mind map of all note connections
+- **Calendar & daily notes** — A month calendar in the side panel with your meetings from Outlook, Google, iCloud or any calendar (ICS link). Click a day for its daily note; turn any meeting into a pre-filled meeting note
 - **Full-text Search** — Fast SQLite FTS5 search (Ctrl+K)
 - **Tags** — Tag and filter notes
 - **File Attachments** — Upload images and files (50MB limit)
@@ -95,6 +96,20 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse set-ip [address]` | HTTPS without a domain: update after the server's IP changes (devices stay trusted) |
 | `synapse restart` / `stop` / `start` | |
 | `synapse uninstall` | Remove Synapse (asks before deleting notes) |
+
+---
+
+## Calendar & Daily Notes
+
+The panel on the right (button at the top right) has a **Calendar** tab:
+
+- **Days with meetings** have coloured dots; days with a daily note are underlined.
+- **Click a day** to see its meetings; **double-click** it (or use *Open daily note*) to open that day's note, titled like `2026-11-01`, kept in a **Daily notes** folder.
+- **Meeting notes**: the note button on a meeting creates "Team standup · 2026-11-01" inside that day's note, with the time, place, join link and attendees filled in.
+
+**Connect calendars** in **Settings → Calendars** by pasting a calendar's ICS link (steps for Outlook, Google, iCloud and others are shown there). Synapse reads them every 15 minutes, never changes them, and keeps the events on your device so the calendar works offline.
+
+> Outlook work accounts: your organisation may block "Publish a calendar". If so, ask IT or use a personal calendar.
 
 ---
 

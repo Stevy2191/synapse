@@ -19,6 +19,7 @@ import DiagramEditor from './DiagramEditor';
 import FreeDrawEditor from './FreeDrawEditor';
 import Logo from '../Logo';
 import { WorkspaceIcon } from '../Avatar';
+import CalendarPanel from '../calendar/CalendarPanel';
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -151,7 +152,25 @@ function ConnectionsGraph({ note, links }) {
   );
 }
 
+// The right-hand panel: Calendar, and (with a note open) its Connections.
 function RightRail({ activeNote }) {
+  const { tab, setTab } = useStore(s => ({ tab: s.rightRailTab, setTab: s.setRightRailTab }));
+  const current = activeNote ? tab : 'calendar';
+  return (
+    <aside style={{ width: 280, flexShrink: 0, borderLeft: '1px solid var(--border-subtle)', padding: '14px 16px 20px', overflow: 'auto' }} className="right-rail">
+      {activeNote && (
+        <div className="seg" style={{ marginBottom: 14 }}>
+          {[['calendar', 'Calendar'], ['links', 'Connections']].map(([id, label]) => (
+            <button key={id} className={current === id ? 'on' : ''} onClick={() => setTab(id)} style={{ flex: 1, justifyContent: 'center' }}>{label}</button>
+          ))}
+        </div>
+      )}
+      {current === 'calendar' ? <CalendarPanel /> : <LinksPanel activeNote={activeNote} />}
+    </aside>
+  );
+}
+
+function LinksPanel({ activeNote }) {
   const outgoing = activeNote.links.filter(l => l.direction === 'outgoing');
   const incoming = activeNote.links.filter(l => l.direction === 'incoming');
   const list = (items, Icon, empty) => items.length === 0
@@ -163,14 +182,14 @@ function RightRail({ activeNote }) {
       </button>
     ));
   return (
-    <aside style={{ width: 260, flexShrink: 0, borderLeft: '1px solid var(--border-subtle)', padding: '20px 16px', overflow: 'auto' }} className="right-rail">
+    <div>
       <div className="section-label" style={{ marginBottom: 10 }}>Connections</div>
       <ConnectionsGraph note={activeNote.note} links={activeNote.links} />
       <div className="section-label" style={{ margin: '20px 0 8px' }}>Links to</div>
       {list(outgoing, ArrowUpRight, <>Type <code style={{ fontFamily: 'var(--font-mono)' }}>[[</code> to link a note</>)}
       <div className="section-label" style={{ margin: '16px 0 8px' }}>Linked from</div>
       {list(incoming, ArrowDownLeft, 'No notes link here yet')}
-    </aside>
+    </div>
   );
 }
 
@@ -393,6 +412,12 @@ export default function Editor() {
     return chain;
   }, [notes, activeNote?.note?.parent_id]);
 
+  const railButton = (
+    <button className={`btn-ghost hide-narrow${rightRailOpen ? ' on' : ''}`} onClick={() => setRightRailOpen(!rightRailOpen)} title="Calendar & connections">
+      <PanelRight size={15} />
+    </button>
+  );
+
   const sidebarButton = !sidebarOpen && (
     <button className="btn-ghost" onClick={() => setSidebarOpen(true)} title="Show sidebar (Ctrl \)"><PanelLeft size={16} /></button>
   );
@@ -404,8 +429,9 @@ export default function Editor() {
       openNote(note.id);
     };
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={topBar}>{sidebarButton}</div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={topBar}>{sidebarButton}<div style={{ flex: 1 }} />{railButton}</div>
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 18, padding: 24, textAlign: 'center' }} className="fade-in">
           <Logo size={88} style={{ filter: 'drop-shadow(var(--glow))' }} />
           <h2 className="heading-text" style={{ font: '600 28px var(--font-display)', letterSpacing: '-0.02em' }}>Your connected knowledge base</h2>
@@ -416,6 +442,8 @@ export default function Editor() {
             <button onClick={newNote} style={primaryBtn}><Plus size={15} /> New note</button>
             <button onClick={() => setSearchOpen(true)} style={secondaryBtn}><Search size={14} /> Search <kbd style={kbd}>Ctrl K</kbd></button>
           </div>
+        </div>
+        {rightRailOpen && <RightRail activeNote={null} />}
         </div>
       </div>
     );
@@ -522,11 +550,7 @@ export default function Editor() {
           title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
           {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
         </span>
-        {isNote && (
-          <button className={`btn-ghost hide-narrow${rightRailOpen ? ' on' : ''}`} onClick={() => setRightRailOpen(!rightRailOpen)} title="Connections panel">
-            <PanelRight size={15} />
-          </button>
-        )}
+        {railButton}
       </div>
 
       {/* Formatting toolbar */}
@@ -573,7 +597,7 @@ export default function Editor() {
           </>
         )}
 
-        {isNote && rightRailOpen && <RightRail activeNote={activeNote} />}
+        {rightRailOpen && <RightRail activeNote={activeNote} />}
       </div>
       {linkPopup}
     </div>

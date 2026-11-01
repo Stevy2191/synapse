@@ -10,6 +10,8 @@ import { db } from './db/index.js';
 import { prepareSetupCode } from './setup.js';
 import authRoutes from './routes/auth.js';
 import securityRoutes from './routes/security.js';
+import calendarRoutes from './routes/calendars.js';
+import { startCalendarSync } from './calendars.js';
 import workspaceRoutes from './routes/workspaces.js';
 import noteRoutes from './routes/notes.js';
 import attachmentRoutes from './routes/attachments.js';
@@ -37,6 +39,7 @@ app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/calendars', calendarRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
@@ -65,6 +68,7 @@ app.use((err, req, res, next) => {
 });
 
 prepareSetupCode(db.prepare('SELECT COUNT(*) AS c FROM users').get().c);
+startCalendarSync();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧠 Synapse running on port ${PORT}`);
