@@ -5,14 +5,76 @@ import { DATA_DIR, UPLOADS_DIR } from '../config.js';
 
 const DB_PATH = path.join(DATA_DIR, 'synapse.db');
 
-const db = new Database(DB_PATH);
-// On a network share (SMB/NFS), SQLite's shared-memory WAL index doesn't work reliably.
-// Exclusive locking keeps that index in this process's memory instead; it's safe because
-// only this one Synapse server ever opens the database. Must be set before journal_mode.
-if (process.env.SYNAPSE_NETWORK_STORAGE === 'true') {
-  db.pragma('locking_mode = EXCLUSIVE');
+// ───────────────────────── opening the database ─────────────────────────
+// Is the data folder on a network share (NFS / SMB …)? The installer says so for its own share
+// option; a plain folder that happens to be an NFS/SMB mount is detected here from /proc/mounts.
+const NETWORK_FS = /^(nfs4?|cifs|smb3?|smbfs|fuse\.sshfs|9p|afs|ceph|glusterfs|fuse\.glusterfs|fuse\.rclone|davfs)$/;
+function filesystemType(dir) {
+  try {
+    let real = dir;
+    try { real = fs.realpathSync(dir); } catch { /* not created yet */ }
+    let best = { point: '', type: '' };
+    for (const line of fs.readFileSync('/proc/mounts', 'utf8').split('\n')) {
+      const [, point, type] = line.split(' ');
+      if (!point) continue;
+      const p = point.replace(/\\040/g, ' ');
+      if ((real === p || real.startsWith(p.endsWith('/') ? p : `${p}/`)) && p.length > best.point.length) best = { point: p, type };
+    }
+    return best.type;
+  } catch { return ''; } // not Linux
 }
-db.pragma('journal_mode = WAL');
+const fsType = filesystemType(DATA_DIR);
+export const NETWORK_STORAGE = process.env.SYNAPSE_NETWORK_STORAGE === 'true' || NETWORK_FS.test(fsType);
+if (NETWORK_STORAGE && process.env.SYNAPSE_NETWORK_STORAGE !== 'true') {
+  console.log(`📁 The data folder is on a network share (${fsType}) — using network-safe database settings.`);
+}
+
+function openDatabase() {
+  const d = new Database(DB_PATH, { timeout: 10_000 });
+  try {
+    // On a network share, SQLite's shared-memory index (used by WAL) doesn't work. Exclusive
+    // locking keeps it in this process's memory instead — safe because only this one Synapse
+    // server opens the database. Must be set before journal_mode.
+    if (NETWORK_STORAGE) d.pragma('locking_mode = EXCLUSIVE');
+    try {
+      d.pragma('journal_mode = WAL');
+    } catch (err) {
+      if (!NETWORK_STORAGE) throw err;
+      d.pragma('journal_mode = TRUNCATE'); // some shares can't do WAL at all: classic journal
+    }
+    return d;
+  } catch (err) {
+    try { d.close(); } catch { /* ignore */ }
+    throw err;
+  }
+}
+
+// If the database is locked (another Synapse still running on the same data, or a network share
+// holding on to an old lock), wait and retry with an explanation rather than crash-looping.
+let db;
+const MAX_TRIES = 24; // about two and a half minutes
+for (let attempt = 1; ; attempt++) {
+  try { db = openDatabase(); break; } catch (err) {
+    if (err.code !== 'SQLITE_BUSY' && err.code !== 'SQLITE_LOCKED') throw err;
+    if (attempt === 1) {
+      console.error(`
+⚠️  Synapse can't lock its database (${DB_PATH}).
+    Usually this means one of:
+      • another copy of Synapse is still running with the same data folder
+        (check with: docker ps), or
+      • the data folder is on a network share (NFS/SMB) that is still holding an old lock,
+        or doesn't allow file locking. If it's a network share, set
+        SYNAPSE_NETWORK_STORAGE=true in .env (Synapse also detects NFS/SMB by itself).
+    Waiting and trying again…`);
+    }
+    if (attempt >= MAX_TRIES) {
+      console.error('❌ Still locked after several minutes — giving up for now. Fix the cause above, then: synapse restart');
+      process.exit(1);
+    }
+    console.error(`    …still locked (try ${attempt}/${MAX_TRIES})`);
+    await new Promise(r => setTimeout(r, 6000));
+  }
+}
 db.pragma('foreign_keys = ON');
 
 db.exec(`

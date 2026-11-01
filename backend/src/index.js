@@ -17,6 +17,7 @@ import noteRoutes, { purgeTrash } from './routes/notes.js';
 import attachmentRoutes from './routes/attachments.js';
 import adminRoutes from './routes/admin.js';
 import exportRoutes from './routes/export.js';
+import { closeBrowser } from './exporter.js';
 import chatRoutes from './routes/chats.js';
 import aiRoutes from './routes/ai.js';
 import shareRoutes from './routes/shares.js';
@@ -100,6 +101,23 @@ setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
 purgeOrphanChatFiles();
 setInterval(purgeOrphanChatFiles, 6 * 60 * 60 * 1000).unref();
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧠 Synapse running on port ${PORT}`);
 });
+
+// Stop cleanly when Docker stops or replaces the container (synapse update/restart): close the
+// database so its lock is released — this matters on network shares, where a killed process can
+// leave a lock behind. (In a container, Node ignores SIGTERM unless it handles it itself.)
+let stopping = false;
+function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`Stopping (${signal})…`);
+  server.close();
+  Promise.race([closeBrowser(), new Promise(r => setTimeout(r, 3000))]).finally(() => {
+    try { db.close(); } catch { /* already closed */ }
+    process.exit(0);
+  });
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

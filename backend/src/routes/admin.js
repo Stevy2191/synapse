@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db/index.js';
+import { db , NETWORK_STORAGE } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { createUser, setPassword, deleteUser, adminCount, PUBLIC_USER_FIELDS } from '../users.js';
 import { resetMfa, mfaMethods } from '../mfa.js';
@@ -85,7 +85,7 @@ router.get('/about', (req, res) => {
     notes: count('notes'),
     attachments: count('attachments'),
     data_bytes: folderSize(DATA_DIR),
-    network_storage: process.env.SYNAPSE_NETWORK_STORAGE === 'true',
+    network_storage: NETWORK_STORAGE,
     uptime_seconds: Math.round(process.uptime()),
   });
 });

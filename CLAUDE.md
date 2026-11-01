@@ -210,6 +210,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   not in a portal, or the menu closes when you click them.
 - `pendingChanges()` returns a count; outbox entries are keyed by `seq`.
 - Search/trash excerpts: use one of rich/markdown text, not both (it doubled the text).
+- NFS/SMB data folders: SQLite's WAL shared-memory file fails there and shows up as "database is
+  locked" at startup. db/index.js detects network filesystems from /proc/mounts (or
+  SYNAPSE_NETWORK_STORAGE=true) and uses `locking_mode=EXCLUSIVE` (WAL, else TRUNCATE journal); a
+  locked DB is retried with an explanation instead of crash-looping; SIGTERM closes the DB cleanly
+  (Node as PID 1 ignores SIGTERM otherwise, so Docker used to SIGKILL it after 10 s).
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

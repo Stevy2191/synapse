@@ -123,3 +123,11 @@ export function renderImages(css, items) {
     return out;
   });
 }
+
+/** Shut the PDF browser down (when Synapse stops). */
+export async function closeBrowser() {
+  if (!browserPromise) return;
+  const p = browserPromise;
+  browserPromise = null;
+  try { await (await p).close(); } catch { /* already gone */ }
+}
