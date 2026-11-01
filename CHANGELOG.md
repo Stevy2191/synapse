@@ -19,7 +19,7 @@ so you can go back to a known version if you ever need to.
   - **Restore on a new server** — install Synapse, create an admin, then *Add a backup file* and
     Restore. Saved AI keys come along in password-protected backups.
   - Backups go to a `backups` folder next to your notes. To keep them on your NAS instead, run once:
-    `synapse backups-to "/mnt/family/Synapse Backups"`.
+    `synapse backups-to "/path/to/NFS-or-SMB-share"`.
   - Backups made with `synapse backup` show up in the list too and can be restored from there.
 - `synapse update` now also updates the `synapse` command itself.
 

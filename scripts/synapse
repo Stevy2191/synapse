@@ -359,7 +359,7 @@ case "$cmd" in
     if [ "$dest" = default ] || [ "$dest" = "./backups" ]; then
       dest=./backups; mkdir -p backups; shown="$SYNAPSE_DIR/backups"
     else
-      case "$dest" in /*) ;; *) die "Use the full path, starting with / (for example /mnt/family/Synapse Backups)." ;; esac
+      case "$dest" in /*) ;; *) die "Use the full path, starting with / (for example /mnt/nas/backups)." ;; esac
       dest="${dest%/}"
       case "$(realpath -m "$dest")" in
         /|/root|/home|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot|/proc|/sys|/dev) die "Pick a folder of its own, not $dest itself." ;;

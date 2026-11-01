@@ -95,6 +95,7 @@ export default function BackupsPage({ styles }) {
   if (!status) return <div><h3 style={heading}>Backups</h3><p style={lead}>Loading…</p></div>;
   const s = status.settings;
   const last = status.last;
+  const customFolder = status.folder_mounted && status.folder_host && status.folder_host !== './backups';
   const recentRestore = status.restored && Date.now() / 1000 - status.restored.at < 3 * 86400 ? status.restored : null;
 
   return (
@@ -128,14 +129,18 @@ export default function BackupsPage({ styles }) {
       <section style={section}>
         <label style={labelStyle}><FolderOpen size={14} style={{ verticalAlign: -2 }} /> Where backups are saved</label>
         <p style={{ ...hint, marginTop: 0 }}>
-          {status.folder_mounted
-            ? <>In <b>{status.folder_host || 'the “backups” folder next to your notes'}</b> on the server{status.folder_host ? '' : ' (inside Synapse’s folder)'}.</>
-            : <>Inside the data folder on the server (<code>{status.inside_data ? 'data/backups' : status.folder}</code>).</>}
+          {customFolder
+            ? <>In <b>{status.folder_host}</b> on the server.</>
+            : status.folder_mounted
+              ? <>In the <b>backups</b> folder next to your notes, inside Synapse’s folder on the server.</>
+              : <>Inside the data folder on the server (<code>{status.inside_data ? 'data/backups' : status.folder}</code>).</>}
         </p>
         <p style={hint}>
-          Backups on the same disk as Synapse won’t help if that disk fails. To save them on your NAS or another drive instead, run this once on the server (with your own folder):
+          {customFolder
+            ? 'To save them somewhere else, run this on the server with the new folder (or “default” to go back to the backups folder next to your notes):'
+            : 'Backups on the same disk as Synapse won’t help if that disk fails. To save them on a NAS (an NFS or SMB share mounted on the server) or another drive instead, run this once on the server, with the path to your share:'}
         </p>
-        <pre className="backup-cmd">synapse backups-to "/mnt/family/Synapse Backups"</pre>
+        <pre className="backup-cmd">synapse backups-to "/path/to/NFS-or-SMB-share"</pre>
         <p style={hint}>You can also copy a backup file into that folder yourself — it shows up in the list below.</p>
       </section>
 
