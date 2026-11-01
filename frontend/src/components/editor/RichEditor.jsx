@@ -25,6 +25,7 @@ import {
   Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
+import { kindInfo } from '../noteKinds';
 import { Callout, TableOfContents, ToggleBlocks } from './blocks';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import { VideoEmbed, MathDialog } from './embeds';
@@ -40,7 +41,6 @@ const SLASH_ICONS = {
   'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
-const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
 const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#fecaca'];
 
@@ -357,7 +357,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
         <div className="suggest-menu fade-in" style={menuPosition(menu.rect)}>
           {menu.kind !== 'slash' && <div className="section-label" style={{ padding: '6px 10px 4px' }}>Link to note</div>}
           {menu.items.map((item, i) => {
-            const Icon = menu.kind === 'slash' ? (SLASH_ICONS[item.id] || Plus) : item.kind === 'create' ? Plus : (NOTE_ICONS[item.noteType] || FileText);
+            const Icon = menu.kind === 'slash' ? (SLASH_ICONS[item.id] || Plus) : item.kind === 'create' ? Plus : kindInfo({ kind: item.noteKind, note_type: item.noteType }).icon;
             const groupStart = menu.kind === 'slash' && item.group !== menu.items[i - 1]?.group;
             return (
               <div key={item.id}>

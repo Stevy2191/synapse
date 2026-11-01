@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, FileText, GitFork, Pencil } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { kindInfo } from '../noteKinds';
 
-const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 import { useStore } from '../../stores/useStore';
 import { searchNotes, openNote } from '../../offline/sync';
 
@@ -85,7 +85,7 @@ export default function SearchModal() {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                {(() => { const Icon = TYPE_ICONS[r.note_type] || FileText; return <Icon size={14} style={{ color: 'var(--accent)' }} />; })()}
+                {(() => { const k = kindInfo(r); const Icon = k.icon; return <Icon size={14} style={{ color: k.color || 'var(--accent)' }} aria-label={k.label} />; })()}
                 {r.title}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}

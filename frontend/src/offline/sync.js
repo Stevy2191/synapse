@@ -9,6 +9,7 @@
 // note changed on another device in the meantime, the server keeps its version and saves ours as
 // "<title> (conflict copy)" next to it. Nothing is overwritten.
 import toast from 'react-hot-toast';
+import { noteKind } from '../components/noteKinds';
 import api from '../api';
 import { useStore } from '../stores/useStore';
 import { openUserDb, db, deleteUserDb } from './db';
@@ -148,6 +149,7 @@ export function syncNow() {
 function treeEntry(note) {
   const entry = {};
   for (const f of TREE_FIELDS) entry[f] = note[f];
+  entry.kind = noteKind(note); // e.g. 'drawio' for a note holding a draw.io diagram, for its icon
   return entry;
 }
 
@@ -178,7 +180,11 @@ export function plainText(note) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  return `${(note.content || '').replace(/```synapse-diagram\n[\s\S]*?\n```/g, ' [diagram] ')}\n${rich}`;
+  const md = (note.content || '').replace(/```synapse-diagram\n[\s\S]*?\n```/g, ' [diagram] ');
+  // Write-mode notes keep their text twice (formatted + a Markdown copy); use one of them.
+  if (note.editor_mode === 'rich' && rich.replace(/\[diagram\]/g, '').trim()) return rich;
+  if (note.editor_mode === 'rich' && !md.trim()) return rich;
+  return md;
 }
 
 function linkTitles(note) {
@@ -239,7 +245,7 @@ export async function searchNotes(workspaceId, query) {
     const lower = text.toLowerCase();
     if (!terms.every(t => title.includes(t) || lower.includes(t))) continue;
     const score = terms.reduce((s, t) => s + (title.includes(t) ? 10 : 0) + (lower.split(t).length - 1), 0);
-    results.push({ id: note.id, title: note.title, note_type: note.note_type, excerpt: excerpt(text, terms), score });
+    results.push({ id: note.id, title: note.title, note_type: note.note_type, kind: noteKind(note), excerpt: excerpt(text, terms), score });
   }
   return results.sort((a, b) => b.score - a.score).slice(0, 30);
 }

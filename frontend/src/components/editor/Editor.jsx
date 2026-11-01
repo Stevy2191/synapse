@@ -4,6 +4,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
+import { noteKind } from '../noteKinds';
 import { drawingPreview } from '../freedraw/DrawingEmbed';
 import { extractMath, restoreMath, renderMath, videoElementHtml, renderMermaid } from './embeds';
 import { EditorView } from '@codemirror/view';
@@ -321,7 +322,7 @@ export default function Editor() {
   const save = useCallback(async (noteId, t, c, rc, tg, mode) => {
     try {
       await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
-      updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) });
+      updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg), kind: noteKind({ note_type: useStore.getState().notes.find(n => n.id === noteId)?.note_type || 'note', content: c, rich_content: rc }) });
       refreshActiveLinks(noteId);
     } catch (err) {
       console.error(err);

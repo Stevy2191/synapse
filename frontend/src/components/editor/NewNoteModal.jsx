@@ -21,7 +21,7 @@ const NOTE_TYPES = [
     icon: <Pencil size={32} />,
     emoji: '✏️',
     label: 'Free Draw',
-    desc: 'Freehand whiteboard with pen, eraser, and sticky notes.',
+    desc: 'Handwriting and sketching with a pen, finger or mouse: pressure ink, highlighter, shapes, text and pictures.',
   },
 ];
 

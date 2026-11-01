@@ -12,8 +12,8 @@ import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
+import { kindInfo } from '../noteKinds';
 
-const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 
 function countDescendants(id, notes) {
   const kids = notes.filter(n => n.parent_id === id);
@@ -54,7 +54,9 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
 
   const children = notes.filter(n => n.parent_id === note.id);
   const hasChildren = children.length > 0;
-  const Icon = TYPE_ICONS[note.note_type] || FileText;
+  const kind = kindInfo(note);
+  const Icon = kind.icon;
+  const untitled = /^untitled\b/i.test(note.title.trim());
   const active = activeId === note.id;
 
   // Deleting moves the note (and anything inside it) to the Trash, with an Undo.
@@ -122,8 +124,13 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
         >
           <ChevronRight size={13} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
         </span>
-        <Icon size={14} style={{ flexShrink: 0, color: active ? 'var(--accent)' : 'var(--text-muted)' }} />
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 4 }}>{note.title}</span>
+        <Icon size={14} style={{ flexShrink: 0, color: kind.color || (active ? 'var(--accent)' : 'var(--text-muted)') }} aria-label={kind.label} />
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 4 }}
+          title={kind.key === 'note' ? note.title : `${note.title} — ${kind.key === 'drawio' || kind.key === 'excalidraw' ? `note with a ${kind.label}` : kind.label}`}>
+          {note.title}
+          {/* "Untitled" says nothing about what's inside, so say what kind it is */}
+          {untitled && kind.key !== 'note' && <span className="tree-kind"> · {kind.label}</span>}
+        </span>
         <span className="note-actions" style={{ display: 'flex', gap: 1 }}>
           <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title="Add a note inside"><Plus size={13} /></button>
           <button onClick={handleDelete} className="btn-ghost" style={{ ...miniBtn, color: 'var(--danger)' }} title="Move to Trash"><Trash2 size={12} /></button>

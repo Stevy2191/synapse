@@ -166,7 +166,7 @@ function wikiItems(query) {
     .filter(n => n.id !== activeNote?.note?.id && n.title.toLowerCase().includes(q))
     .sort((a, b) => (a.title.toLowerCase().startsWith(q) ? 0 : 1) - (b.title.toLowerCase().startsWith(q) ? 0 : 1))
     .slice(0, 8)
-    .map(n => ({ id: n.id, title: n.title, kind: 'note', noteType: n.note_type }));
+    .map(n => ({ id: n.id, title: n.title, kind: 'note', noteType: n.note_type, noteKind: n.kind }));
   if (q && !notes.some(n => n.title.toLowerCase() === q)) {
     matches.push({ id: '__new', title: query.trim(), kind: 'create' });
   }
