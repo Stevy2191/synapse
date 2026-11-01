@@ -209,6 +209,29 @@ function computeLinks(note, all) {
   return links;
 }
 
+/**
+ * A shared note of mine, as the server now has it (someone else's edit arriving live, or my own
+ * save of a shared note, which goes straight to the server). Store it as the local copy and drop
+ * any queued upload for it — the server's copy is the one everybody edits.
+ */
+export async function storeServerNote(note, { reopen = false } = {}) {
+  if (!userId) return;
+  const d = await db();
+  const tx = d.transaction(['notes', 'outbox'], 'readwrite');
+  const local = await tx.objectStore('notes').get(note.id);
+  if (!local) { await tx.done; return; }
+  let cursor = await tx.objectStore('outbox').openCursor();
+  while (cursor) {
+    if (cursor.value.noteId === note.id && cursor.value.op === 'update') await cursor.delete();
+    cursor = await cursor.continue();
+  }
+  await tx.objectStore('notes').put({ ...local, ...note, server_version: note.version });
+  await tx.done;
+  setStatus({ pending: await pendingChanges() });
+  await refreshTree();
+  if (reopen) await openNote(note.id);
+}
+
 /** Open a note in the editor from the local copy. */
 export async function openNote(id) {
   const note = await (await db()).get('notes', id);

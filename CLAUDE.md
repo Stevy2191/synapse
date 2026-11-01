@@ -40,6 +40,9 @@ backend/src/
   ai.js + routes/ai.js   AI assistant: per-user AI accounts (keys AES-GCM-encrypted with a key
                       derived from JWT_SECRET), Claude via @anthropic-ai/sdk, everything else via
                       OpenAI-compatible /chat/completions; SSE streaming; /write, /tasks, /ask, /models
+  shares.js + routes/shares.js   note sharing (note_shares: view/edit, include_children), access
+                      check noteAccess(), editing turn (in-memory lock, 60 s idle), note_versions
+                      history (one entry per person per 10-min session), live note:update/note:lock
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
@@ -74,6 +77,9 @@ frontend/src/
   ai/client.js        AI calls from the browser (fetch-SSE streaming, settings)
   components/ai/      AiSettings (Settings → AI assistant), AiPanel (✨ on notes: top bar, selection
                       bubble, "/ai"), AskView (view 'ask', sidebar "Ask AI")
+  shares/client.js    Shared-with-me list, turns, live note events (arrive on the chat SSE stream),
+                      saving shared notes straight to the server
+  components/share/   ShareDialog (people + Can view/Can edit), HistoryPanel (who/when + word diff, restore)
   public/push-sw.js   push + notificationclick handlers, pulled into the PWA service worker
   themes/index.js     themes as CSS variables; index.css has most component CSS
 install.sh            one-line installer (modes home|proxy|https|lan-https, storage folder|volume|smb,
@@ -120,6 +126,17 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   "Ask AI" = server FTS (OR of keywords) → top notes → answer citing [[Title]]. Workspace
   setting `ai: 'off'` hides AI and the server refuses requests for that workspace. Usage counted
   in `ai_usage`. Not built yet: suggest tags/titles, OCR via vision models.
+- **Sharing & history** (built Nov 2026): share a note (optionally with everything inside it) with
+  people on the server as **Can view** or **Can edit** (owner only changes sharing; PATCH in
+  notes.js lets "edit" guests change content fields, not move/retype). **Take turns**: one editor at
+  a time (`takeLock` on focus/first real keystroke, heartbeat 20 s, released on leaving, expires
+  after 60 s idle, "Take over" = force). Shared notes — owner's too, while online — save straight to
+  the server *only while holding the turn* (Editor `save` → `saveSharedNote`; owner then
+  `storeServerNote()` replaces the local copy and drops queued outbox updates), because the
+  editor sometimes re-saves a note on open and a stale queued save would overwrite someone
+  else's edit. Live updates replace the open note when you're not the editor. Guests open shared
+  notes from the server (online only); AI/Chat/Export are hidden for them. History is recorded for
+  *every* note on each server save (`note_versions`), shown with a word diff and Restore.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -189,10 +206,8 @@ Sean's priorities first (asked for Nov 2026):
 
 Other ideas:
 
-- **Shared note editing** (Sean wants this, follow-up to Chat): let note-chat members edit the
-  note together — needs shared notes in sync (pull notes shared with me, permission checks in
-  PATCH, a "Shared with me" section), ideally real-time (Yjs works with Tiptap).
-- Version history per note (diff + restore); sharing / public read-only links.
+- Public read-only links; letting "Can edit" people add new notes inside a shared folder;
+  showing embedded Free Draw drawings inside notes shared with you; offline copies of shared notes.
 - Note templates (meeting, project, recipe…); attachments other than images (PDF viewer
   inline, files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.

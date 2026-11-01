@@ -19,6 +19,7 @@ import adminRoutes from './routes/admin.js';
 import exportRoutes from './routes/export.js';
 import chatRoutes from './routes/chats.js';
 import aiRoutes from './routes/ai.js';
+import shareRoutes from './routes/shares.js';
 import { purgeOrphanChatFiles } from './chat.js';
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/shares', shareRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

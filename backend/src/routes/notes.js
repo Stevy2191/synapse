@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { db, indexNote, searchableText, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { TRASH_DAYS } from '../config.js';
+import { noteAccess, currentLock, takeLock, afterNoteSaved } from '../shares.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -220,9 +221,27 @@ router.post('/', (req, res) => {
 // as a new "(conflict copy)" note next to the original, so nothing is lost; the response then
 // has the untouched original in `note` and the copy in `conflict_copy`.
 router.patch('/:id', (req, res) => {
-  const note = getOwnedNote(req.params.id, req.user.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
+  let note = getOwnedNote(req.params.id, req.user.id);
+  let guest = null; // someone this note is shared with ("Can edit")
+  if (!note) {
+    const access = noteAccess(req.params.id, req.user.id);
+    if (!access) return res.status(404).json({ error: 'Not found' });
+    if (access.role !== 'edit') return res.status(403).json({ error: 'You can view this note but not edit it' });
+    guest = access;
+    note = access.note;
+  }
   const body = req.body || {};
+  if (guest) {
+    // Shared notes are edited one person at a time.
+    const lock = currentLock(note.id);
+    if (lock && lock.userId !== req.user.id) {
+      const who = db.prepare('SELECT COALESCE(display_name, username) AS n FROM users WHERE id=?').get(lock.userId)?.n || 'Someone';
+      return res.status(423).json({ error: `${who} is editing this note right now`, lock: { user_id: lock.userId } });
+    }
+    takeLock(note.id, req.user.id);
+    // Moving, retyping or restoring a shared note is up to its owner.
+    for (const k of ['parent_id', 'position', 'note_type']) delete body[k];
+  }
   const opId = typeof body.op_id === 'string' ? body.op_id.slice(0, 64) : null;
   if (opId && note.last_op_id === opId && !note.deleted_at) return res.json({ note }); // retry of a save already applied
   // Edited on a device that didn't know it was deleted: bring it back rather than lose the edit.
@@ -268,6 +287,8 @@ router.patch('/:id', (req, res) => {
   const touchesContent = CONTENT_FIELDS.some(f => body[f] !== undefined);
   const baseVersion = body.base_version;
   if (touchesContent && Number.isInteger(baseVersion) && baseVersion !== note.version) {
+    // Someone with edit rights is online and always has the latest copy: just send it again.
+    if (guest) return res.status(409).json({ error: 'This note changed — reloading the latest version', note: db.prepare('SELECT * FROM notes WHERE id=?').get(note.id) });
     const copy = createConflictCopy(note, next, opId);
     return res.json({ note: getOwnedNote(note.id, req.user.id), conflict_copy: copy });
   }
@@ -285,6 +306,8 @@ router.patch('/:id', (req, res) => {
     if (touchesContent) saveSideEffects(row, note.title);
     return row;
   })();
+  // History ("who changed what, when") and live updates for people it's shared with
+  if (touchesContent) afterNoteSaved(updated, req.user.id);
   res.json({ note: updated });
 });
 

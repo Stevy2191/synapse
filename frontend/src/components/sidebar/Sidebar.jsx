@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, ListTodo, MessageCircle, Sparkles, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, MessageCircle, Sparkles, Users, Eye, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
@@ -14,6 +14,7 @@ import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow,
 import { listTasks, isoDay } from '../../offline/tasks';
 import { kindInfo, datedName } from '../noteKinds';
 import { useChat, totalUnread } from '../../chat/client';
+import { useShares, openSharedNote, loadShares } from '../../shares/client';
 
 
 function countDescendants(id, notes) {
@@ -46,12 +47,60 @@ async function drop(targetId, where) {
   if (!ok) toast.error("A note can't be moved inside itself");
 }
 
+/** "Shared with me": notes other people shared, with their owner, and the notes inside them. */
+function SharedWithMe({ onNavigate }) {
+  const items = useShares(s => s.withMe);
+  const activeId = useStore(s => (s.activeNote?.shared?.guest ? s.activeNote.note.id : null));
+  const [open, setOpen] = useState(true);
+  useEffect(() => { loadShares(); }, []);
+  if (!items.length) return null;
+  const go = async id => { if (await openSharedNote(id)) onNavigate?.(); };
+  const rows = [];
+  for (const r of items) {
+    rows.push({ ...r, depth: 0, root: r });
+    // children come depth-first; work out their depth from parent links
+    const depthOf = new Map([[r.id, 0]]);
+    for (const c of r.children) {
+      const d = (depthOf.get(c.parent_id) ?? 0) + 1;
+      depthOf.set(c.id, d);
+      rows.push({ ...c, depth: d, root: r });
+    }
+  }
+  return (
+    <div className="shared-section">
+      <button className="shared-head" onClick={() => setOpen(o => !o)}>
+        <ChevronRight size={12} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+        <span className="section-label">Shared with me</span>
+        <span className="nav-count">{items.length}</span>
+      </button>
+      {open && rows.map(r => {
+        const kind = kindInfo(r);
+        const Icon = kind.icon;
+        return (
+          <div key={r.id} className={`tree-row nav-item${activeId === r.id ? ' on' : ''}`} style={{ paddingLeft: 8 + r.depth * 14 }} onClick={() => go(r.id)}
+            title={`${r.title} — shared by ${r.root.owner?.display_name || r.root.owner?.username} (${r.root.permission === 'edit' ? 'can edit' : 'can view'})`}>
+            <Icon size={14} style={{ flexShrink: 0, color: kind.color || 'var(--text-muted)' }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 4 }}>{r.title}</span>
+            {r.depth === 0 && (
+              <span className="shared-meta">
+                {r.permission === 'view' && <Eye size={11} aria-label="View only" />}
+                <UserAvatar user={r.owner} size={16} />
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const [expanded, setExpanded] = useState(true);
   const [hint, setHint] = useState(null); // 'before' | 'after' | 'inside' while something is dragged over
   const [dragging, setDragging] = useState(false);
   const expandTimer = useRef(null);
   const removeNoteFromTree = useStore(s => s.removeNoteFromTree);
+  const sharedMark = useShares(s => s.sharedByMe.has(note.id));
 
   const children = notes.filter(n => n.parent_id === note.id);
   const hasChildren = children.length > 0;
@@ -131,6 +180,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
           {note.title}
           {/* "Untitled" says nothing about what's inside, so say what kind it is */}
           {untitled && kind.key !== 'note' && <span className="tree-kind"> · {kind.label}</span>}
+          {sharedMark && <Users size={11} className="tree-shared" aria-label="Shared" />}
         </span>
         <span className="note-actions" style={{ display: 'flex', gap: 1 }}>
           <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title="Add a note inside"><Plus size={13} /></button>
@@ -364,6 +414,8 @@ export default function Sidebar({ width, onNavigate }) {
           ))
         )}
       </div>
+
+      <SharedWithMe onNavigate={onNavigate} />
 
       {/* Trash, just above the footer */}
       <div style={{ padding: '6px 10px 4px', borderTop: '1px solid var(--border-subtle)' }}>

@@ -15,7 +15,7 @@ import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
-  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock,
 } from 'lucide-react';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
@@ -30,6 +30,11 @@ import FreeDrawEditor from './FreeDrawEditor';
 import Logo from '../Logo';
 import { WorkspaceIcon, workspaceSettings } from '../Avatar';
 import AiPanel from '../ai/AiPanel';
+import ShareDialog from '../share/ShareDialog';
+import HistoryPanel from '../share/HistoryPanel';
+import { useShares, getNoteShares, saveSharedNote, takeTurn, releaseTurn } from '../../shares/client';
+import { userName as personNameById } from '../../chat/client';
+import { storeServerNote } from '../../offline/sync';
 import { DOMSerializer } from '@tiptap/pm/model';
 import CalendarPanel from '../calendar/CalendarPanel';
 
@@ -312,6 +317,84 @@ export default function Editor() {
   const [newNoteChat, setNewNoteChat] = useState(false);
   const noteChatSummary = useChat(s => s.chats.find(c => c.note?.id === activeNote?.note?.id));
   useEffect(() => { setNoteChat(null); setNewNoteChat(false); setAiTarget(null); }, [activeNote?.note?.id]);
+  // ── Sharing ──
+  const myId = useStore(s => s.user?.id);
+  const noteId = activeNote?.note?.id;
+  const guest = !!activeNote?.shared?.guest;
+  const role = guest ? activeNote.shared.role : 'owner';
+  const [shareOpen, setShareOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [ownerShare, setOwnerShare] = useState(null); // { count } for my own notes
+  const sharedByMe = useShares(s => s.sharedByMe);
+  const lock = useShares(s => (noteId ? s.locks[noteId] : null));
+  const lastActivity = useRef(0);
+
+  // Is this note of mine shared (directly or through a note it's inside)? Asked when it opens.
+  useEffect(() => {
+    setOwnerShare(null); setHistoryOpen(false); setShareOpen(false);
+    if (!noteId || guest) return undefined;
+    let cancelled = false;
+    getNoteShares(noteId).then(d => {
+      if (cancelled) return;
+      setOwnerShare({ count: d.shares.length + d.inherited.length });
+      if (d.lock) useShares.setState(st => ({ locks: { ...st.locks, [noteId]: d.lock } }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [noteId, guest, sharedByMe]);
+
+  const isShared = guest || (ownerShare?.count || 0) > 0;
+  const lockedByOther = !!(isShared && lock && lock.user_id !== myId);
+  const myTurn = !!(isShared && lock && lock.user_id === myId);
+
+  const readOnly = role === 'view' || lockedByOther;
+
+  // Shared notes are edited one person at a time: starting to edit takes the turn.
+  const ensureTurn = async (force = false) => {
+    if (!isShared || role === 'view' || !noteId) return true;
+    if (myTurn && !force) return true;
+    if (lockedByOther && !force) return false;
+    const r = await takeTurn(noteId, { force });
+    if (!r.ok) { toast.error(r.error); return false; }
+    lastActivity.current = Date.now();
+    // Make sure I'm editing the latest copy
+    if (r.note && r.note.version !== baseVersionRef.current) {
+      if (guest) useStore.getState().setActiveNote({ ...activeNote, note: { ...activeNote.note, ...r.note }, loadedAt: Date.now() });
+      else await storeServerNote(r.note, { reopen: true });
+    }
+    return true;
+  };
+  const markInput = () => { userInputAt.current = Date.now(); };
+  const onEditAreaFocus = () => { if (isShared && role !== 'view' && !myTurn && !lockedByOther) ensureTurn(); };
+
+  // While it's my turn: keep it alive while I'm active, hand it back after a minute of quiet.
+  useEffect(() => {
+    if (!myTurn || !noteId) return undefined;
+    const t = setInterval(() => {
+      if (Date.now() - lastActivity.current < 60_000) takeTurn(noteId);
+      else releaseTurn(noteId);
+    }, 20_000);
+    return () => clearInterval(t);
+  }, [myTurn, noteId]);
+  useEffect(() => () => { if (noteId) releaseTurn(noteId); }, [noteId]);
+
+  const restoreVersion = async (v) => {
+    if (!(await ensureTurn())) return;
+    if (!confirm(`Bring back this version of “${v.title}”? The current text is kept in History, so you can undo this.`)) return;
+    flushSave();
+    const fields = { title: v.title, content: v.content || '', rich_content: v.rich_content, editor_mode: v.editor_mode || editorMode, ...(v.canvas_data ? { canvas_data: v.canvas_data } : {}) };
+    if (guest) {
+      const saved = await saveSharedNote(noteId, fields, baseVersionRef.current);
+      if (saved) useStore.getState().setActiveNote({ ...activeNote, note: { ...activeNote.note, ...saved }, loadedAt: Date.now() });
+    } else if (sharedRef.current) {
+      const saved = await saveSharedNote(noteId, fields, baseVersionRef.current);
+      if (saved) await storeServerNote(saved, { reopen: true });
+    } else {
+      await saveNote(noteId, fields);
+      await openNote(noteId);
+    }
+    toast.success('Version restored');
+  };
+
   // ── AI assistant ──
   // Works on the selected text if there is some, otherwise the whole note (or the cursor, from "/").
   const openAi = ({ fromSlash = false } = {}) => {
@@ -391,8 +474,21 @@ export default function Editor() {
   const richEditorRef = useRef(null);
   const cmRef = useRef(null);
 
+  // Notes shared with me are saved straight to the server, based on the version I'm looking at.
+  // Shared notes (mine or someone else's) are saved straight to the server, only while it's my
+  // editing turn — so a stale copy can never overwrite someone else's changes.
+  const guestRef = useRef(false);
+  const sharedRef = useRef(false);      // set below once we know the note is shared
+  const turnRef = useRef(false);        // it's my editing turn
+  const userInputAt = useRef(0);        // last real keystroke / paste in this note
+  const baseVersionRef = useRef(null);
+  guestRef.current = !!activeNote?.shared?.guest;
+  sharedRef.current = isShared && !guest && navigator.onLine; // offline: my own copy, queued as usual
+  turnRef.current = myTurn;
+
   useEffect(() => {
     if (activeNote?.note) {
+      baseVersionRef.current = activeNote.note.server_version ?? activeNote.note.version ?? null;
       setTitle(activeNote.note.title);
       setContent(activeNote.note.content || '');
       // Older notes may be in rich mode with only markdown saved; show that text converted.
@@ -408,6 +504,22 @@ export default function Editor() {
   // Saves go to this device first (instant, works offline); offline/sync.js uploads them.
   const save = useCallback(async (noteId, t, c, rc, tg, mode) => {
     try {
+      if (guestRef.current || sharedRef.current) {
+        if (!turnRef.current) {
+          // Only a real edit takes the turn; the editor tidying a note as it opens is not saved.
+          if (Date.now() - userInputAt.current > 10_000) return;
+          const r = await takeTurn(noteId);
+          if (!r.ok) { toast.error(r.error); return; }
+          turnRef.current = true;
+        }
+        lastActivity.current = Date.now();
+        const saved = await saveSharedNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode }, baseVersionRef.current);
+        if (saved) {
+          baseVersionRef.current = saved.version;
+          if (!guestRef.current) { await storeServerNote(saved); updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) }); }
+        }
+        return;
+      }
       await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
       updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg), kind: noteKind({ note_type: useStore.getState().notes.find(n => n.id === noteId)?.note_type || 'note', content: c, rich_content: rc }) });
       refreshActiveLinks(noteId);
@@ -448,11 +560,13 @@ export default function Editor() {
   }, [flushSave]);
 
   const handleTitleChange = (e) => {
+    lastActivity.current = Date.now();
     setTitle(e.target.value);
     schedSave(e.target.value, content, richContent, tags, editorMode);
   };
 
   const handleContentChange = (val) => {
+    lastActivity.current = Date.now();
     setContent(val);
     schedSave(title, val, richContent, tags, editorMode);
     if (editorMode === 'markdown') {
@@ -471,6 +585,7 @@ export default function Editor() {
   // the Markdown view and export.
   // (The Markdown copy is made in flushSave, once per save rather than per keystroke.)
   const handleRichContentChange = (html) => {
+    lastActivity.current = Date.now();
     setRichContent(html);
     // An "Untitled" note whose only content is a new draw.io / Excalidraw diagram gets a name,
     // so it can be told apart later ("Diagram – Nov 4").
@@ -580,6 +695,15 @@ export default function Editor() {
     if (!noteId) return;
     clearTimeout(canvasTimer.current);
     canvasTimer.current = setTimeout(() => {
+      if (guestRef.current || sharedRef.current) {
+        if (!turnRef.current) return;
+        saveSharedNote(noteId, { canvas_data: canvasData }, baseVersionRef.current).then(saved => {
+          if (!saved) return;
+          baseVersionRef.current = saved.version;
+          if (!guestRef.current) storeServerNote(saved);
+        });
+        return;
+      }
       saveNote(noteId, { canvas_data: canvasData }).catch(() => toast.error('Could not save on this device'));
     }, 500);
   }, [activeNote?.note?.id]);
@@ -641,12 +765,12 @@ export default function Editor() {
 
   const titleBlock = (
     <div style={{ paddingTop: isNote ? 48 : 0 }}>
-      <input value={title} onChange={handleTitleChange} placeholder="Untitled" className="doc-title" />
+      <input value={title} onChange={handleTitleChange} placeholder="Untitled" className="doc-title" readOnly={readOnly} onFocus={onEditAreaFocus} onKeyDown={markInput} onPaste={markInput} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '12px 0 28px', fontSize: 12.5, color: 'var(--text-muted)' }}>
         {tags.map(tag => (
-          <span key={tag} className="tag-chip" onClick={() => removeTag(tag)} title="Remove tag">#{tag}</span>
+          <span key={tag} className="tag-chip" onClick={() => !readOnly && removeTag(tag)} title={readOnly ? undefined : 'Remove tag'}>#{tag}</span>
         ))}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {!readOnly && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           <Tag size={12} />
           <input
             value={tagInput}
@@ -656,8 +780,8 @@ export default function Editor() {
             placeholder="Add tag"
             style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-secondary)', font: '400 12.5px var(--font-sans)', width: 70 }}
           />
-        </span>
-        <span>· Edited {timeAgo(activeNote.note.updated_at)}</span>
+        </span>}
+        <span>· Edited {activeNote.note.updated_by && activeNote.note.updated_by !== myId && isShared ? `by ${personNameById(activeNote.note.updated_by)} ` : ''}{timeAgo(activeNote.note.updated_at)}</span>
       </div>
     </div>
   );
@@ -678,6 +802,10 @@ export default function Editor() {
     <div className="doc-cm">
       <CodeMirror
         ref={cmRef}
+        editable={!readOnly}
+        readOnly={readOnly}
+        onFocus={onEditAreaFocus}
+        onKeyDown={markInput}
         value={content}
         theme="none"
         extensions={[markdown({ codeLanguages }), synapseEditorTheme, EditorView.lineWrapping, listContinuation(handleContentChange)]}
@@ -701,8 +829,10 @@ export default function Editor() {
       <div style={topBar}>
         {sidebarButton}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1, fontSize: 13, color: 'var(--text-muted)' }}>
-          <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}><WorkspaceIcon workspace={activeWorkspace} size={16} />{activeWorkspace?.name}</span>
-          {crumbs.map(c => (
+          {guest
+            ? <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Users size={14} />Shared with me</span>
+            : <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}><WorkspaceIcon workspace={activeWorkspace} size={16} />{activeWorkspace?.name}</span>}
+          {!guest && crumbs.map(c => (
             <span key={c.id} style={{ display: 'contents' }}>
               <ChevronRight size={13} style={{ flexShrink: 0 }} />
               <button className="btn-ghost" style={{ height: 24, padding: '0 4px', fontSize: 13 }} onClick={() => openNote(c.id)}>{c.title}</button>
@@ -734,23 +864,53 @@ export default function Editor() {
           title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
           {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
         </span>
-        {isNote && aiAllowed && (
+        {!guest && (
+          <button className={`btn-ghost${shareOpen ? ' on' : ''}`} onClick={() => { flushSave(); setShareOpen(true); }} title={isShared ? `Shared with ${ownerShare.count} ${ownerShare.count === 1 ? 'person' : 'people'} — change sharing` : 'Share this note with people on this server'} style={{ position: 'relative' }}>
+            <Users size={15} /><span className="hide-narrow">{isShared ? `Shared · ${ownerShare.count}` : 'Share'}</span>
+          </button>
+        )}
+        <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); }} title="History — who changed what, and when">
+          <History size={15} /><span className="hide-narrow">History</span>
+        </button>
+        {isNote && aiAllowed && !guest && (
           <button className={`btn-ghost${aiTarget ? ' on' : ''}`} onClick={() => (aiTarget ? setAiTarget(null) : openAi())} title="AI assistant — works on the selected text, or the whole note">
             <Sparkles size={15} /><span className="hide-narrow">AI</span>
           </button>
         )}
-        <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
+        {!guest && <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
           <MessageCircle size={15} /><span className="hide-narrow">Chat</span>
           {noteChatSummary?.unread > 0 && <span className="chat-dot-badge">{noteChatSummary.unread}</span>}
-        </button>
-        <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
+        </button>}
+        {!guest && <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
           <Download size={15} /><span className="hide-narrow">Export</span>
-        </button>
+        </button>}
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {shareOpen && <ShareDialog note={{ ...activeNote.note, title }} onClose={() => { setShareOpen(false); getNoteShares(noteId).then(d => setOwnerShare({ count: d.shares.length + d.inherited.length })).catch(() => {}); }} />}
       {aiTarget && <AiPanel key={`${aiTarget.scope}-${aiTarget.from}-${aiTarget.to}`} target={aiTarget} note={{ ...activeNote.note, title }} onApply={applyAi} onClose={() => setAiTarget(null)} />}
       {newNoteChat && <NewChatDialog note={activeNote.note} onClose={() => setNewNoteChat(false)} onCreated={c => { setNewNoteChat(false); setNoteChat(c.id); }} />}
+
+      {/* Shared notes: who it's from, who's editing */}
+      {isShared && (
+        <div className={`share-banner${lockedByOther ? ' busy' : myTurn ? ' mine' : ''}`}>
+          {role === 'view' ? (
+            <><EyeIcon size={14} /> {guest ? <>Shared by <b>{personNameById(activeNote.shared.owner?.id) !== 'Someone' ? personNameById(activeNote.shared.owner.id) : (activeNote.shared.owner?.display_name || activeNote.shared.owner?.username)}</b> — you can view it</> : 'View only'}</>
+          ) : lockedByOther ? (
+            <>
+              <Lock size={14} /> <span><b>{personNameById(lock.user_id)}</b> is editing — you’ll see changes as they happen.</span>
+              <span style={{ flex: 1 }} />
+              <button className="btn-ghost" onClick={() => { if (confirm(`${personNameById(lock.user_id)} is editing right now. Take over anyway? Anything they haven’t saved in the last moment may be lost.`)) ensureTurn(true); }}>Take over</button>
+            </>
+          ) : myTurn ? (
+            <><Edit size={14} /> You’re editing — {guest
+              ? ((activeNote.shared.people?.length || 2) > 2 ? 'everyone it’s shared with sees' : <>{activeNote.shared.owner?.display_name || activeNote.shared.owner?.username} sees</>)
+              : (ownerShare?.count === 1 ? 'the person you shared it with sees' : 'the people you shared it with see')} your changes live.</>
+          ) : (
+            <><Users size={14} /> {guest ? <>Shared by <b>{personNameById(activeNote.shared.owner?.id) !== 'Someone' ? personNameById(activeNote.shared.owner.id) : (activeNote.shared.owner?.display_name || activeNote.shared.owner?.username)}</b> — you can edit it. </> : <>Shared with {ownerShare.count} {ownerShare.count === 1 ? 'person' : 'people'}. </>}Click into the note to start editing; one person edits at a time.</>
+          )}
+        </div>
+      )}
 
       {/* Formatting toolbar */}
       {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}
@@ -760,6 +920,8 @@ export default function Editor() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div style={{ padding: '18px 24px 0' }}>{titleBlock}</div>
             <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', borderTop: '1px solid var(--border-subtle)' }}>
+              {readOnly && <div className="readonly-shield" title={role === 'view' ? 'You can view this but not edit it' : 'Someone else is editing'} />}
+              {!readOnly && isShared && !myTurn && <div className="readonly-shield clickable" onClick={() => ensureTurn()} title="Click to start editing" />}
               {noteType === 'diagram' && <DiagramEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
               {noteType === 'draw' && <FreeDrawEditor key={activeNote.note.id} canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} title={title} />}
             </div>
@@ -770,7 +932,9 @@ export default function Editor() {
           <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }} onClick={e => { if (e.target === e.currentTarget) richEditorRef.current?.commands.focus('end'); }}>
             <div className="doc-column">
               {titleBlock}
-              <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onAi={aiAllowed ? openAi : undefined} />
+              <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
+                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+              </div>
             </div>
           </div>
         )}
@@ -796,7 +960,7 @@ export default function Editor() {
           </>
         )}
 
-        {noteChat ? <div className="note-chat-panel"><ChatRoom chatId={noteChat} compact onClose={() => setNoteChat(null)} /></div> : rightRailOpen && <RightRail activeNote={activeNote} />}
+        {historyOpen ? <div className="note-chat-panel"><HistoryPanel noteId={noteId} canRestore={role !== 'view'} onRestore={restoreVersion} onClose={() => setHistoryOpen(false)} /></div> : noteChat ? <div className="note-chat-panel"><ChatRoom chatId={noteChat} compact onClose={() => setNoteChat(null)} /></div> : rightRailOpen && <RightRail activeNote={activeNote} />}
       </div>
       {linkPopup}
     </div>

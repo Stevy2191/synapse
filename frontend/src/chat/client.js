@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import toast from 'react-hot-toast';
 import api from '../api';
 import { useStore } from '../stores/useStore';
+import { handleShareEvent, loadShares } from '../shares/client';
 
 export const useChat = create(() => ({
   connected: false,
@@ -121,6 +122,7 @@ function handle(type, data) {
       // (Re)connected: refresh everything that may have changed meanwhile.
       loadChats();
       loadUsers();
+      loadShares();
       for (const id of Object.keys(get().messages)) catchUp(id);
       break;
     case 'chat': upsertChat(data); break;
@@ -132,6 +134,11 @@ function handle(type, data) {
     case 'typing':
       set(s => ({ typing: { ...s.typing, [data.chat_id]: { ...(s.typing[data.chat_id] || {}), [data.user_id]: Date.now() + 4000 } } }));
       setTimeout(() => set(s => ({ typing: { ...s.typing } })), 4100); // re-render to clear it
+      break;
+    case 'note:update':
+    case 'note:lock':
+    case 'share:changed':
+      handleShareEvent(type, data);
       break;
     case 'presence':
       set(s => (s.users[data.user_id] ? { users: { ...s.users, [data.user_id]: { ...s.users[data.user_id], online: data.online } } } : {}));

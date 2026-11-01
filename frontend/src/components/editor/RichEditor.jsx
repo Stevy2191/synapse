@@ -51,7 +51,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -147,6 +147,8 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     editor.on('synapse:ai', openAi);
     return () => { editor.off('synapse:math', open); editor.off('synapse:drawing', openDrawing); editor.off('synapse:ai', openAi); };
   }, [editor]);
+  // Shared notes: read-only for viewers, and while someone else has the editing turn.
+  useEffect(() => { if (editor && editor.isEditable !== editable) editor.setEditable(editable); }, [editor, editable]);
   const onAiRef = useRef(onAi);
   onAiRef.current = onAi;
 
@@ -302,7 +304,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       {/* Formatting toolbar: appears over selected text */}
       <BubbleMenu editor={editor} pluginKey="formatMenu"
-        shouldShow={({ editor: ed, state }) => !state.selection.empty && !state.selection.node && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
+        shouldShow={({ editor: ed, state }) => ed.isEditable && !state.selection.empty && !state.selection.node && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
         options={{ placement: 'top', offset: 8 }}>
         <div className="floating-menu">
           {onAi && (
