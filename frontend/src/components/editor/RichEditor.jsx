@@ -26,6 +26,7 @@ import {
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
+import ColorPicker from '../ColorPicker';
 
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
@@ -34,6 +35,7 @@ const SLASH_ICONS = {
 };
 const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
+const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#fecaca'];
 
 /**
  * The default note editor, in the style of Outline: what you see is the finished note.
@@ -256,6 +258,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
           <Sep />
           <B on={editor.isActive('link')} title="Link" onClick={setLink}><LinkIcon size={15} /></B>
           <B on={editor.isActive('highlight')} title="Highlight" onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter size={15} /></B>
+          <ColorPicker inline icon={<Highlighter size={13} />} title="Highlight colour…" presets={HIGHLIGHTS}
+            value={editor.getAttributes('highlight').color}
+            onChange={color => editor.chain().focus().setHighlight({ color }).run()} />
           <span className="color-row">
             {COLORS.map(c => (
               <button key={c || 'none'} title={c ? 'Text colour' : 'Default colour'}
@@ -263,6 +268,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
                 style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--border)', cursor: 'pointer', padding: 0,
                   background: c || 'var(--text-primary)', outline: editor.isActive('textStyle', { color: c }) ? '2px solid var(--accent)' : 'none' }} />
             ))}
+            <ColorPicker inline size={16} title="Any text colour…" presets={COLORS.filter(Boolean)}
+              value={editor.getAttributes('textStyle').color}
+              onChange={color => editor.chain().focus().setColor(color).run()} />
           </span>
         </div>
       </BubbleMenu>

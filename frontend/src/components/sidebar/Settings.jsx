@@ -16,6 +16,7 @@ import api from '../../api';
 import { signOut, syncNow } from '../../offline/sync';
 import { squareImage } from '../../utils/image';
 import { EmojiButton } from '../EmojiPicker';
+import ColorPicker, { normalizeHex } from '../ColorPicker';
 
 const errorText = err => err?.response?.data?.error || err?.message || 'Something went wrong';
 
@@ -322,8 +323,7 @@ function CalendarsPage() {
 
       {calendars?.map(c => (
         <section key={c.id} style={{ ...section, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px' }}>
-          <input type="color" value={c.color} onChange={e => update(c, { color: e.target.value })} title="Colour"
-            style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: '50%', background: 'none', cursor: 'pointer' }} />
+          <ColorPicker value={c.color} presets={COLORS} title="Calendar colour" onChange={color => update(c, { color })} />
           <div style={{ flex: 1, minWidth: 160 }}>
             <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text-primary)' }}>{c.name}</div>
             <div style={{ fontSize: 11.5, color: c.last_error ? 'var(--danger)' : 'var(--text-muted)' }}>
@@ -354,6 +354,7 @@ function CalendarsPage() {
                 border: form.color === c ? '2px solid var(--text-primary)' : '2px solid transparent',
               }} />
             ))}
+            <ColorPicker value={form.color} presets={COLORS} title="Any colour…" onChange={color => setForm(f => ({ ...f, color }))} />
           </div>
           <button type="submit" style={primary} disabled={busy || !form.url.trim()}>
             {busy ? <RefreshCw size={13} className="spin" /> : <Plus size={13} />} {busy ? 'Checking…' : 'Connect'}
@@ -467,6 +468,7 @@ function WorkspaceGeneralPage() {
               boxShadow: ws.color?.toLowerCase() === c ? `0 0 10px ${c}` : 'none',
             }} />
           ))}
+          <ColorPicker value={ws.color} presets={COLORS} size={28} title="Any colour…" onChange={color => save({ color }, `Colour set to ${color}`)} />
         </div>
         <HexColor value={ws.color} onSave={color => save({ color }, `Colour set to ${color}`)} />
       </section>
@@ -489,14 +491,6 @@ function WorkspaceGeneralPage() {
   );
 }
 
-// "#7C7BFF", "7c7bff", "#abc" or "abc" → "#7c7bff" / "#aabbcc"; anything else → null
-export function normalizeHex(input) {
-  const v = String(input || '').trim().replace(/^#/, '').toLowerCase();
-  if (/^[0-9a-f]{3}$/.test(v)) return '#' + v.split('').map(c => c + c).join('');
-  if (/^[0-9a-f]{6}$/.test(v)) return '#' + v;
-  return null;
-}
-
 // Any colour: type a hex code, or use the browser's colour picker.
 function HexColor({ value, onSave }) {
   const [text, setText] = useState(value || '');
@@ -506,13 +500,10 @@ function HexColor({ value, onSave }) {
   const submit = () => { if (changed) onSave(hex); };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-      <label title="Pick any colour" style={{
-        position: 'relative', width: 34, height: 34, borderRadius: 9, cursor: 'pointer', flexShrink: 0,
+      <span title="Colour preview" style={{
+        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
         background: hex || value || 'var(--accent)', border: '1px solid var(--border)', boxShadow: hex ? `0 0 10px ${hex}55` : 'none',
-      }}>
-        <input type="color" value={hex || value || '#7c7bff'} onChange={e => setText(e.target.value)}
-          style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }} />
-      </label>
+      }} />
       <div style={{ display: 'flex', alignItems: 'center', ...field, flex: 'none', width: 150, padding: '0 10px', borderColor: text && !hex ? 'var(--danger)' : 'var(--border)' }}>
         <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>#</span>
         <input value={text.replace(/^#/, '')} onChange={e => setText(e.target.value)} maxLength={7}

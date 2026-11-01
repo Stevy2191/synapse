@@ -435,3 +435,54 @@ body {
 .hljs-deletion { color: var(--hl-deletion); background: var(--hl-deletion-bg); }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
+
+/* ── Colour picker (components/ColorPicker.jsx) ─────────────────────────────── */
+.cp-trigger {
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; flex-shrink: 0;
+  border: 1px solid var(--border); color: #fff;
+  background: conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ec4899, #ef4444);
+}
+.cp-trigger svg { filter: drop-shadow(0 0 1.5px rgba(0,0,0,0.7)); }
+.cp-trigger.custom { outline: 2px solid var(--accent); outline-offset: 1px; }
+.color-popover {
+  z-index: 1000; width: 252px; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px;
+  font-family: var(--font-sans, inherit); cursor: default; text-align: left;
+}
+.color-popover.inline { position: absolute; top: calc(100% + 8px); right: -6px; }
+.color-popover .react-colorful { width: 100%; height: 170px; }
+.color-popover .react-colorful__saturation { border-radius: 8px 8px 0 0; border-bottom: none; }
+.color-popover .react-colorful__hue { height: 14px; border-radius: 0 0 8px 8px; }
+.color-popover .react-colorful__pointer { width: 18px; height: 18px; }
+.cp-row { display: flex; align-items: center; gap: 6px; }
+.cp-preview { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); flex-shrink: 0; }
+.cp-hex {
+  flex: 1; display: flex; align-items: center; min-width: 0; height: 30px; padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-elevated); font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);
+}
+.cp-hex.bad { border-color: var(--danger); }
+.cp-hex input { flex: 1; min-width: 0; border: none; outline: none; background: none; color: var(--text-primary); font: inherit; text-transform: lowercase; padding: 0 2px; }
+.cp-icon, .cp-mode {
+  height: 30px; min-width: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; font-size: 11px; font-weight: 700; padding: 0 6px;
+}
+.cp-icon:hover, .cp-mode:hover { color: var(--text-primary); background: var(--bg-hover); }
+.cp-mode { width: 42px; letter-spacing: 0.04em; }
+.cp-num { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.cp-num input {
+  width: 100%; height: 30px; text-align: center; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elevated);
+  color: var(--text-primary); font-family: var(--font-mono); font-size: 12px; outline: none; -moz-appearance: textfield; padding: 0;
+}
+.cp-num input::-webkit-inner-spin-button, .cp-num input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cp-num input:focus, .cp-hex:focus-within { border-color: var(--accent); }
+.cp-num span { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.cp-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 5px; }
+.cp-swatch-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-swatch { width: 20px; height: 20px; border-radius: 6px; border: 1px solid rgba(127,127,127,0.35); cursor: pointer; padding: 0; }
+.cp-swatch.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cp-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.cp-btn { height: 30px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cp-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.cp-icon-trigger { position: relative; height: 30px; min-width: 30px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; }
+.cp-icon-bar { position: absolute; left: 8px; right: 8px; bottom: 4px; height: 3px; border-radius: 2px; }

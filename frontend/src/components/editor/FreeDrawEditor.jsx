@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import ColorPicker from '../ColorPicker';
 import { Pen, Eraser, StickyNote, Trash2, Download, Minus, Plus, Palette } from 'lucide-react';
 
 const COLORS = ['#e8e8f0','#ef4444','#f97316','#f59e0b','#22c55e','#06b6d4','#6366f1','#a855f7','#ec4899'];
@@ -206,6 +207,7 @@ export default function FreeDrawEditor({ canvasData, onChange }) {
             boxShadow: color === c ? '0 0 0 2px var(--accent)' : 'none'
           }} />
         ))}
+        <ColorPicker size={18} presets={COLORS} title="Any pen colour…" value={color} onChange={setColor} />
 
         <div style={{ flex: 1 }} />
 
@@ -253,7 +255,7 @@ export default function FreeDrawEditor({ canvasData, onChange }) {
                 autoFocus
                 value={sticky.text}
                 onChange={e => updateStickyText(sticky.id, e.target.value)}
-                onBlur={() => setEditingSticky(null)}
+                onBlur={e => { if (!e.relatedTarget?.closest?.('.color-popover, .cp-anchor')) setEditingSticky(null); }}
                 onMouseDown={e => e.stopPropagation()}
                 style={{
                   width: '100%', minHeight: 80, background: 'transparent', border: 'none', outline: 'none',
@@ -271,6 +273,8 @@ export default function FreeDrawEditor({ canvasData, onChange }) {
                     style={{ width: 16, height: 16, borderRadius: 3, background: c, cursor: 'pointer', border: sticky.color === c ? '2px solid #333' : '1px solid rgba(0,0,0,0.2)' }}
                   />
                 ))}
+                <ColorPicker size={16} shape="square" presets={STICKY_COLORS} title="Any sticky colour…" value={sticky.color}
+                  onChange={c => { const next = stickies.map(s => s.id === sticky.id ? { ...s, color: c } : s); setStickies(next); saveData(strokes, next); }} />
               </div>
             )}
           </div>

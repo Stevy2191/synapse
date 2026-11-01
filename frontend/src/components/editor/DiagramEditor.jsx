@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import ColorPicker from '../ColorPicker';
 import { Plus, Trash2, Download, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 const SHAPES = [
@@ -232,6 +233,8 @@ export default function DiagramEditor({ canvasData, onChange }) {
             style={{ width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer', border: selectedColor === c ? '2px solid #fff' : '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}
           />
         ))}
+        <ColorPicker size={18} shape="square" presets={COLORS} title="Any colour…" value={selectedNode?.color || selectedColor}
+          onChange={c => { setSelectedColor(c); if (selectedNode) { const next = nodes.map(n => n.id === selected ? { ...n, color: c } : n); setNodes(next); save(next, edges); } }} />
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button onClick={deleteSelected} disabled={!selected} style={{ ...toolBtn, color: selected ? 'var(--danger)' : 'var(--text-muted)' }} title="Delete selected">
           <Trash2 size={13} />
