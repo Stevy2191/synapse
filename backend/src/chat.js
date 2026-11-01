@@ -74,6 +74,14 @@ db.exec(`
     PRIMARY KEY (message_id, user_id, emoji)
   );
 
+  -- Nicknames: what I call someone (only I see it), like phone contacts.
+  CREATE TABLE IF NOT EXISTS user_nicknames (
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    nickname TEXT NOT NULL,
+    PRIMARY KEY (owner_id, target_id)
+  );
+
   CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

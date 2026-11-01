@@ -55,12 +55,20 @@ function membership(chatId, userId) {
 }
 
 const userRow = db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id=?');
-const nameOf = id => { const u = userRow.get(id); return u ? (u.display_name || u.username) : 'Someone'; };
+const nickRow = db.prepare('SELECT nickname FROM user_nicknames WHERE owner_id=? AND target_id=?');
+/** How `viewerId` sees this person: their nickname for them, else the person's own name. */
+const nameOf = (id, viewerId = null) => {
+  const nick = viewerId && nickRow.get(viewerId, id)?.nickname;
+  if (nick) return nick;
+  const u = userRow.get(id);
+  return u ? (u.display_name || u.username) : 'Someone';
+};
 
 function chatSummary(chat, userId) {
   const me = db.prepare('SELECT last_read, muted FROM chat_members WHERE chat_id=? AND user_id=?').get(chat.id, userId) || {};
-  const members = db.prepare(`SELECT u.id, u.username, u.display_name, u.avatar FROM chat_members m JOIN users u ON u.id=m.user_id
-    WHERE m.chat_id=? ORDER BY m.joined_at`).all(chat.id);
+  const members = db.prepare(`SELECT u.id, u.username, u.display_name, u.avatar, n.nickname FROM chat_members m JOIN users u ON u.id=m.user_id
+    LEFT JOIN user_nicknames n ON n.owner_id=? AND n.target_id=u.id
+    WHERE m.chat_id=? ORDER BY m.joined_at`).all(userId, chat.id);
   const last = db.prepare(`SELECT seq, id, user_id, body, gif, created_at, deleted_at,
       (SELECT COUNT(*) FROM chat_files f WHERE f.message_id=chat_messages.id) AS files
     FROM chat_messages WHERE chat_id=? ORDER BY seq DESC LIMIT 1`).get(chat.id);
@@ -135,10 +143,23 @@ function broadcastChat(chatId, extraUserIds = []) {
 // ───────────────────────── people ─────────────────────────
 
 router.get('/users', (req, res) => {
-  const users = db.prepare('SELECT id, username, display_name, avatar FROM users ORDER BY COALESCE(display_name, username) COLLATE NOCASE').all();
+  const users = db.prepare(`SELECT u.id, u.username, u.display_name, u.avatar, n.nickname FROM users u
+    LEFT JOIN user_nicknames n ON n.owner_id=? AND n.target_id=u.id
+    ORDER BY COALESCE(n.nickname, u.display_name, u.username) COLLATE NOCASE`).all(req.user.id);
   const online = new Set(onlineUserIds());
   res.json({ users: users.map(u => ({ ...u, online: online.has(u.id) })) });
 });
+
+// Set (or clear, with an empty name) my nickname for someone. Only I see it.
+router.put('/nicknames/:userId', wrap((req, res) => {
+  const target = userRow.get(req.params.userId);
+  if (!target) throw new HttpError(404, 'Person not found');
+  const nick = String(req.body?.nickname ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (nick) db.prepare(`INSERT INTO user_nicknames (owner_id, target_id, nickname) VALUES (?,?,?)
+    ON CONFLICT(owner_id, target_id) DO UPDATE SET nickname=excluded.nickname`).run(req.user.id, target.id, nick);
+  else db.prepare('DELETE FROM user_nicknames WHERE owner_id=? AND target_id=?').run(req.user.id, target.id);
+  res.json({ user: { ...target, nickname: nick || null } });
+}));
 
 // ───────────────────────── live events ─────────────────────────
 
@@ -283,7 +304,7 @@ router.get('/:id/note', wrap((req, res) => {
   const note = db.prepare(`SELECT id, title, content, rich_content, editor_mode, note_type, canvas_data, tags, updated_at, created_at, position, parent_id
     FROM notes WHERE id=? AND deleted_at IS NULL`).get(chat.note_id);
   if (!note) throw new HttpError(404, 'The note has been deleted');
-  res.json({ note, owner: nameOf(chat.owner_id) });
+  res.json({ note, owner: nameOf(chat.owner_id, req.user.id) });
 }));
 
 // ───────────────────────── messages ─────────────────────────
@@ -359,7 +380,6 @@ router.post('/:id/messages', sendLimit, wrap(async (req, res) => {
 }));
 
 async function notifyMembers(chat, message, members) {
-  const sender = nameOf(message.user_id);
   const mentioned = new Set();
   const everyone = /(^|\s)@(everyone|all)\b/i.test(message.body);
   for (const m of message.body.matchAll(/(^|[^\w@])@([A-Za-z0-9_.-]{1,40})/g)) {
@@ -373,6 +393,7 @@ async function notifyMembers(chat, message, members) {
     const isMention = mentioned.has(uid) || everyone;
     if (member?.muted && !isMention) continue;
     if (isOnScreen(uid)) continue; // they'll see it in the app
+    const sender = nameOf(message.user_id, uid);
     await pushTo(uid, {
       title: isMention ? `${sender} mentioned you in ${chat.name}` : `${sender} · ${chat.name}`,
       body: text, chatId: chat.id, url: `/?chat=${chat.id}`, tag: `chat-${chat.id}`,

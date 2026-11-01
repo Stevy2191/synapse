@@ -8,7 +8,7 @@ import Composer from './Composer';
 import { ChatPeopleDialog, ChatNoteViewer } from './ChatDialogs';
 import { useStore } from '../../stores/useStore';
 import { getWorkspaceNotes, openNote } from '../../offline/sync';
-import { useChat, loadMessages, loadOlder, setOpenChat, updateChat, userName } from '../../chat/client';
+import { useChat, personName, loadMessages, loadOlder, setOpenChat, updateChat, userName } from '../../chat/client';
 import { dayLabel } from '../../chat/format';
 
 const GROUP_SECONDS = 5 * 60;
@@ -82,7 +82,7 @@ export default function ChatRoom({ chatId, onBack, onClose, compact = false }) {
   const fmtCtx = useMemo(() => ({
     me: me?.username?.toLowerCase(),
     myId: me?.id,
-    usernames: new Map((chat?.members || []).map(m => [m.username.toLowerCase(), m.display_name || m.username])),
+    usernames: new Map((chat?.members || []).map(m => [m.username.toLowerCase(), personName(useChat.getState().users[m.id] || m)])),
   }), [me?.id, chat?.members]);
 
   if (!chat) {
@@ -129,7 +129,7 @@ export default function ChatRoom({ chatId, onBack, onClose, compact = false }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="chat-room-name">{chat.name}</div>
           <div className="chat-room-sub">
-            {others.length ? others.map(m => (users[m.id]?.display_name || users[m.id]?.username || m.display_name || m.username)).join(', ') : 'Just you — add people to chat'}
+            {others.length ? others.map(m => personName(users[m.id] || m)).join(', ') : 'Just you — add people to chat'}
             {!connected && <span className="chat-offline"> · reconnecting…</span>}
           </div>
         </div>

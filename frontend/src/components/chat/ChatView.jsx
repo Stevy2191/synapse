@@ -6,7 +6,7 @@ import { UserAvatar } from '../Avatar';
 import ChatRoom from './ChatRoom';
 import { NewChatDialog } from './ChatDialogs';
 import { useStore } from '../../stores/useStore';
-import { useChat, loadChats, userName, notificationState, enableNotifications, disableNotifications } from '../../chat/client';
+import { useChat, personName, loadChats, userName, notificationState, enableNotifications, disableNotifications } from '../../chat/client';
 import { shortTime } from '../../chat/format';
 
 function useNarrow() {
@@ -40,6 +40,7 @@ export function NotificationsButton({ compact = false }) {
 export default function ChatView() {
   const chats = useChat(s => s.chats);
   const loaded = useChat(s => s.loaded);
+  const users = useChat(s => s.users);
   const connected = useChat(s => s.connected);
   const activeChatId = useStore(s => s.activeChatId);
   const setActiveChat = useStore(s => s.setActiveChat);
@@ -55,7 +56,7 @@ export default function ChatView() {
     if (!narrow && loaded && chats.length && !chats.some(c => c.id === activeChatId)) setActiveChat(chats[0].id);
   }, [narrow, loaded, chats.length, activeChatId]);
 
-  const shown = q.trim() ? chats.filter(c => `${c.name} ${c.members.map(m => m.display_name || m.username).join(' ')}`.toLowerCase().includes(q.toLowerCase())) : chats;
+  const shown = q.trim() ? chats.filter(c => `${c.name} ${c.members.map(m => `${personName(m)} ${m.username}`).join(' ')}`.toLowerCase().includes(q.toLowerCase())) : chats;
   const active = chats.find(c => c.id === activeChatId);
   const showList = !narrow || !active;
   const showRoom = !narrow || active;
@@ -94,7 +95,7 @@ export default function ChatView() {
                     </span>
                     <span className="chat-list-bottom">
                       <span className="chat-list-preview">
-                        {c.last ? <>{c.last.user_id === myId ? 'You' : userName(c.last.user_id)}: {c.last.text}</> : c.note ? `About “${c.note.title}”` : other ? `With ${other.display_name || other.username}` : 'No messages yet'}
+                        {c.last ? <>{c.last.user_id === myId ? 'You' : userName(c.last.user_id)}: {c.last.text}</> : c.note ? `About “${c.note.title}”` : other ? `With ${personName(users[other.id] || other)}` : 'No messages yet'}
                       </span>
                       {c.unread > 0 && <span className={`chat-badge${c.muted ? ' muted' : ''}`}>{c.unread > 99 ? '99+' : c.unread}</span>}
                     </span>

@@ -4,7 +4,7 @@ import { Reply, SmilePlus, Pencil, Trash2, Copy, FileText, Download, CornerDownR
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../Avatar';
 import EmojiPicker from '../EmojiPicker';
-import { useChat, toggleReaction, deleteMessage, userName } from '../../chat/client';
+import { useChat, toggleReaction, deleteMessage, userName, personName } from '../../chat/client';
 import { formatMessage, emojiOnly, timeLabel, fileSize } from '../../chat/format';
 
 const QUICK = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -54,17 +54,16 @@ function Message({ message: m, grouped, last = true, showNames = true, mine, can
     if (link) { e.preventDefault(); onNoteLink(link.getAttribute('data-note')); }
   };
 
-  const name = author ? (author.display_name || author.username) : 'Deleted user';
+  const name = author ? personName(author) : 'Deleted user';
   const time = timeLabel(m.created_at);
   const hasText = !m.deleted && m.body;
   return (
     <div className={`chat-msg ${mine ? 'mine' : 'theirs'}${grouped ? ' grouped' : ''}${last ? ' last' : ''}${highlight ? ' flash' : ''}`} id={`msg-${m.id}`}>
       <div className="chat-msg-row">
-        {!mine && (
-          <div className="chat-msg-avatar">
-            {last && <UserAvatar user={author || { username: '?' }} size={30} />}
-          </div>
-        )}
+        {/* Everyone's picture beside every message — theirs on the left, mine on the right */}
+        <div className="chat-msg-avatar" title={name}>
+          <UserAvatar user={author || { username: '?' }} size={30} />
+        </div>
         <div className="chat-msg-main">
           {!grouped && (
             <div className="chat-msg-head">

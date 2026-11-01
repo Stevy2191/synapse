@@ -13,7 +13,7 @@ export const useChat = create(() => ({
   conn: null,            // id of this app's live connection (for "is it on screen")
   chats: [],             // summaries, newest activity first
   loaded: false,
-  users: {},             // id → { id, username, display_name, avatar, online }
+  users: {},             // id → { id, username, display_name, nickname (mine for them), avatar, online }
   messages: {},          // chatId → [message] (oldest first)
   hasMore: {},           // chatId → bool (older messages exist)
   typing: {},            // chatId → { userId: until }
@@ -170,9 +170,28 @@ function mentionsMe(body) {
   return new RegExp(`(^|[^\\w@])@(${u.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|everyone|all)\\b`, 'i').test(body);
 }
 
+/** What to call someone: my nickname for them, else their own name, else their username. */
+export function personName(u) {
+  if (!u) return 'Someone';
+  return u.nickname || u.display_name || u.username || 'Someone';
+}
+
 export function userName(id) {
   const u = get().users[id];
-  return u ? (u.display_name || u.username) : 'Someone';
+  return u ? personName(u) : 'Someone';
+}
+
+/** Set (or clear with '') my nickname for someone. Only I see it. */
+export async function setNickname(userId, nickname) {
+  try {
+    const { data } = await api.put(`/chats/nicknames/${userId}`, { nickname });
+    const nick = data.user.nickname;
+    set(s => ({
+      users: { ...s.users, [userId]: { ...(s.users[userId] || data.user), nickname: nick } },
+      chats: s.chats.map(c => ({ ...c, members: c.members.map(m => (m.id === userId ? { ...m, nickname: nick } : m)) })),
+    }));
+    return true;
+  } catch (err) { toast.error(errorText(err, 'Could not save the nickname')); return false; }
 }
 
 // ───────────────────────── loading ─────────────────────────

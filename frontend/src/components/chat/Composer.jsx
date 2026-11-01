@@ -8,7 +8,7 @@ import GifPicker from './GifPicker';
 import { UserAvatar } from '../Avatar';
 import { useStore } from '../../stores/useStore';
 import { getWorkspaceNotes } from '../../offline/sync';
-import { sendMessage, editMessage, uploadFile, sendTyping, userName, useChat } from '../../chat/client';
+import { sendMessage, editMessage, uploadFile, sendTyping, userName, personName, useChat } from '../../chat/client';
 import { fileSize } from '../../chat/format';
 
 const MAX_FILE = 50 * 1024 * 1024;
@@ -74,8 +74,8 @@ const Composer = forwardRef(function Composer({ chat, replyTo, editing, onCancel
     if (!suggest) return [];
     const q = suggest.query.toLowerCase();
     if (suggest.kind === '@') {
-      const people = members.map(m => ({ key: m.id, label: m.display_name || m.username, sub: `@${m.username}`, insert: `@${m.username} `, user: users[m.id] || m }))
-        .filter(o => !q || o.label.toLowerCase().includes(q) || o.sub.toLowerCase().includes(q));
+      const people = members.map(m => ({ key: m.id, label: personName(users[m.id] || m), sub: `@${m.username}`, insert: `@${m.username} `, user: users[m.id] || m }))
+        .filter(o => !q || o.label.toLowerCase().includes(q) || (o.real || '').includes(q) || o.sub.toLowerCase().includes(q));
       if ('everyone'.startsWith(q)) people.push({ key: 'everyone', label: 'Everyone', sub: '@everyone', insert: '@everyone ' });
       return people.slice(0, 8);
     }

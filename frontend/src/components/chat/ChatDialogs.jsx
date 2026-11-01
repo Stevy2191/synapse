@@ -1,23 +1,34 @@
 // Dialogs for chat: start a new chat, people in a chat (add / remove / leave), and reading the
 // note a chat is about.
-import { useEffect, useMemo, useState } from 'react';
-import { X, Search, Check, UserPlus, LogOut, Trash2, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Search, Check, UserPlus, LogOut, Trash2, ExternalLink, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
 import { useStore } from '../../stores/useStore';
 import { openNote, getWorkspaceNotes } from '../../offline/sync';
-import { useChat, loadUsers, createChat, addMembers, removeMember, deleteChat, updateChat, fetchChatNote } from '../../chat/client';
+import { useChat, personName, setNickname, loadUsers, createChat, addMembers, removeMember, deleteChat, updateChat, fetchChatNote } from '../../chat/client';
 
 export function Modal({ title, onClose, children, width = 460, footer }) {
+  // One listener for the dialog's whole life (the latest onClose is read from a ref), and the
+  // dialog takes focus so Escape and Tab work inside it.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const box = useRef(null);
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    const onKey = e => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      // A popup inside the dialog (emoji picker, nickname field) closes first.
+      if (document.querySelector('.emoji-picker')) return;
+      closeRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    if (box.current && !box.current.contains(document.activeElement)) box.current.focus({ preventScroll: true });
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   return (
     <div className="export-backdrop" onClick={onClose}>
-      <div className="export-dialog fade-in chat-dialog" style={{ width }} role="dialog" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div ref={box} tabIndex={-1} className="export-dialog fade-in chat-dialog" style={{ width, outline: 'none' }} role="dialog" aria-label={title} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h2 style={{ font: '700 19px var(--font-display)', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{title}</h2>
           <button className="btn-ghost" onClick={onClose} title="Close" style={{ width: 30, height: 30, padding: 0, justifyContent: 'center' }}><X size={17} /></button>
@@ -37,8 +48,8 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
   useEffect(() => { loadUsers(); }, []);
   const list = useMemo(() => Object.values(users)
     .filter(u => u.id !== myId && !exclude.includes(u.id))
-    .filter(u => !q || `${u.display_name || ''} ${u.username}`.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)), [users, myId, exclude, q]);
+    .filter(u => !q || `${u.nickname || ''} ${u.display_name || ''} ${u.username}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => personName(a).localeCompare(personName(b))), [users, myId, exclude, q]);
   const toggle = id => onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
   return (
     <div>
@@ -53,7 +64,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
           <button key={u.id} type="button" className={`chat-person${selected.includes(u.id) ? ' on' : ''}`} onClick={() => toggle(u.id)}>
             <span style={{ position: 'relative' }}><UserAvatar user={u} size={30} />{u.online && <span className="chat-online-dot" />}</span>
             <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-              <span className="chat-person-name">{u.display_name || u.username}</span>
+              <span className="chat-person-name">{personName(u)}</span>
               <span className="chat-person-sub">@{u.username}</span>
             </span>
             <span className="chat-check">{selected.includes(u.id) && <Check size={13} />}</span>
@@ -102,6 +113,14 @@ export function ChatPeopleDialog({ chat, onClose }) {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState(chat.name);
   const [icon, setIcon] = useState(chat.icon);
+  const [nickFor, setNickFor] = useState(null);
+  const [nickText, setNickText] = useState('');
+  const saveNick = async (userId) => {
+    if (await setNickname(userId, nickText.trim())) {
+      toast.success(nickText.trim() ? 'Nickname saved — only you see it' : 'Nickname removed');
+      setNickFor(null);
+    }
+  };
   const owner = chat.owner_id === myId;
   const memberIds = chat.members.map(m => m.id);
 
@@ -117,7 +136,7 @@ export function ChatPeopleDialog({ chat, onClose }) {
     if (await removeMember(chat.id, myId)) onClose();
   };
   const remove = async u => {
-    if (confirm(`Remove ${u.display_name || u.username} from this chat?`)) await removeMember(chat.id, u.id);
+    if (confirm(`Remove ${personName(u)} from this chat?`)) await removeMember(chat.id, u.id);
   };
   const del = async () => {
     if (!confirm(`Delete “${chat.name}” and all its messages and files for everyone? This can’t be undone.`)) return;
@@ -131,17 +150,35 @@ export function ChatPeopleDialog({ chat, onClose }) {
         <EmojiButton value={icon} onChange={v => { setIcon(v); saveName(v); }} size={38} />
         <input className="chat-field" value={name} onChange={e => setName(e.target.value)} onBlur={() => saveName()} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} maxLength={80} />
       </div>
-      <label className="chat-dialog-label" style={{ marginTop: 16 }}>People ({chat.members.length})</label>
+      <label className="chat-dialog-label" style={{ marginTop: 16 }}>People ({chat.members.length}) <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>· nicknames are only visible to you</span></label>
       <div className="chat-people">
         {chat.members.map(m => {
           const u = users[m.id] || m;
           return (
             <div key={m.id} className="chat-person static">
               <span style={{ position: 'relative' }}><UserAvatar user={u} size={30} />{u.online && <span className="chat-online-dot" />}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span className="chat-person-name">{u.display_name || u.username}{m.id === myId ? ' (you)' : ''}</span>
-                <span className="chat-person-sub">@{u.username}{m.id === chat.owner_id ? ' · started this chat' : ''}</span>
-              </span>
+              {nickFor === m.id ? (
+                <span style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6 }}>
+                  <input className="chat-field" style={{ height: 32 }} autoFocus value={nickText} maxLength={60}
+                    placeholder={`Nickname for ${u.display_name || u.username}`}
+                    onChange={e => setNickText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveNick(m.id); if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setNickFor(null); } }} />
+                  <button type="button" className="export-go" style={{ height: 32 }} onClick={() => saveNick(m.id)}>Save</button>
+                </span>
+              ) : (
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span className="chat-person-name">{personName(u)}{m.id === myId ? ' (you)' : ''}</span>
+                  <span className="chat-person-sub">
+                    @{u.username}{u.nickname && u.display_name && u.display_name !== u.nickname ? ` · ${u.display_name}` : ''}{m.id === chat.owner_id ? ' · started this chat' : ''}
+                  </span>
+                </span>
+              )}
+              {m.id !== myId && nickFor !== m.id && (
+                <button type="button" className="btn-ghost" title={u.nickname ? 'Change the nickname (only you see it)' : 'Give them a nickname (only you see it)'}
+                  onClick={() => { setNickFor(m.id); setNickText(u.nickname || ''); }}>
+                  <Pencil size={13} /><span className="hide-narrow">{u.nickname ? 'Nickname' : 'Nickname'}</span>
+                </button>
+              )}
               {owner && m.id !== myId && <button type="button" className="btn-ghost" title="Remove from chat" onClick={() => remove(u)}><X size={14} /></button>}
             </div>
           );

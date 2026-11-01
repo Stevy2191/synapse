@@ -96,7 +96,12 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   because `<img>` can't send the auth header; unsent uploads purged after a day. GIF search needs
   an admin-entered GIPHY/Tenor key (Settings → Server); otherwise paste a GIF link.
   Messages are texting-style bubbles: mine on the right (accent colour), others on the left
-  (Sean chose this); hover actions = react / reply / ⋯ menu beside the bubble.
+  (Sean chose this), with the sender's avatar beside *every* bubble on both sides; hover
+  actions = react / reply / ⋯ menu beside the bubble.
+  Nicknames: `user_nicknames` (owner_id, target_id) — only the owner sees them, like phone
+  contacts; set in Chat settings → People. Server adds `nickname` to /chats/users and chat
+  members (per viewer) and uses it in push titles; client always names people via
+  `personName()` / `userName()` in chat/client.js (nickname → display name → username).
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -147,6 +152,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   not in a portal, or the menu closes when you click them.
 - `pendingChanges()` returns a count; outbox entries are keyed by `seq`.
 - Search/trash excerpts: use one of rich/markdown text, not both (it doubled the text).
+- Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
+  missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 
 ## Ideas not built yet
 
