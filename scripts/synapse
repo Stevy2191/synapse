@@ -55,7 +55,21 @@ found=0
 for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
   [ -f "$SYNAPSE_DIR/$f" ] && found=1
 done
-[ "$found" = 1 ] || die "No Synapse install found in $SYNAPSE_DIR. (Set SYNAPSE_DIR if it's somewhere else.)"
+# Not there? If we're standing in a Synapse folder, use that (and remember it for next time).
+if [ "$found" = 0 ]; then
+  for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+    if [ -f "$PWD/$f" ] && grep -q 'stevy2191/synapse' "$PWD/$f"; then
+      SYNAPSE_DIR="$PWD"; found=1
+      self="$(realpath "$0" 2>/dev/null || echo "$0")"
+      if [ -w "$self" ] && grep -q '^SYNAPSE_DIR=' "$self"; then
+        sed -i "s#^SYNAPSE_DIR=.*#SYNAPSE_DIR=\"\${SYNAPSE_DIR:-$PWD}\"   \# set by the installer#" "$self" \
+          && printf 'Using Synapse in %s (remembered for next time).\n' "$PWD"
+      fi
+      break
+    fi
+  done
+fi
+[ "$found" = 1 ] || die "No Synapse install found in $SYNAPSE_DIR. Run this from Synapse's folder (cd /path/to/synapse), or set SYNAPSE_DIR."
 case "$(realpath -m "$SYNAPSE_DIR")" in
   /|/root|/home|/home/*[!/]/|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot) die "Refusing to manage $SYNAPSE_DIR: that's a system folder." ;;
 esac
@@ -245,6 +259,8 @@ self_update() {
   tmp="$(dirname "$self")/.synapse.new.$$"
   if curl -fsSL "https://raw.githubusercontent.com/Stevy2191/synapse/main/scripts/synapse" -o "$tmp" 2>/dev/null \
       && head -1 "$tmp" | grep -q '^#!' && bash -n "$tmp" 2>/dev/null; then
+    # Keep this install's folder (the installer wrote it into this copy).
+    sed -i "s#^SYNAPSE_DIR=.*#SYNAPSE_DIR=\"\${SYNAPSE_DIR:-$SYNAPSE_DIR}\"   \# set by the installer#" "$tmp"
     if cmp -s "$tmp" "$self"; then rm -f "$tmp"; return 1; fi
     chmod 755 "$tmp" && mv -f "$tmp" "$self" && return 0
   fi
