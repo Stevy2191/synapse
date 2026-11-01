@@ -13,6 +13,7 @@ export default function SearchModal() {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sel, setSel] = useState(0); // highlighted result (arrow keys, Enter opens it)
   const inputRef = useRef(null);
   const timer = useRef(null);
 
@@ -26,7 +27,7 @@ export default function SearchModal() {
     setLoading(true);
     // Searches this device's copy, so it works offline too.
     timer.current = setTimeout(async () => {
-      try { setResults(await searchNotes(activeWorkspace.id, q)); }
+      try { setResults(await searchNotes(activeWorkspace.id, q)); setSel(0); }
       finally { setLoading(false); }
     }, 150);
   }, [q, activeWorkspace]);
@@ -34,6 +35,8 @@ export default function SearchModal() {
   const select = async (id) => {
     await openNote(id);
     setSearchOpen(false);
+    const { view, setView } = useStore.getState();
+    if (['graph', 'tasks', 'trash', 'chat'].includes(view)) setView('editor');
   };
 
   useEffect(() => {
@@ -60,6 +63,11 @@ export default function SearchModal() {
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSel(i => Math.min(i + 1, results.length - 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(i => Math.max(i - 1, 0)); }
+              else if (e.key === 'Enter' && results[sel]) { e.preventDefault(); select(results[sel].id); }
+            }}
             placeholder="Search notes..."
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 16, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
           />
@@ -77,12 +85,12 @@ export default function SearchModal() {
               Type to search across all notes in {activeWorkspace?.name || 'your workspace'}
             </p>
           )}
-          {results.map(r => (
+          {results.map((r, i) => (
             <div key={r.id} onClick={() => select(r.id)} style={{
-              padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', transition: 'all 0.1s'
+              padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', transition: 'all 0.1s',
+              background: i === sel ? 'var(--bg-hover)' : 'transparent',
             }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              onMouseEnter={() => setSel(i)}
             >
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {(() => { const k = kindInfo(r); const Icon = k.icon; return <Icon size={14} style={{ color: k.color || 'var(--accent)' }} aria-label={k.label} />; })()}

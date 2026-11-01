@@ -256,7 +256,8 @@ export default function Sidebar({ width, onNavigate }) {
 
   const selectNote = useCallback(async (id) => {
     await openNote(id);
-    if (view === 'graph' || view === 'tasks' || view === 'trash') setView('editor');
+    // Leave Graph / Tasks / Trash / Chats so the note is actually shown.
+    if (['graph', 'tasks', 'trash', 'chat'].includes(view)) setView('editor');
     onNavigate?.();
   }, [view, setView, onNavigate]);
 
