@@ -5,7 +5,6 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Image from '@tiptap/extension-image';
 import UnderlineExt from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
@@ -19,10 +18,6 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Link as LinkExt } from '@tiptap/extension-link';
-import { createLowlight } from 'lowlight';
-import javascript from 'highlight.js/lib/languages/javascript';
-import python from 'highlight.js/lib/languages/python';
-import bash from 'highlight.js/lib/languages/bash';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
@@ -30,9 +25,7 @@ import {
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { DiagramNode } from '../diagrams/DiagramNode';
-
-const lowlight = createLowlight();
-lowlight.register({ javascript, python, bash });
+import { CodeBlock } from './CodeBlockView';
 
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
@@ -84,7 +77,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      CodeBlockLowlight.configure({ lowlight }),
+      CodeBlock,
       Image.configure({ inline: false }),
       UnderlineExt,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -234,19 +227,6 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
             font-family: var(--font-mono);
             font-size: 0.88em;
           }
-          .rich-editor-content pre {
-            background: var(--bg-elevated);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            overflow-x: auto;
-            margin: 1em 0;
-          }
-          .rich-editor-content pre code {
-            background: none;
-            padding: 0;
-            color: var(--text-primary);
-          }
           .rich-editor-content hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
           .rich-editor-content img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
           .rich-editor-content a { color: var(--accent); text-decoration: none; }
@@ -256,9 +236,6 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
           .rich-editor-content th { background: var(--bg-elevated); font-weight: 600; }
           .rich-editor-content .selectedCell { background: var(--accent-subtle); }
           .ProseMirror-selectednode { outline: 2px solid var(--accent); border-radius: 4px; }
-          .hljs-keyword { color: #ff79c6; } .hljs-string { color: #f1fa8c; }
-          .hljs-comment { color: #6272a4; } .hljs-number { color: #bd93f9; }
-          .hljs-built_in { color: #8be9fd; } .hljs-function { color: #50fa7b; }
         `}</style>
 
       {/* Formatting toolbar: appears over selected text */}

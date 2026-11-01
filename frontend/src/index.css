@@ -140,8 +140,6 @@ body {
 .markdown-preview a { color: var(--accent); text-decoration: none; }
 .markdown-preview a:hover { text-decoration: underline; }
 .markdown-preview code { background: var(--bg-elevated); color: var(--accent-hover); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.88em; }
-.markdown-preview pre { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 1em 0; }
-.markdown-preview pre code { background: none; padding: 0; }
 .markdown-preview blockquote { border-left: 3px solid var(--accent); padding-left: 1em; color: var(--text-secondary); margin: 1em 0; }
 .markdown-preview ul, .markdown-preview ol { padding-left: 1.5em; margin: 0.5em 0; }
 .markdown-preview li { margin: 0.2em 0; }
@@ -318,3 +316,122 @@ body {
   background: var(--bg-base); pointer-events: none; padding: 24px;
 }
 .markdown-preview img[alt="draw.io diagram"], .markdown-preview img[alt="Excalidraw drawing"] { background: #fff; padding: 8px; border-radius: 10px; }
+
+/* ── Code blocks: syntax colors that follow the theme ───────────────────────── */
+:root {
+  --code-bg: #0d1021;
+  --code-border: var(--border);
+  --code-text: #d4d7f5;
+  --hl-comment: #6c739e;
+  --hl-keyword: #c792ea;
+  --hl-string: #a5e075;
+  --hl-number: #f78c6c;
+  --hl-literal: #ff9cac;
+  --hl-function: #82aaff;
+  --hl-type: #ffcb6b;
+  --hl-variable: #f07178;
+  --hl-attr: #ffcb6b;
+  --hl-tag: #ff7a93;
+  --hl-builtin: #89ddff;
+  --hl-meta: #89ddff;
+  --hl-regexp: #89ddff;
+  --hl-addition: #a5e075;
+  --hl-deletion: #ff6b7f;
+  --hl-addition-bg: rgba(165, 224, 117, 0.12);
+  --hl-deletion-bg: rgba(255, 107, 127, 0.12);
+}
+:root[data-theme="light"], :root[data-theme="neural-light"] {
+  --code-bg: #f6f7fd;
+  --code-text: #24292f;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-literal: #0550ae;
+  --hl-function: #8250df;
+  --hl-type: #953800;
+  --hl-variable: #953800;
+  --hl-attr: #0550ae;
+  --hl-tag: #116329;
+  --hl-builtin: #0550ae;
+  --hl-meta: #0550ae;
+  --hl-regexp: #116329;
+  --hl-addition: #116329;
+  --hl-deletion: #82071e;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+}
+
+.rich-editor-content pre, .markdown-preview pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 1em 0;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  line-height: 1.6;
+  tab-size: 4;
+}
+.rich-editor-content pre code, .markdown-preview pre code {
+  background: none; padding: 0; border-radius: 0; color: var(--code-text); font-size: inherit; white-space: pre;
+}
+
+/* The block in the editor: a bar with the language and Copy, sitting on top of the code */
+.rich-editor-content .code-block { position: relative; margin: 1em 0; }
+.rich-editor-content .code-block pre { margin: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+.code-block-bar {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--code-bg); border: 1px solid var(--code-border); border-bottom: none;
+  border-radius: 10px 10px 0 0; padding: 5px 8px 0 8px; user-select: none;
+}
+.code-lang-btn, .code-copy-btn {
+  display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-muted); font: 500 12px var(--font-sans, inherit); padding: 4px 7px; border-radius: 6px;
+}
+.code-lang-btn:hover, .code-copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.code-lang-btn.static { cursor: default; }
+.code-lang-btn.static:hover { background: transparent; color: var(--text-muted); }
+.code-copy-btn { opacity: 0; transition: opacity 0.15s; }
+.code-block:hover .code-copy-btn, .code-copy-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .code-copy-btn { opacity: 1; } }
+
+.code-lang-picker {
+  position: absolute; top: calc(100% + 2px); left: 6px; z-index: 30; width: 250px;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.code-lang-search { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+.code-lang-search input { flex: 1; border: none; outline: none; background: transparent; color: var(--text-primary); font-size: 13px; min-width: 0; }
+.code-lang-list { max-height: 260px; overflow-y: auto; padding: 4px; }
+.code-lang-list button {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+  border: none; background: transparent; color: var(--text-secondary); font-size: 13px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer;
+}
+.code-lang-list button.active { background: var(--accent-subtle); color: var(--text-primary); }
+.code-lang-list button em { color: var(--text-muted); font-style: normal; }
+.code-lang-list button svg { color: var(--accent); flex-shrink: 0; }
+.code-lang-empty { padding: 8px; font-size: 12px; color: var(--text-muted); }
+
+/* Token colors (highlight.js class names; used by the editor and the Markdown preview) */
+.hljs-comment, .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-template-tag { color: var(--hl-keyword); }
+.hljs-string, .hljs-char.escape_, .hljs-template-variable { color: var(--hl-string); }
+.hljs-number { color: var(--hl-number); }
+.hljs-literal { color: var(--hl-literal); }
+.hljs-title, .hljs-title.function_, .hljs-section { color: var(--hl-function); }
+.hljs-title.class_, .hljs-type, .hljs-class .hljs-title { color: var(--hl-type); }
+.hljs-variable, .hljs-params, .hljs-property { color: var(--hl-variable); }
+.hljs-attr, .hljs-attribute, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id, .hljs-selector-pseudo { color: var(--hl-attr); }
+.hljs-name, .hljs-tag { color: var(--hl-tag); }
+.hljs-built_in, .hljs-symbol, .hljs-bullet, .hljs-link { color: var(--hl-builtin); }
+.hljs-meta, .hljs-meta .hljs-keyword { color: var(--hl-meta); }
+.hljs-meta .hljs-string { color: var(--hl-string); }
+.hljs-regexp { color: var(--hl-regexp); }
+.hljs-subst { color: var(--code-text); }
+.hljs-addition { color: var(--hl-addition); background: var(--hl-addition-bg); }
+.hljs-deletion { color: var(--hl-deletion); background: var(--hl-deletion-bg); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }

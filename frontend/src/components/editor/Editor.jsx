@@ -5,7 +5,9 @@ import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE } from './convert';
 import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
-import { marked } from 'marked';
+import { Marked } from 'marked';
+import { languages as codeLanguages } from '@codemirror/language-data';
+import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
@@ -21,7 +23,18 @@ import Logo from '../Logo';
 import { WorkspaceIcon } from '../Avatar';
 import CalendarPanel from '../calendar/CalendarPanel';
 
-marked.setOptions({ breaks: true, gfm: true });
+// The preview's own Markdown renderer, with colored code blocks (convert.js keeps a plain one
+// for turning Markdown into editor content).
+const previewMarked = new Marked({ breaks: true, gfm: true });
+previewMarked.use({
+  renderer: {
+    code(code, infostring) {
+      const lang = (infostring || '').trim().split(/\s+/)[0] || '';
+      const cls = lang ? ` language-${lang.replace(/[^\w+#-]/g, '')}` : '';
+      return `<pre><code class="hljs${cls}">${highlightToHtml(code, lang)}</code></pre>\n`;
+    },
+  },
+});
 
 // Auto-continue lists and todos on Enter
 function listContinuation(onContentChange) {
@@ -88,7 +101,7 @@ function renderMarkdown(content) {
     } catch { return ''; }
   });
   const withLinks = content.replace(/\[\[([^\]]+)\]\]/g, '<span class="wiki-link" data-link="$1">$1</span>');
-  return DOMPurify.sanitize(marked.parse(withLinks), { ADD_ATTR: ['data-link'] });
+  return DOMPurify.sanitize(previewMarked.parse(withLinks), { ADD_ATTR: ['data-link'] });
 }
 
 // Markdown formatting toolbar - inserts markdown syntax into CodeMirror
@@ -501,7 +514,7 @@ export default function Editor() {
         ref={cmRef}
         value={content}
         theme="none"
-        extensions={[markdown(), synapseEditorTheme, EditorView.lineWrapping, listContinuation(handleContentChange)]}
+        extensions={[markdown({ codeLanguages }), synapseEditorTheme, EditorView.lineWrapping, listContinuation(handleContentChange)]}
         onChange={handleContentChange}
         placeholder="Start writing…"
         basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false, highlightActiveLineGutter: false }}
