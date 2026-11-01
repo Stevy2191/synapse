@@ -146,7 +146,12 @@ Other ideas:
 - Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
 - Reminders / notifications for due tasks (web push, email, or ntfy/Gotify for self-hosters).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
-- Handwriting search (OCR of Free Draw and images), PDF annotation with the pen.
+- **OCR text recognition** (Sean wants this): pull text out of pasted images, screenshots,
+  scanned PDFs and photos of documents/whiteboards — "Copy text from image" and "Insert text
+  below", plus indexing the recognised text so search finds words inside pictures. Offline
+  via Tesseract.js (printed text, runs on the server or device); handwriting / Free Draw via
+  an AI vision model when the AI assistant is set up. Pen handwriting → typed text.
+- PDF annotation with the pen.
 - Family features: shared workspaces with per-person permissions, shared lists (groceries),
   family calendar view.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
