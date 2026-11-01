@@ -337,11 +337,12 @@ function WorkspaceGeneralPage() {
           {COLORS.map(c => (
             <button key={c} onClick={() => save({ color: c })} title={c} style={{
               width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
-              border: ws.color === c ? '3px solid var(--text-primary)' : '3px solid transparent',
-              boxShadow: ws.color === c ? `0 0 10px ${c}` : 'none',
+              border: ws.color?.toLowerCase() === c ? '3px solid var(--text-primary)' : '3px solid transparent',
+              boxShadow: ws.color?.toLowerCase() === c ? `0 0 10px ${c}` : 'none',
             }} />
           ))}
         </div>
+        <HexColor value={ws.color} onSave={color => save({ color }, `Colour set to ${color}`)} />
       </section>
 
       <section style={{ ...section, borderColor: 'color-mix(in srgb, var(--danger) 45%, var(--border))' }}>
@@ -358,6 +359,42 @@ function WorkspaceGeneralPage() {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+// "#7C7BFF", "7c7bff", "#abc" or "abc" → "#7c7bff" / "#aabbcc"; anything else → null
+export function normalizeHex(input) {
+  const v = String(input || '').trim().replace(/^#/, '').toLowerCase();
+  if (/^[0-9a-f]{3}$/.test(v)) return '#' + v.split('').map(c => c + c).join('');
+  if (/^[0-9a-f]{6}$/.test(v)) return '#' + v;
+  return null;
+}
+
+// Any colour: type a hex code, or use the browser's colour picker.
+function HexColor({ value, onSave }) {
+  const [text, setText] = useState(value || '');
+  useEffect(() => { setText(value || ''); }, [value]);
+  const hex = normalizeHex(text);
+  const changed = hex && hex !== value?.toLowerCase();
+  const submit = () => { if (changed) onSave(hex); };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+      <label title="Pick any colour" style={{
+        position: 'relative', width: 34, height: 34, borderRadius: 9, cursor: 'pointer', flexShrink: 0,
+        background: hex || value || 'var(--accent)', border: '1px solid var(--border)', boxShadow: hex ? `0 0 10px ${hex}55` : 'none',
+      }}>
+        <input type="color" value={hex || value || '#7c7bff'} onChange={e => setText(e.target.value)}
+          style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }} />
+      </label>
+      <div style={{ display: 'flex', alignItems: 'center', ...field, flex: 'none', width: 150, padding: '0 10px', borderColor: text && !hex ? 'var(--danger)' : 'var(--border)' }}>
+        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>#</span>
+        <input value={text.replace(/^#/, '')} onChange={e => setText(e.target.value)} maxLength={7}
+          onKeyDown={e => e.key === 'Enter' && submit()} placeholder="7c7bff" aria-label="Hex colour code" spellCheck={false}
+          style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, padding: '8px 4px', textTransform: 'lowercase' }} />
+      </div>
+      <button style={primary} disabled={!changed} onClick={submit}>Use colour</button>
+      {text && !hex && <span style={{ fontSize: 12, color: 'var(--danger)' }}>Use 3 or 6 hex digits, e.g. 7c7bff</span>}
     </div>
   );
 }
