@@ -3,3 +3,4 @@ frontend/dist/
 data/
 .env
 *.log
+frontend/public/excalidraw/

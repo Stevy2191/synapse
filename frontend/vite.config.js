@@ -26,10 +26,17 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Excalidraw's fonts (~14 MB, mostly CJK) are cached the first time they're used instead.
+        globIgnores: ['excalidraw/**'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/excalidraw/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'excalidraw-fonts', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+          },
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
             handler: 'StaleWhileRevalidate',

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
-import { markdownToHtml, htmlToMarkdown } from './convert';
+import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE } from './convert';
 import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
 import { marked } from 'marked';
@@ -81,6 +81,12 @@ function listContinuation(onContentChange) {
 }
 
 function renderMarkdown(content) {
+  content = content.replace(DIAGRAM_FENCE, (m, json) => {
+    try {
+      const d = JSON.parse(json);
+      return d.preview?.startsWith('data:image/') ? `\n\n![${d.kind === 'excalidraw' ? 'Excalidraw drawing' : 'draw.io diagram'}](${d.preview})\n\n` : '';
+    } catch { return ''; }
+  });
   const withLinks = content.replace(/\[\[([^\]]+)\]\]/g, '<span class="wiki-link" data-link="$1">$1</span>');
   return DOMPurify.sanitize(marked.parse(withLinks), { ADD_ATTR: ['data-link'] });
 }

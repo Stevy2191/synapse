@@ -29,9 +29,20 @@ app.use(compression());
 if (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*') {
   app.use(cors({ origin: process.env.CORS_ORIGIN.split(',').map(s => s.trim()) }));
 }
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' })); // drawings with pasted pictures can be large
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Synapse' }));
+
+// Settings the app needs before sign-in. DRAWIO_URL: where the draw.io editor is loaded from —
+// diagrams.net by default, or your own copy (docker run jgraph/drawio) to keep it all self-hosted.
+const DRAWIO_URL = (() => {
+  try {
+    const u = new URL(process.env.DRAWIO_URL || 'https://embed.diagrams.net');
+    if (!['http:', 'https:'].includes(u.protocol)) throw new Error();
+    return (u.origin + u.pathname).replace(/\/+$/, '');
+  } catch { return 'https://embed.diagrams.net'; }
+})();
+app.get('/api/config', (req, res) => res.json({ drawio_url: DRAWIO_URL }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', securityRoutes);

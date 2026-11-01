@@ -35,6 +35,10 @@ export const SLASH_ITEMS = [
   { id: 'link', title: 'Link to note', desc: 'Connect to another note', keywords: 'wiki [[ backlink', run: (e, r) => e.chain().focus().deleteRange(r).insertContent('[[').run() },
   { id: 'quote', title: 'Quote', desc: 'Highlight a quotation', keywords: 'blockquote >', run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
   { id: 'code', title: 'Code block', desc: 'Code with syntax highlighting', keywords: '```', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
+  { id: 'drawio', title: 'draw.io diagram', desc: 'Flowcharts, network & org diagrams', keywords: 'diagram flowchart drawio diagrams.net chart network uml',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'drawio' } }).run() },
+  { id: 'excalidraw', title: 'Excalidraw drawing', desc: 'Hand-drawn style sketches & whiteboard', keywords: 'excalidraw sketch draw whiteboard drawing',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'excalidraw' } }).run() },
   { id: 'table', title: 'Table', desc: '3 × 3 table', keywords: 'grid', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { id: 'divider', title: 'Divider', desc: 'Horizontal line', keywords: 'hr rule ---', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   {

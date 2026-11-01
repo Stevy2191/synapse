@@ -167,11 +167,12 @@ export async function refreshTree() {
 
 export function plainText(note) {
   const rich = (note.rich_content || '')
+    .replace(/<figure[^>]*data-diagram[\s\S]*?<\/figure>/gi, ' [diagram] ')
     .replace(/<(br|\/p|\/div|\/li|\/h\d|\/tr|\/blockquote)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  return `${note.content || ''}\n${rich}`;
+  return `${(note.content || '').replace(/```synapse-diagram\n[\s\S]*?\n```/g, ' [diagram] ')}\n${rich}`;
 }
 
 function linkTitles(note) {

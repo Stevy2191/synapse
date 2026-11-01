@@ -4,10 +4,29 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import DOMPurify from 'dompurify';
 
+// Diagrams (draw.io / Excalidraw) are kept in Markdown as a fenced block, so they survive
+// switching a note between Write and Markdown:
+//   ```synapse-diagram
+//   {"kind":"drawio","scene":null,"preview":"data:image/svg+xml;base64,…"}
+//   ```
+export const DIAGRAM_FENCE = /```synapse-diagram\n([\s\S]*?)\n```/g;
+
 export function markdownToHtml(md) {
   const html = DOMPurify.sanitize(marked.parse(md || '', { gfm: true, breaks: true }));
   // GFM checklists come out as <li><input type=checkbox> …</li>; the rich editor wants task lists.
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  for (const code of doc.querySelectorAll('pre > code.language-synapse-diagram')) {
+    try {
+      const d = JSON.parse(code.textContent);
+      const fig = doc.createElement('figure');
+      fig.setAttribute('data-diagram', d.kind === 'excalidraw' ? 'excalidraw' : 'drawio');
+      fig.setAttribute('data-scene', d.scene || '');
+      const img = doc.createElement('img');
+      if (typeof d.preview === 'string' && d.preview.startsWith('data:image/')) img.setAttribute('src', d.preview);
+      fig.appendChild(img);
+      code.parentElement.replaceWith(fig);
+    } catch {}
+  }
   for (const ul of doc.querySelectorAll('ul')) {
     const items = [...ul.children].filter(li => li.tagName === 'LI');
     if (items.length === 0 || !items.every(li => li.querySelector(':scope > input[type="checkbox"], :scope > p > input[type="checkbox"]'))) continue;
@@ -42,6 +61,13 @@ turndown.addRule('table', {
     const cols = Math.max(...rows.map(r => r.length));
     const line = r => `| ${[...r, ...Array(cols - r.length).fill('')].join(' | ')} |`;
     return `\n\n${line(rows[0])}\n| ${Array(cols).fill('---').join(' | ')} |\n${rows.slice(1).map(line).join('\n')}\n\n`;
+  },
+});
+turndown.addRule('diagram', {
+  filter: node => node.nodeName === 'FIGURE' && node.hasAttribute('data-diagram'),
+  replacement: (content, node) => {
+    const d = { kind: node.getAttribute('data-diagram'), scene: node.getAttribute('data-scene') || null, preview: node.querySelector('img')?.getAttribute('src') || null };
+    return `\n\n\`\`\`synapse-diagram\n${JSON.stringify(d)}\n\`\`\`\n\n`;
   },
 });
 turndown.addRule('underline', { filter: ['u'], replacement: content => `<u>${content}</u>` });

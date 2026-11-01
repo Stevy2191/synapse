@@ -134,12 +134,15 @@ addColumn('notes', `last_op_id TEXT`);
 
 /** Plain text used for search and [[link]] detection, covering both markdown and rich-text notes. */
 export function searchableText(note) {
+  // Diagrams (draw.io / Excalidraw) carry large embedded data; index them as just "[diagram]".
+  const content = (note.content || '').replace(/```synapse-diagram\n[\s\S]*?\n```/g, ' [diagram] ');
   const rich = (note.rich_content || '')
+    .replace(/<figure[^>]*data-diagram[\s\S]*?<\/figure>/gi, ' [diagram] ')
     .replace(/<(br|\/p|\/div|\/li|\/h\d|\/tr|\/blockquote)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  return note.editor_mode === 'rich' ? `${rich}\n${note.content || ''}` : `${note.content || ''}\n${rich}`;
+  return note.editor_mode === 'rich' ? `${rich}\n${content}` : `${content}\n${rich}`;
 }
 
 const ftsDelete = db.prepare('DELETE FROM notes_fts WHERE id=?');

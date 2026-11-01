@@ -26,9 +26,10 @@ import bash from 'highlight.js/lib/languages/bash';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
-  ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil,
+  ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
+import { DiagramNode } from '../diagrams/DiagramNode';
 
 const lowlight = createLowlight();
 lowlight.register({ javascript, python, bash });
@@ -36,6 +37,7 @@ lowlight.register({ javascript, python, bash });
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
+  drawio: Workflow, excalidraw: PenTool,
 };
 const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
@@ -99,6 +101,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       SlashCommand.configure({ getUi }),
       WikiLinkSuggest.configure({ getUi }),
       WikiLinkDecorations,
+      DiagramNode,
     ],
     content: content || '<p></p>',
     // The styles below are scoped to this class.
@@ -260,7 +263,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       {/* Formatting toolbar: appears over selected text */}
       <BubbleMenu editor={editor} pluginKey="formatMenu"
-        shouldShow={({ editor: ed, state }) => !state.selection.empty && !ed.isActive('codeBlock') && !ed.isActive('image')}
+        shouldShow={({ editor: ed, state }) => !state.selection.empty && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
         options={{ placement: 'top', offset: 8 }}>
         <div className="floating-menu">
           <B on={editor.isActive('bold')} title="Bold (Ctrl+B)" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={15} /></B>

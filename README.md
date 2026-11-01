@@ -20,6 +20,7 @@
 - **Markdown view** — Switch any note to raw Markdown (with split view and preview); notes are always kept as Markdown too, for search and export
 - **Wiki Links** — Type `[[` to search your notes and link one (or create it); click a link to open it
 - **Graph View** — Interactive D3 mind map of all note connections
+- **Diagrams & drawings** — Type `/` for a **draw.io** diagram or an **Excalidraw** drawing inside any note; it shows as a picture, and opens full screen to edit
 - **Calendar & daily notes** — A month calendar in the side panel with your meetings from Outlook, Google, iCloud or any calendar (ICS link). Click a day for its daily note; turn any meeting into a pre-filled meeting note
 - **Full-text Search** — Fast SQLite FTS5 search (Ctrl+K)
 - **Tags** — Tag and filter notes
@@ -161,6 +162,7 @@ Notes:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | auto-generated | Signs login tokens. If unset, a random one is created and saved to `data/.jwt_secret` |
+| `DRAWIO_URL` | `https://embed.diagrams.net` | Where the draw.io editor loads from. Run your own (`docker run -p 8080:8080 jgraph/drawio`) and set this to keep diagrams fully self-hosted and usable offline |
 | `SETUP_CODE` | random | Code needed to create the admin account. `off` to skip it (trusted networks only) |
 | `ALLOW_REGISTRATION` | `false` | `true` lets anyone create an account. Otherwise only the first user (admin) can register |
 | `CORS_ORIGIN` | unset | Only needed if a different site calls the API from a browser (comma-separated list) |

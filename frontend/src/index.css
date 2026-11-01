@@ -280,3 +280,41 @@ body {
   padding: 8px 10px; margin-bottom: 6px; border-radius: 8px; background: var(--bg-surface);
   border: 1px solid var(--border-subtle); border-left: 3px solid var(--accent);
 }
+
+/* Diagram blocks (draw.io / Excalidraw) */
+.diagram-block {
+  position: relative; margin: 14px 0; border-radius: 12px; border: 1px solid var(--border-subtle);
+  background: #fff; overflow: hidden; transition: box-shadow .15s, border-color .15s;
+}
+.diagram-block img { display: block; max-width: 100%; max-height: 640px; margin: 0 auto; cursor: zoom-in; }
+.diagram-block.selected, .diagram-block:hover { border-color: var(--accent); box-shadow: var(--glow); }
+.diagram-empty {
+  display: flex; align-items: center; justify-content: center; gap: 8px; height: 120px; cursor: pointer;
+  background: var(--bg-elevated); color: var(--text-muted); font: 500 13px var(--font-sans);
+}
+.diagram-tools {
+  position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 2px; padding: 3px;
+  border-radius: 9px; background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow);
+  opacity: 0; transition: opacity .15s;
+}
+.diagram-block:hover .diagram-tools, .diagram-block.selected .diagram-tools { opacity: 1; }
+.diagram-tools button {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--text-primary); font: 500 12px var(--font-sans); cursor: pointer;
+}
+.diagram-tools button:hover { background: var(--bg-hover); }
+.diagram-kind { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font: 500 11px var(--font-sans); color: var(--text-muted); }
+.diagram-modal {
+  position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; background: var(--bg-base);
+}
+.diagram-frame { flex: 1; width: 100%; border: none; background: #fff; }
+.diagram-bar {
+  display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); background: var(--bg-surface);
+}
+.diagram-loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; text-align: center; color: var(--text-secondary); font: 500 14px var(--font-sans);
+  background: var(--bg-base); pointer-events: none; padding: 24px;
+}
+.markdown-preview img[alt="draw.io diagram"], .markdown-preview img[alt="Excalidraw drawing"] { background: #fff; padding: 8px; border-radius: 10px; }
