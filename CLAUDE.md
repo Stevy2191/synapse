@@ -122,6 +122,20 @@ Sean's priorities first (asked for Nov 2026):
   Online-only feature; tokens stored server-side per user, encrypted. Uses: attach/link files
   in notes, save exports there, scheduled backups there.
 
+- **AI assistant, bring your own AI** (Sean wants this): users add whichever provider they
+  have — Claude (Anthropic), OpenAI, Grok (xAI), Gemini, a local Ollama / LM Studio, or any
+  OpenAI-compatible URL (OpenRouter etc.). Off by default.
+  - Keys: admin can set server-wide keys for the family; users can add their own. Stored
+    encrypted server-side; all calls go through the backend (keys never reach the browser).
+    Pick provider + model per user; admin can restrict which providers are allowed.
+  - Features: `/ai` in the slash menu + bubble-menu actions (summarise, rewrite, fix
+    grammar, change tone, translate, continue writing); "Ask your notes" chat with linked
+    sources (search/FTS first, embeddings later); turn meeting notes into tasks with due
+    dates; suggest tags/titles/links; explain or generate Mermaid diagrams; OCR/describe
+    images and handwriting with vision models.
+  - Online-only. Show clearly which provider a note is sent to; per-workspace opt-out
+    (e.g. a private workspace never goes to cloud AI). Streaming responses; usage log.
+
 Other ideas:
 
 - Version history per note (diff + restore); sharing / public read-only links; real-time
@@ -133,7 +147,6 @@ Other ideas:
 - Reminders / notifications for due tasks (web push, email, or ntfy/Gotify for self-hosters).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
 - Handwriting search (OCR of Free Draw and images), PDF annotation with the pen.
-- Local AI helpers (summarise, ask your notes) via a self-hosted Ollama, off by default.
 - Family features: shared workspaces with per-person permissions, shared lists (groceries),
   family calendar view.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
