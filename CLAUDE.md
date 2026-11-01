@@ -215,6 +215,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   SYNAPSE_NETWORK_STORAGE=true) and uses `locking_mode=EXCLUSIVE` (WAL, else TRUNCATE journal); a
   locked DB is retried with an explanation instead of crash-looping; SIGTERM closes the DB cleanly
   (Node as PID 1 ignores SIGTERM otherwise, so Docker used to SIGKILL it after 10 s).
+  Even with that, an SMB mount made by the host *without `nobrl`* passes byte-range locks to the
+  NAS, which often refuses → still "locked". better-sqlite3 is built with SQLITE_USE_URI=0, so the
+  app can't switch to the unix-none VFS; the fix is `nobrl` on the mount (installer's own SMB
+  option already uses it). The log + installer now detect a cifs mount without nobrl (or NFS
+  without working locks) and print the exact fix.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

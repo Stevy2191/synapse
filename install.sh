@@ -593,7 +593,20 @@ while true; do
       fstype=$(stat -f -c %T "$DATA_PATH" 2>/dev/null || true)
       case "$fstype" in
         nfs*|cifs|smb*|fuse.sshfs|9p|ceph|glusterfs|fuse.glusterfs|fuse.rclone)
-          NETWORK_STORAGE=true; info "That folder is on a network share ($fstype) — Synapse will use network-safe settings for it." ;;
+          NETWORK_STORAGE=true; info "That folder is on a network share ($fstype) — Synapse will use network-safe settings for it."
+          # SMB mounts must not pass file locks to the NAS (many refuse them → "database is locked").
+          mopts=$(findmnt -n -o OPTIONS -T "$DATA_PATH" 2>/dev/null || true)
+          src=$(findmnt -n -o TARGET -T "$DATA_PATH" 2>/dev/null || true)
+          case "$fstype" in
+            cifs|smb*)
+              if [[ ",$mopts," != *",nobrl,"* ]]; then
+                warn "That share ($src) is mounted without the \"nobrl\" option, so Synapse's database can't lock its file there."
+                say  "     Add ${B},nobrl${R} to its mount options (usually in /etc/fstab), then remount it:"
+                say  "       sudo nano /etc/fstab        ${D}(add ,nobrl to the line for $src)${R}"
+                say  "       sudo umount $src && sudo mount $src"
+                say  "     Synapse will keep retrying until the share allows it."
+              fi ;;
+          esac ;;
       esac
       if [ "$DATA_PATH" = "$DIR/data" ]; then SYNAPSE_DATA="./data"; else SYNAPSE_DATA="$DATA_PATH"; fi
       ;;

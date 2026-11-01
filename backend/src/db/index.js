@@ -9,21 +9,45 @@ const DB_PATH = path.join(DATA_DIR, 'synapse.db');
 // Is the data folder on a network share (NFS / SMB …)? The installer says so for its own share
 // option; a plain folder that happens to be an NFS/SMB mount is detected here from /proc/mounts.
 const NETWORK_FS = /^(nfs4?|cifs|smb3?|smbfs|fuse\.sshfs|9p|afs|ceph|glusterfs|fuse\.glusterfs|fuse\.rclone|davfs)$/;
-function filesystemType(dir) {
+function mountOf(dir) {
   try {
     let real = dir;
     try { real = fs.realpathSync(dir); } catch { /* not created yet */ }
-    let best = { point: '', type: '' };
+    let best = { point: '', type: '', options: '' };
     for (const line of fs.readFileSync('/proc/mounts', 'utf8').split('\n')) {
-      const [, point, type] = line.split(' ');
+      const [, point, type, options = ''] = line.split(' ');
       if (!point) continue;
       const p = point.replace(/\\040/g, ' ');
-      if ((real === p || real.startsWith(p.endsWith('/') ? p : `${p}/`)) && p.length > best.point.length) best = { point: p, type };
+      if ((real === p || real.startsWith(p.endsWith('/') ? p : `${p}/`)) && p.length > best.point.length) best = { point: p, type, options };
     }
-    return best.type;
-  } catch { return ''; } // not Linux
+    return best;
+  } catch { return { point: '', type: '', options: '' }; } // not Linux
 }
-const fsType = filesystemType(DATA_DIR);
+const mount = mountOf(DATA_DIR);
+const fsType = mount.type;
+const mountOpts = mount.options.split(',');
+// The most common cause of "database is locked" on a share, with the exact fix.
+function lockAdvice() {
+  if (/^(cifs|smb3?|smbfs)$/.test(fsType) && !mountOpts.includes('nobrl')) {
+    return `
+    → Your data folder is on an SMB share mounted WITHOUT the "nobrl" option, so the NAS is being
+      asked to lock the database file and is refusing. Add ",nobrl" to that share's mount options on
+      the server (usually in /etc/fstab), then remount it and restart Synapse:
+        findmnt -T <your notes folder>      (shows how it's mounted)
+        sudo nano /etc/fstab                (add ,nobrl to the share's options)
+        docker compose down && sudo umount <share> && sudo mount <share> && docker compose up -d`;
+  }
+  if (/^nfs4?$/.test(fsType) && !mountOpts.includes('nolock') && !mountOpts.some(o => o.startsWith('local_lock='))) {
+    return `
+    → Your data folder is on an NFS share whose file locking isn't working. Either make sure the NFS
+      lock service runs on the server (rpc-statd), or mount the share with the "nolock" option
+      (safe here: only Synapse opens the database), then restart Synapse.`;
+  }
+  return '';
+}
+if (/^(cifs|smb3?|smbfs)$/.test(fsType) && !mountOpts.includes('nobrl')) {
+  console.log('ℹ️  The data folder is on an SMB share without the "nobrl" mount option — if Synapse reports "database is locked", add ,nobrl to that mount.');
+}
 export const NETWORK_STORAGE = process.env.SYNAPSE_NETWORK_STORAGE === 'true' || NETWORK_FS.test(fsType);
 if (NETWORK_STORAGE && process.env.SYNAPSE_NETWORK_STORAGE !== 'true') {
   console.log(`📁 The data folder is on a network share (${fsType}) — using network-safe database settings.`);
@@ -64,7 +88,7 @@ for (let attempt = 1; ; attempt++) {
         (check with: docker ps), or
       • the data folder is on a network share (NFS/SMB) that is still holding an old lock,
         or doesn't allow file locking. If it's a network share, set
-        SYNAPSE_NETWORK_STORAGE=true in .env (Synapse also detects NFS/SMB by itself).
+        SYNAPSE_NETWORK_STORAGE=true in .env (Synapse also detects NFS/SMB by itself).${lockAdvice()}
     Waiting and trying again…`);
     }
     if (attempt >= MAX_TRIES) {
