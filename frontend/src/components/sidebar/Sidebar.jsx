@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, ListTodo, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, MessageCircle, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
@@ -13,6 +13,7 @@ import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
 import { kindInfo, datedName } from '../noteKinds';
+import { useChat, totalUnread } from '../../chat/client';
 
 
 function countDescendants(id, notes) {
@@ -273,6 +274,7 @@ export default function Sidebar({ width, onNavigate }) {
 
   // Tasks due today or overdue, for the badge next to "Tasks"
   const [dueCount, setDueCount] = useState(0);
+  const chatUnread = useChat(totalUnread);
   useEffect(() => {
     if (!activeWorkspace) return undefined;
     let cancelled = false;
@@ -323,6 +325,10 @@ export default function Sidebar({ width, onNavigate }) {
         <button className={`nav-item${view === 'tasks' ? ' on' : ''}`} onClick={() => { setView(view === 'tasks' ? 'editor' : 'tasks'); onNavigate?.(); }}>
           <ListTodo size={14} /> Tasks
           {dueCount > 0 && <span className="nav-badge" title="Due today or overdue">{dueCount}</span>}
+        </button>
+        <button className={`nav-item${view === 'chat' ? ' on' : ''}`} onClick={() => { setView(view === 'chat' ? 'editor' : 'chat'); onNavigate?.(); }}>
+          <MessageCircle size={14} /> Chats
+          {chatUnread > 0 && <span className="nav-badge" title="Unread messages">{chatUnread > 99 ? '99+' : chatUnread}</span>}
         </button>
       </div>
 

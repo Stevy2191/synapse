@@ -669,6 +669,7 @@ function ServerGeneralPage() {
           <button role="switch" aria-checked={settings.allow_registration} onClick={toggleSignups} className={`toggle${settings.allow_registration ? ' on' : ''}`}><span /></button>
         </section>
       )}
+      {settings && <GifSettings settings={settings} setSettings={setSettings} />}
       {about && (
         <section style={section}>
           <label style={labelStyle}>About this server</label>
@@ -688,6 +689,39 @@ function ServerGeneralPage() {
         </section>
       )}
     </div>
+  );
+}
+
+// GIF search in chat needs a (free) key from GIPHY or Tenor; it stays on the server.
+function GifSettings({ settings, setSettings }) {
+  const [provider, setProvider] = useState(settings.gif_provider || 'giphy');
+  const [key, setKey] = useState('');
+  const save = async (value) => {
+    try {
+      const { data } = await api.patch('/admin/settings', { gif_provider: provider, gif_api_key: value });
+      setSettings(data);
+      setKey('');
+      toast.success(value ? 'GIF search is on' : 'GIF search is off');
+    } catch (err) { toast.error(errorText(err)); }
+  };
+  return (
+    <section style={section}>
+      <label style={labelStyle}>GIF search in chat</label>
+      <p style={{ ...hint, marginTop: 0, marginBottom: 10 }}>
+        {settings.gif_key_set
+          ? <>On — using {settings.gif_provider === 'tenor' ? 'Tenor' : 'GIPHY'} (key {settings.gif_key_hint}). Searches go through this server, so the key stays private.</>
+          : <>Off. People can still paste a GIF link. To search GIFs, get a free API key from <a href="https://developers.giphy.com/dashboard/" target="_blank" rel="noreferrer">GIPHY</a> or <a href="https://developers.google.com/tenor/guides/quickstart" target="_blank" rel="noreferrer">Tenor</a> and paste it here.</>}
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <select value={provider} onChange={e => setProvider(e.target.value)} style={{ ...field, flex: '0 0 auto' }}>
+          <option value="giphy">GIPHY</option>
+          <option value="tenor">Tenor</option>
+        </select>
+        <input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} placeholder={settings.gif_key_set ? 'Paste a new key to replace it' : 'API key'} style={field} />
+        <button style={primary} disabled={!key.trim()} onClick={() => save(key.trim())}>Save</button>
+        {settings.gif_key_set && <button style={secondary} onClick={() => save('')}>Turn off</button>}
+      </div>
+    </section>
   );
 }
 

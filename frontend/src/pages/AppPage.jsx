@@ -5,6 +5,8 @@ import Editor from '../components/editor/Editor';
 import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
 import TrashView from '../components/trash/TrashView';
+import ChatView from '../components/chat/ChatView';
+import { startChat, stopChat, useChat, totalUnread } from '../chat/client';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
 import api from '../api';
@@ -56,6 +58,28 @@ export default function AppPage() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // Chat: live connection while signed in; a notification click opens /?chat=<id>.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    startChat();
+    const openFromUrl = () => {
+      const id = new URLSearchParams(window.location.search).get('chat');
+      if (id) {
+        useStore.getState().setActiveChat(id);
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    };
+    openFromUrl();
+    const onSwMessage = e => { if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId); };
+    navigator.serviceWorker?.addEventListener('message', onSwMessage);
+    return () => { stopChat(); navigator.serviceWorker?.removeEventListener('message', onSwMessage); };
+  }, [user?.id]);
+  const unread = useChat(totalUnread);
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread}) Synapse` : 'Synapse';
+    try { if (navigator.setAppBadge) (unread ? navigator.setAppBadge(unread) : navigator.clearAppBadge()); } catch { /* not supported */ }
+  }, [unread]);
+
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
@@ -93,7 +117,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : <Editor />}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : <Editor />}
       </main>
       <SearchModal />
       <Settings />

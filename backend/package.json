@@ -21,6 +21,7 @@
     "multer": "^1.4.5-lts.1",
     "otpauth": "^9.5.2",
     "puppeteer-core": "^25.16.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
   }
 }

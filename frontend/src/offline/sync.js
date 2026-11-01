@@ -13,6 +13,7 @@ import { noteKind } from '../components/noteKinds';
 import api from '../api';
 import { useStore } from '../stores/useStore';
 import { openUserDb, db, deleteUserDb } from './db';
+import { forgetPushOnThisDevice } from '../chat/client';
 
 const TREE_FIELDS = ['id', 'workspace_id', 'parent_id', 'title', 'tags', 'note_type', 'position', 'created_at', 'updated_at'];
 const PULL_INTERVAL = 2 * 60 * 1000;
@@ -111,6 +112,7 @@ export async function signOut() {
     stopOffline();
   }
   if (user?.id) await deleteUserDb(user.id);
+  await forgetPushOnThisDevice(); // so the next person on this device doesn't get my notifications
   logout();
   return true;
 }

@@ -29,6 +29,7 @@ export const useStore = create(
       searchOpen: false,
       settingsOpen: false,
       settingsPage: 'profile',
+      activeChatId: null,         // the chat open on the Chats page
 
       // Offline sync status (see offline/sync.js)
       sync: { online: true, pending: 0, syncing: false, lastSyncAt: null },
@@ -68,6 +69,7 @@ export const useStore = create(
 
       // UI actions
       setView: (view) => set({ view }),
+      setActiveChat: (id) => set({ activeChatId: id, view: 'chat' }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarWidth: (w) => set({ sidebarWidth: w }),
       setRightRailOpen: (open) => set({ rightRailOpen: open }),
@@ -87,7 +89,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, view: ['graph', 'tasks', 'trash'].includes(s.view) ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, view: ['graph', 'tasks', 'trash'].includes(s.view) ? 'editor' : s.view })
     }
   )
 );

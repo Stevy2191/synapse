@@ -26,6 +26,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Chat notifications (push) are handled by this small extra script.
+        importScripts: ['/push-sw.js'],
         // Excalidraw's fonts (~14 MB, mostly CJK) are cached the first time they're used instead.
         globIgnores: ['excalidraw/**'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,

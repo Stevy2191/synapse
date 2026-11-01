@@ -59,9 +59,45 @@ const CATEGORIES = [
   ]],
 ];
 
-const ALL = CATEGORIES.flatMap(([, items]) => items);
+// Extra categories shown first in chat (reactions and messages).
+const CHAT_CATEGORIES = [
+  ['Smileys', [
+    ['😀', 'grin smile happy'], ['😃', 'smile happy'], ['😄', 'smile laugh'], ['😁', 'grin beam'], ['😆', 'laugh'], ['😅', 'sweat smile phew'],
+    ['🤣', 'rofl laugh rolling'], ['😂', 'joy laugh tears lol'], ['🙂', 'slight smile'], ['🙃', 'upside down'], ['😉', 'wink'], ['😊', 'blush smile'],
+    ['😇', 'angel innocent'], ['🥰', 'love hearts'], ['😍', 'heart eyes love'], ['🤩', 'star struck wow'], ['😘', 'kiss'], ['😋', 'yum tasty'],
+    ['😛', 'tongue'], ['😜', 'wink tongue crazy'], ['🤪', 'zany crazy'], ['🤗', 'hug'], ['🤭', 'oops giggle'], ['🤫', 'shush quiet'],
+    ['🤔', 'think hmm'], ['🤐', 'zip mouth'], ['😐', 'neutral'], ['😑', 'expressionless'], ['😶', 'no mouth'], ['😏', 'smirk'],
+    ['😒', 'unamused'], ['🙄', 'eye roll'], ['😬', 'grimace awkward'], ['😌', 'relieved'], ['😔', 'pensive sad'], ['😪', 'sleepy'],
+    ['😴', 'sleep zzz'], ['😷', 'mask sick'], ['🤒', 'thermometer sick'], ['🤢', 'nauseated sick'], ['🥵', 'hot'], ['🥶', 'cold freezing'],
+    ['🥴', 'woozy'], ['🤯', 'mind blown exploding'], ['🤠', 'cowboy'], ['🥳', 'party celebrate'], ['😎', 'cool sunglasses'], ['🤓', 'nerd'],
+    ['😕', 'confused'], ['😟', 'worried'], ['🙁', 'frown'], ['😮', 'wow surprised open mouth'], ['😲', 'astonished'], ['😳', 'flushed embarrassed'],
+    ['🥺', 'pleading puppy'], ['😢', 'cry sad tear'], ['😭', 'sob cry'], ['😱', 'scream fear'], ['😤', 'huff triumph'], ['😡', 'angry mad'],
+    ['🤬', 'swear cursing'], ['💀', 'skull dead'], ['💩', 'poop'], ['🤡', 'clown'], ['👻', 'ghost'], ['👽', 'alien'],
+  ]],
+  ['People & hands', [
+    ['👍', 'thumbs up yes like ok'], ['👎', 'thumbs down no dislike'], ['👏', 'clap applause'], ['🙌', 'raise hands hooray'], ['🙏', 'pray thanks please'], ['🤝', 'handshake deal'],
+    ['👋', 'wave hello bye'], ['✌️', 'peace victory'], ['🤞', 'fingers crossed luck'], ['🤟', 'love you'], ['🤘', 'rock'], ['👌', 'ok perfect'],
+    ['🤌', 'pinched'], ['👈', 'left point'], ['👉', 'right point'], ['👆', 'up point'], ['👇', 'down point'], ['☝️', 'index up'],
+    ['✋', 'raised hand stop'], ['💪', 'muscle strong flex'], ['🫶', 'heart hands'], ['🤷', 'shrug dunno'], ['🤦', 'facepalm'], ['🙋', 'raising hand me'],
+    ['🙆', 'ok gesture'], ['🙅', 'no gesture'], ['💁', 'tipping hand'], ['🧑‍💻', 'coder developer'], ['👨‍👩‍👧', 'family'], ['👶', 'baby'],
+  ]],
+  ['Hearts & celebration', [
+    ['❤️', 'red heart love'], ['🧡', 'orange heart'], ['💛', 'yellow heart'], ['💚', 'green heart'], ['💙', 'blue heart'], ['💜', 'purple heart'],
+    ['🖤', 'black heart'], ['🤍', 'white heart'], ['💔', 'broken heart'], ['💕', 'two hearts'], ['💖', 'sparkling heart'], ['💯', 'hundred 100'],
+    ['🎉', 'party tada celebrate'], ['🎊', 'confetti'], ['🎂', 'birthday cake'], ['🎁', 'gift present'], ['🎈', 'balloon'], ['🥂', 'cheers toast'],
+    ['🍾', 'champagne'], ['🏆', 'trophy win'], ['🥇', 'gold medal first'], ['👑', 'crown king queen'], ['💤', 'zzz sleep'], ['👀', 'eyes look'],
+  ]],
+  ['Travel', [
+    ['✈️', 'plane flight travel vacation'], ['🏖️', 'beach vacation holiday'], ['🏝️', 'island'], ['⛱️', 'umbrella beach'], ['🏔️', 'mountain snow'], ['⛺', 'tent camping'],
+    ['🚗', 'car drive'], ['🚆', 'train'], ['🚢', 'ship cruise'], ['🗺️', 'map'], ['🧳', 'luggage suitcase'], ['🎢', 'roller coaster theme park'],
+    ['🌍', 'earth world'], ['🗽', 'statue liberty'], ['🗼', 'tower'], ['🏰', 'castle'], ['🌅', 'sunrise'], ['🌴', 'palm tree'],
+  ]],
+];
 
-export default function EmojiPicker({ onPick, onClose, anchorStyle }) {
+const ALL = [...CHAT_CATEGORIES, ...CATEGORIES].flatMap(([, items]) => items);
+
+export default function EmojiPicker({ onPick, onClose, anchorStyle, forChat = false }) {
+  const cats = forChat ? [...CHAT_CATEGORIES, ...CATEGORIES] : CATEGORIES;
   const [q, setQ] = useState('');
   const ref = useRef(null);
 
@@ -92,13 +128,13 @@ export default function EmojiPicker({ onPick, onClose, anchorStyle }) {
     <div ref={ref} className="emoji-picker fade-in" style={anchorStyle} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 8, background: 'var(--bg-base)', border: '1px solid var(--border)', marginBottom: 8 }}>
         <Search size={14} style={{ color: 'var(--text-muted)' }} />
-        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search (e.g. work, book, home)"
+        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={forChat ? "Search (e.g. laugh, heart, party)" : "Search (e.g. work, book, home)"}
           style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', font: '400 13px var(--font-sans)' }} />
       </div>
       <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: 2 }}>
         {results ? (
           results.length ? grid(results) : <p style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: 12, textAlign: 'center' }}>No match. Try another word.</p>
-        ) : CATEGORIES.map(([name, items]) => (
+        ) : cats.map(([name, items]) => (
           <div key={name} style={{ marginBottom: 8 }}>
             <div className="section-label" style={{ padding: '4px 2px' }}>{name}</div>
             {grid(items)}

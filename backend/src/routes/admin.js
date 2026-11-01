@@ -31,8 +31,17 @@ router.post('/users/:id/reset-mfa', (req, res) => {
 });
 
 // Server-wide settings
+function serverSettings() {
+  const key = getSetting('gif_api_key') || '';
+  return {
+    allow_registration: getSetting('allow_registration') === 'true',
+    gif_provider: getSetting('gif_provider') || 'giphy',
+    gif_key_set: !!key,
+    gif_key_hint: key ? `…${key.slice(-4)}` : '',
+  };
+}
 router.get('/settings', (req, res) => {
-  res.json({ allow_registration: getSetting('allow_registration') === 'true' });
+  res.json(serverSettings());
 });
 
 router.patch('/settings', (req, res) => {
@@ -41,7 +50,16 @@ router.patch('/settings', (req, res) => {
     if (typeof body.allow_registration !== 'boolean') return res.status(400).json({ error: 'Invalid value' });
     setSetting('allow_registration', body.allow_registration);
   }
-  res.json({ allow_registration: getSetting('allow_registration') === 'true' });
+  // GIF search in chat: a GIPHY or Tenor API key (empty string removes it)
+  if (body.gif_provider !== undefined) {
+    if (!['giphy', 'tenor'].includes(body.gif_provider)) return res.status(400).json({ error: 'Invalid value' });
+    setSetting('gif_provider', body.gif_provider);
+  }
+  if (body.gif_api_key !== undefined) {
+    if (typeof body.gif_api_key !== 'string' || body.gif_api_key.length > 200 || /\s/.test(body.gif_api_key.trim())) return res.status(400).json({ error: 'Invalid key' });
+    setSetting('gif_api_key', body.gif_api_key.trim());
+  }
+  res.json(serverSettings());
 });
 
 // About this server

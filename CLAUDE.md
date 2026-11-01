@@ -34,6 +34,9 @@ backend/src/
   routes/attachments.js, workspaces.js, admin.js   uploads, per-workspace prefs, admin tools
   settings.js, users.js, middleware/   server settings (Settings → Server), users, auth + rate limit
   cli.js, setup.js    first-admin setup code, `synapse` CLI helpers
+  chat.js + routes/chats.js   Chat: tables (chats, chat_members, chat_messages, chat_files,
+                      chat_reactions, push_subscriptions), SSE live hub, web-push (VAPID keys in
+                      settings table), signed file links, GIF search proxy (GIPHY/Tenor key in settings)
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
@@ -60,6 +63,12 @@ frontend/src/
                       styles.js (fonts inlined), docx.js (HTML → real .docx via `docx`),
                       markdown.js (zip of .md + attachments/), flowchart.js; UI in
                       components/editor/ExportDialog.jsx (Export button in the note top bar)
+  chat/client.js      Chat data layer (zustand `useChat`): live stream via fetch-SSE with auth header,
+                      reconnect + catch-up, unread, actions, push subscribe; chat/format.js = safe
+                      message formatting (**bold**, links, @mentions, [[note]] links)
+  components/chat/    ChatView (list+room, view 'chat'), ChatRoom, Message, Composer, GifPicker,
+                      ChatDialogs (new chat, people, read the note); Chat button + side panel in Editor
+  public/push-sw.js   push + notificationclick handlers, pulled into the PWA service worker
   themes/index.js     themes as CSS variables; index.css has most component CSS
 install.sh            one-line installer (modes home|proxy|https|lan-https, storage folder|volume|smb,
                       optional self-hosted draw.io); wrapped in { } so curl|bash is safe
@@ -76,6 +85,16 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   the server for pictures of equations/Mermaid/SVGs, falling back to canvas / LaTeX text.
   New editor blocks need handling in `export/render.js` (and `docx.js` if structural).
 
+- **Chat** (built Nov 2026): online-only (live by nature, nothing stored on the device).
+  A chat is standalone or tied to one note (`chats.note_id`, unique); members are any users on
+  the server (workspaces stay private). Note-chat members can *read* the note
+  (`GET /api/chats/:id/note`, rendered with export/render.js) but not edit it — shared editing is
+  the next step. Live delivery = one SSE stream per open app (`/api/chats/events`; excluded from
+  compression, `X-Accel-Buffering: no` for nginx). Push goes out only when none of the person's
+  apps is on screen (clients report visibility via `/chats/presence`); muted chats push only
+  for @mentions/@everyone. Files: `DATA_DIR/uploads/chat/`, served via HMAC-signed links (≈1 week)
+  because `<img>` can't send the auth header; unsent uploads purged after a day. GIF search needs
+  an admin-entered GIPHY/Tenor key (Settings → Server); otherwise paste a GIF link.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -107,6 +126,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   CDP `Input.dispatchMouseEvent` with `pointerType: 'pen'`, `force`; touch: `Input.dispatchTouchEvent`.
 - Export: LibreOffice (`soffice --headless --convert-to pdf`) + `pdftoppm` are in the sandbox,
   so Word/PDF output can be turned into images and looked at.
+- Chat: two browser contexts (two users) in one Playwright script; add the 2nd user with
+  `POST /api/admin/users`. Real push can't be tested in the sandbox (needs the browser's push
+  service on the internet); GIF search likewise.
 - draw.io can't load in the sandbox (no internet): serve a stand-in page that speaks the embed
   protocol and set `DRAWIO_URL=http://localhost:8098`.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -151,8 +173,10 @@ Sean's priorities first (asked for Nov 2026):
 
 Other ideas:
 
-- Version history per note (diff + restore); sharing / public read-only links; real-time
-  collaboration (Yjs works with Tiptap).
+- **Shared note editing** (Sean wants this, follow-up to Chat): let note-chat members edit the
+  note together — needs shared notes in sync (pull notes shared with me, permission checks in
+  PATCH, a "Shared with me" section), ideally real-time (Yjs works with Tiptap).
+- Version history per note (diff + restore); sharing / public read-only links.
 - Note templates (meeting, project, recipe…); attachments other than images (PDF viewer
   inline, files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.

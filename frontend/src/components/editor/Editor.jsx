@@ -15,9 +15,12 @@ import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
-  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle,
 } from 'lucide-react';
 import ExportDialog from './ExportDialog';
+import ChatRoom from '../chat/ChatRoom';
+import { NewChatDialog } from '../chat/ChatDialogs';
+import { chatForNote, useChat } from '../../chat/client';
 import { useStore } from '../../stores/useStore';
 import { saveNote, openNote, openNoteByTitle, createNote, refreshActiveLinks } from '../../offline/sync';
 import toast from 'react-hot-toast';
@@ -302,6 +305,16 @@ export default function Editor() {
   const [linkSuggestions, setLinkSuggestions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [noteChat, setNoteChat] = useState(null);      // chat id shown beside the note
+  const [newNoteChat, setNewNoteChat] = useState(false);
+  const noteChatSummary = useChat(s => s.chats.find(c => c.note?.id === activeNote?.note?.id));
+  useEffect(() => { setNoteChat(null); setNewNoteChat(false); }, [activeNote?.note?.id]);
+  const openNoteChat = async () => {
+    if (noteChat) { setNoteChat(null); return; }
+    const chat = noteChatSummary || await chatForNote(activeNote.note.id);
+    if (chat) setNoteChat(chat.id);
+    else setNewNoteChat(true);
+  };
   const saveTimer = useRef(null);
   const richEditorRef = useRef(null);
   const cmRef = useRef(null);
@@ -649,12 +662,17 @@ export default function Editor() {
           title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
           {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
         </span>
+        <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
+          <MessageCircle size={15} /><span className="hide-narrow">Chat</span>
+          {noteChatSummary?.unread > 0 && <span className="chat-dot-badge">{noteChatSummary.unread}</span>}
+        </button>
         <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
           <Download size={15} /><span className="hide-narrow">Export</span>
         </button>
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {newNoteChat && <NewChatDialog note={activeNote.note} onClose={() => setNewNoteChat(false)} onCreated={c => { setNewNoteChat(false); setNoteChat(c.id); }} />}
 
       {/* Formatting toolbar */}
       {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}
@@ -700,7 +718,7 @@ export default function Editor() {
           </>
         )}
 
-        {rightRailOpen && <RightRail activeNote={activeNote} />}
+        {noteChat ? <div className="note-chat-panel"><ChatRoom chatId={noteChat} compact onClose={() => setNoteChat(null)} /></div> : rightRailOpen && <RightRail activeNote={activeNote} />}
       </div>
       {linkPopup}
     </div>
