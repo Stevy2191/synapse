@@ -37,6 +37,7 @@ ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
   ${B}port${R} <number>               Move Synapse to another port (checks it's free)
   ${B}trust${R}                       HTTPS-by-IP: show the "trust this server" page (with QR code)
   ${B}set-ip${R} [address]            HTTPS-by-IP: update after the server's IP address changes
+  ${B}drawio${R} on [port] | off       Run your own draw.io for diagrams, or go back to diagrams.net
   ${B}uninstall${R}                   Remove Synapse (asks before deleting notes)
 EOF
 }
@@ -60,6 +61,10 @@ esac
 cd "$SYNAPSE_DIR"
 
 env_get() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+# Set KEY=VALUE in .env (adding it if missing).
+env_set() {
+  if grep -qE "^$1=" .env 2>/dev/null; then sed -i "s|^$1=.*|$1=$2|" .env; else printf '%s=%s\n' "$1" "$2" >>.env; fi
+}
 compose() { docker compose "$@"; }
 is_running() { compose ps --status running --services 2>/dev/null | grep -qx synapse; }
 # A throwaway container with the notes mounted exactly as Synapse sees them (at /data).
@@ -69,6 +74,52 @@ port_in_use() {
   local p="$1"
   if command -v ss >/dev/null 2>&1; then ss -Hltn "sport = :$p" 2>/dev/null | grep -q .
   else (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; fi
+}
+
+next_free_port() {
+  local p="$1" avoid=" ${2:-} "
+  while port_in_use "$p" || [[ "$avoid" == *" $p "* ]]; do p=$((p + 1)); done
+  echo "$p"
+}
+
+open_firewall() {
+  local p="$1"
+  if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw status | grep -qE "^$p(/tcp)?[[:space:]]" || { ufw allow "$p/tcp" >/dev/null && ok "Firewall: port $p allowed"; }
+  elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+    firewall-cmd --list-ports | grep -qw "$p/tcp" || { firewall-cmd --permanent --add-port="$p/tcp" >/dev/null && firewall-cmd --reload >/dev/null && ok "Firewall: port $p allowed"; }
+  fi
+  return 0
+}
+
+# Remove the draw.io pieces from docker-compose.yml and the Caddyfile (if present).
+drawio_remove_config() {
+  local tmp
+  tmp=$(mktemp)
+  # The service block: its comment, "  drawio:" and the indented lines under it.
+  awk '
+    # Hold blank lines until we know whether the draw.io block follows them.
+    /^[[:space:]]*$/ { if (!skip) held = held $0 "\n"; next }
+    # Drop the one blank line `synapse drawio on` put before the block; keep any others.
+    /^  # Your own draw.io editor/ { if (held != "") held = substr(held, 1, length(held) - 1); next }
+    /^  drawio:[[:space:]]*$/ { skip = 1; next }
+    skip && /^    / { next }
+    { skip = 0; printf "%s", held; held = ""; print }
+    END { printf "%s", held }
+  ' docker-compose.yml >"$tmp" && cat "$tmp" >docker-compose.yml
+  # Caddy's draw.io port mapping
+  sed -i '/^      - "\${DRAWIO_PORT}:\${DRAWIO_PORT}"$/d' docker-compose.yml
+  if [ -f Caddyfile ]; then
+    awk '
+      /^[[:space:]]*$/ && !skip { held = held $0 "\n"; next }
+      # Drop the block and the one blank line added before it.
+      /^# Your own draw.io, on HTTPS/ { if (held != "") held = substr(held, 1, length(held) - 1); skip = 1; next }
+      skip { if (/^}/) { skip = 0 } ; next }
+      { printf "%s", held; held = ""; print }
+      END { printf "%s", held }
+    ' Caddyfile >"$tmp" && cat "$tmp" >Caddyfile
+  fi
+  rm -f "$tmp"
 }
 
 lan_ip() {
@@ -298,6 +349,79 @@ case "$cmd" in
     compose up -d >/dev/null
     ok "Synapse moved to $(address)"
     warn "If a firewall or reverse proxy points at the old port, update it too."
+    ;;
+
+  drawio)
+    need_docker "$cmd" "$@"
+    mode=$(env_get SYNAPSE_MODE)
+    [ -n "$mode" ] || die "This install was set up by hand. Add the jgraph/drawio container to docker-compose.yml and set DRAWIO_URL for the synapse service."
+    case "${1:-}" in
+      on)
+        if [ -n "$(env_get DRAWIO_URL)" ] && grep -q '^  drawio:' docker-compose.yml; then
+          ok "Your own draw.io is already on: $(env_get DRAWIO_URL)"; exit 0
+        fi
+        drawio_remove_config   # start clean if a previous attempt was half done
+        avoid="$(env_get SYNAPSE_PORT) $(env_get SYNAPSE_TRUST_PORT)"
+        case "$mode" in home|proxy) start=8081 ;; *) start=8444 ;; esac
+        dp="${2:-$(next_free_port "$start" "$avoid")}"
+        [[ "$dp" =~ ^[0-9]+$ ]] && [ "$dp" -ge 1024 ] && [ "$dp" -le 65535 ] || die "Usage: synapse drawio on [port]"
+        port_in_use "$dp" && die "Port $dp is already in use. Pick another: synapse drawio on <port>"
+        [[ " $avoid " == *" $dp "* ]] && die "Port $dp is already used by Synapse. Pick another."
+        case "$mode" in
+          home)      url="http://$(lan_ip):$dp" ;;
+          proxy)     url="http://$(lan_ip):$dp" ;;
+          https)     url="https://$(env_get SYNAPSE_DOMAIN):$dp" ;;
+          lan-https) url="https://$(env_get SYNAPSE_IP):$dp" ;;
+          *) die "Unknown setup mode: $mode" ;;
+        esac
+        if [ "$mode" = proxy ] && [ -r /dev/tty ]; then
+          echo "Browsers block plain-http pages inside an https site, so give draw.io its own proxy host"
+          echo "(forward it to $(lan_ip):$dp), e.g. https://drawio.example.com"
+          printf 'Address people will use for draw.io %s[%s]%s ' "$D" "$url" "$R"
+          IFS= read -r answer </dev/tty || answer=""
+          url="${answer:-$url}"; url="${url%/}"
+        fi
+        env_set DRAWIO_PORT "$dp"
+        env_set DRAWIO_URL "$url"
+        # Older installs: make sure Synapse is handed DRAWIO_URL.
+        if ! grep -q 'DRAWIO_URL=\${DRAWIO_URL' docker-compose.yml; then
+          sed -i '0,/^      - DATA_DIR=\/data$/s||      - DATA_DIR=/data\n      - DRAWIO_URL=${DRAWIO_URL:-}|' docker-compose.yml
+        fi
+        # The draw.io service goes at the end of the services list (before a top-level volumes: section).
+        block=$(printf '\n  # Your own draw.io editor (diagrams are still saved in Synapse)\n  drawio:\n    image: jgraph/drawio:latest\n    container_name: ${SYNAPSE_CONTAINER:-synapse}-drawio\n    restart: unless-stopped\n')
+        case "$mode" in home|proxy) block+=$(printf '\n    ports:\n      - "${DRAWIO_PORT}:8080"') ;; esac
+        tmp=$(mktemp)
+        BLOCK="$block" awk 'BEGIN { b = ENVIRON["BLOCK"] } /^volumes:/ && !done { print b; print ""; done = 1 } { print } END { if (!done) print b }' docker-compose.yml >"$tmp" && cat "$tmp" >docker-compose.yml
+        rm -f "$tmp"
+        case "$mode" in
+          https)
+            sed -i 's|^      - "443:443/udp"$|      - "443:443/udp"\n      - "${DRAWIO_PORT}:${DRAWIO_PORT}"|' docker-compose.yml
+            printf '\n# Your own draw.io, on HTTPS with the same certificate\n%s:%s {\n\treverse_proxy drawio:8080\n}\n' "$(env_get SYNAPSE_DOMAIN)" "$dp" >>Caddyfile ;;
+          lan-https)
+            sed -i 's|^      - "${SYNAPSE_TRUST_PORT}:${SYNAPSE_TRUST_PORT}"$|      - "${SYNAPSE_TRUST_PORT}:${SYNAPSE_TRUST_PORT}"\n      - "${DRAWIO_PORT}:${DRAWIO_PORT}"|' docker-compose.yml
+            write_lan_caddyfile "$(env_get SYNAPSE_IP)" "$(env_get SYNAPSE_PORT)" "$(env_get SYNAPSE_TRUST_PORT)" ;;
+        esac
+        compose config -q || die "The updated docker-compose.yml isn't valid. Nothing was started; please report this."
+        open_firewall "$dp"
+        echo "Downloading and starting draw.io (a large download the first time)…"
+        compose up -d
+        ok "Your own draw.io is on: $url"
+        [ "$mode" = proxy ] && warn "Remember to add a proxy host for $url → $(lan_ip):$dp"
+        echo "  Reload Synapse in your browser to start using it."
+        ;;
+      off)
+        drawio_remove_config
+        env_set DRAWIO_PORT ""
+        env_set DRAWIO_URL ""
+        if [ "$mode" = lan-https ]; then
+          write_lan_caddyfile "$(env_get SYNAPSE_IP)" "$(env_get SYNAPSE_PORT)" "$(env_get SYNAPSE_TRUST_PORT)"
+        fi
+        compose config -q || die "The updated docker-compose.yml isn't valid; please report this."
+        compose up -d --remove-orphans
+        ok "Diagrams now use diagrams.net again. Reload Synapse in your browser."
+        ;;
+      *) die "Usage: synapse drawio on [port]  |  synapse drawio off" ;;
+    esac
     ;;
 
   uninstall)

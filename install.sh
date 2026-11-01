@@ -379,17 +379,43 @@ esac
 # Already installed here (by this installer or by hand)? Offer an update instead.
 if is_synapse_install "$DIR"; then
   warn "Synapse is already set up in $DIR."
-  if confirm "Update it to the latest version and add the 'synapse' command? (your notes are kept)" Y; then
-    if [ "$DRY_RUN" = 1 ]; then ok "(dry run) would update"; install_cli; exit 0; fi
-    (cd "$DIR" && docker compose pull </dev/null && docker compose up -d </dev/null)
-    ok "Updated. Your notes are untouched."
-    install_cli
+  has_drawio=no
+  grep -qE '^DRAWIO_URL=.+' "$DIR/.env" 2>/dev/null && has_drawio=yes
+  choice=""
+  if [ -n "$DRAWIO" ]; then
+    choice=3   # --drawio yes|no given: update, then set draw.io
+  elif [ "$ASSUME_YES" = 1 ] || ! have_tty; then
+    choice=1
+  else
     say ""
-    say "  Run ${B}synapse status${R} to see the address, or ${B}synapse help${R} for everything else."
+    say "  ${B}1)${R} Update to the latest version     ${D}notes and settings are kept${R}"
+    if [ "$has_drawio" = yes ]; then
+      say "  ${B}2)${R} Turn off your own draw.io         ${D}diagrams go back to diagrams.net${R}"
+    else
+      say "  ${B}2)${R} Run your own draw.io              ${D}diagrams work offline; large download${R}"
+    fi
+    say "  ${B}3)${R} Cancel"
     say ""
-    exit 0
+    ask "Choose 1, 2 or 3:" "1"
+    case "$REPLY" in
+      1) choice=1 ;;
+      2) choice=3; if [ "$has_drawio" = yes ]; then DRAWIO=no; else DRAWIO=yes; fi ;;
+      *) die "Nothing changed." ;;
+    esac
   fi
-  die "Nothing changed. (To reinstall, choose another folder or run 'synapse uninstall' first.)"
+  if [ "$DRY_RUN" = 1 ]; then ok "(dry run) would update${DRAWIO:+ and set draw.io: $DRAWIO}"; install_cli; exit 0; fi
+  (cd "$DIR" && docker compose pull </dev/null && docker compose up -d </dev/null)
+  ok "Updated. Your notes are untouched."
+  install_cli
+  if [ "$choice" = 3 ]; then
+    input=/dev/null; have_tty && input="$TTY"
+    if [ "$DRAWIO" = yes ]; then SYNAPSE_DIR="$DIR" "${SYNAPSE_CLI_DEST:-/usr/local/bin/synapse}" drawio on ${DRAWIO_PORT:+"$DRAWIO_PORT"} <"$input"
+    else SYNAPSE_DIR="$DIR" "${SYNAPSE_CLI_DEST:-/usr/local/bin/synapse}" drawio off </dev/null; fi
+  fi
+  say ""
+  say "  Run ${B}synapse status${R} to see the address, or ${B}synapse help${R} for everything else."
+  say ""
+  exit 0
 fi
 CONTAINER=synapse
 # Never overwrite another app's setup.

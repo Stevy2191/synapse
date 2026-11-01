@@ -53,7 +53,7 @@ The installer:
   3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets a free Let's Encrypt certificate automatically
   4. **HTTPS without a domain**: `https://192.168.x.x:8443`. Caddy creates this server's own certificate, and a small **trust page** (with a QR code) walks each phone or computer through trusting it once. After that there are no warnings, and offline mode works
 - checks which ports are free, tells you what's using a busy one, and suggests a free one
-- offers to run **your own draw.io** for diagrams (optional: by default diagrams use the free diagrams.net editor, which needs internet). It's set up to match how you open Synapse, including HTTPS with the same certificate
+- offers to run **your own draw.io** for diagrams (optional: by default diagrams use the free diagrams.net editor, which needs internet). It's set up to match how you open Synapse, including HTTPS with the same certificate. Changed your mind later? Run `synapse drawio on` (or `off`), or re-run the installer and pick it from the menu
 - asks where to keep your notes:
   1. **A folder on this server**: `./data` by default, or any path, such as a second drive or USB disk (it lists mounted drives with their free space). If the folder already holds Synapse notes, they're used
   2. **A Docker volume**: Docker manages the storage
@@ -96,6 +96,7 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse port <number>` | Move to another port (checks it's free) |
 | `synapse trust` | HTTPS without a domain: show the trust page address and QR code |
 | `synapse set-ip [address]` | HTTPS without a domain: update after the server's IP changes (devices stay trusted) |
+| `synapse drawio on [port]` / `off` | Run your own draw.io for diagrams (works offline), or go back to diagrams.net |
 | `synapse restart` / `stop` / `start` | |
 | `synapse uninstall` | Remove Synapse (asks before deleting notes) |
 
