@@ -20,6 +20,7 @@ import exportRoutes from './routes/export.js';
 import chatRoutes from './routes/chats.js';
 import aiRoutes from './routes/ai.js';
 import shareRoutes from './routes/shares.js';
+import { ownerRouter as publishRoutes, publicRouter } from './routes/publish.js';
 import { purgeOrphanChatFiles } from './chat.js';
 
 const app = express();
@@ -62,6 +63,8 @@ app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/shares', shareRoutes);
+app.use('/api/publish', publishRoutes);
+app.use('/api/public', publicRouter);  // published notes: no sign-in
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

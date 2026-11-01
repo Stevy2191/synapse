@@ -15,7 +15,7 @@ import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
-  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock, Globe,
 } from 'lucide-react';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
@@ -32,6 +32,8 @@ import { WorkspaceIcon, workspaceSettings } from '../Avatar';
 import AiPanel from '../ai/AiPanel';
 import ShareDialog from '../share/ShareDialog';
 import HistoryPanel from '../share/HistoryPanel';
+import PublishDialog from '../share/PublishDialog';
+import { listLinks, rememberLinks, noteSaved as publishNoteSaved } from '../../publish/client';
 import { useShares, getNoteShares, saveSharedNote, takeTurn, releaseTurn } from '../../shares/client';
 import { userName as personNameById } from '../../chat/client';
 import { storeServerNote } from '../../offline/sync';
@@ -324,6 +326,8 @@ export default function Editor() {
   const role = guest ? activeNote.shared.role : 'owner';
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [published, setPublished] = useState(0); // number of live links for my note
   const [ownerShare, setOwnerShare] = useState(null); // { count } for my own notes
   const sharedByMe = useShares(s => s.sharedByMe);
   const lock = useShares(s => (noteId ? s.locks[noteId] : null));
@@ -331,9 +335,10 @@ export default function Editor() {
 
   // Is this note of mine shared (directly or through a note it's inside)? Asked when it opens.
   useEffect(() => {
-    setOwnerShare(null); setHistoryOpen(false); setShareOpen(false);
+    setOwnerShare(null); setHistoryOpen(false); setShareOpen(false); setPublishOpen(false); setPublished(0);
     if (!noteId || guest) return undefined;
     let cancelled = false;
+    listLinks(noteId).then(l => { if (!cancelled) { setPublished(l.filter(x => !x.expired).length); rememberLinks(noteId, l); } }).catch(() => {});
     getNoteShares(noteId).then(d => {
       if (cancelled) return;
       setOwnerShare({ count: d.shares.length + d.inherited.length });
@@ -516,11 +521,12 @@ export default function Editor() {
         const saved = await saveSharedNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode }, baseVersionRef.current);
         if (saved) {
           baseVersionRef.current = saved.version;
-          if (!guestRef.current) { await storeServerNote(saved); updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) }); }
+          if (!guestRef.current) { await storeServerNote(saved); updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg) }); publishNoteSaved(noteId); }
         }
         return;
       }
       await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
+      publishNoteSaved(noteId);
       updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg), kind: noteKind({ note_type: useStore.getState().notes.find(n => n.id === noteId)?.note_type || 'note', content: c, rich_content: rc }) });
       refreshActiveLinks(noteId);
     } catch (err) {
@@ -704,7 +710,7 @@ export default function Editor() {
         });
         return;
       }
-      saveNote(noteId, { canvas_data: canvasData }).catch(() => toast.error('Could not save on this device'));
+      saveNote(noteId, { canvas_data: canvasData }).then(() => publishNoteSaved(noteId)).catch(() => toast.error('Could not save on this device'));
     }, 500);
   }, [activeNote?.note?.id]);
 
@@ -869,6 +875,11 @@ export default function Editor() {
             <Users size={15} /><span className="hide-narrow">{isShared ? `Shared · ${ownerShare.count}` : 'Share'}</span>
           </button>
         )}
+        {!guest && (
+          <button className={`btn-ghost${publishOpen ? ' on' : ''}`} onClick={() => { flushSave(); setPublishOpen(true); }} title={published ? `Published — ${published} link${published === 1 ? '' : 's'}` : 'Publish as a link anyone can open'}>
+            <Globe size={15} /><span className="hide-narrow">{published ? 'Published' : 'Publish'}</span>
+          </button>
+        )}
         <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); }} title="History — who changed what, and when">
           <History size={15} /><span className="hide-narrow">History</span>
         </button>
@@ -887,6 +898,7 @@ export default function Editor() {
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {publishOpen && <PublishDialog note={{ ...activeNote.note, title }} onClose={() => setPublishOpen(false)} onLinksChanged={l => setPublished(l.filter(x => !x.expired).length)} />}
       {shareOpen && <ShareDialog note={{ ...activeNote.note, title }} onClose={() => { setShareOpen(false); getNoteShares(noteId).then(d => setOwnerShare({ count: d.shares.length + d.inherited.length })).catch(() => {}); }} />}
       {aiTarget && <AiPanel key={`${aiTarget.scope}-${aiTarget.from}-${aiTarget.to}`} target={aiTarget} note={{ ...activeNote.note, title }} onApply={applyAi} onClose={() => setAiTarget(null)} />}
       {newNoteChat && <NewChatDialog note={activeNote.note} onClose={() => setNewNoteChat(false)} onCreated={c => { setNewNoteChat(false); setNoteChat(c.id); }} />}

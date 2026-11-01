@@ -8,6 +8,9 @@ import { applyTheme } from './themes';
 import AuthPage from './pages/AuthPage';
 import AppPage from './pages/AppPage';
 
+// Published notes (/p/<link>): open to anyone, no sign-in; loaded only when visited.
+const PublicNotePage = React.lazy(() => import('./pages/PublicNotePage'));
+
 function ProtectedRoute({ children }) {
   const token = useStore(s => s.token);
   return token ? children : <Navigate to="/login" replace />;
@@ -24,6 +27,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<AuthPage />} />
+        <Route path="/p/:id" element={<React.Suspense fallback={null}><PublicNotePage /></React.Suspense>} />
         <Route path="/*" element={<ProtectedRoute><AppPage /></ProtectedRoute>} />
       </Routes>
       <Toaster

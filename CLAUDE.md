@@ -48,6 +48,8 @@ backend/src/
   shares.js + routes/shares.js   note sharing (note_shares: view/edit, include_children), access
                       check noteAccess(), editing turn (in-memory lock, 60 s idle), note_versions
                       history (one entry per person per 10-min session), live note:update/note:lock
+  routes/publish.js   published links (note_publications): owner API /api/publish, public no-auth
+                      API /api/public (PIN check w/ lockout, expiry, view count, e2e blob)
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
@@ -85,6 +87,10 @@ frontend/src/
   shares/client.js    Shared-with-me list, turns, live note events (arrive on the chat SSE stream),
                       saving shared notes straight to the server
   components/share/   ShareDialog (people + Can view/Can edit), HistoryPanel (who/when + word diff, restore)
+  publish/client.js   links + browser-side AES-GCM for end-to-end encrypted links (key in #k=…,
+                      kept in this device's localStorage; re-uploads the scrambled copy after saves)
+  pages/PublicNotePage.jsx  /p/:id — what visitors see (PIN form, decrypt, render, downloads)
+  components/share/PublishDialog.jsx  Publish button on notes
   public/push-sw.js   push + notificationclick handlers, pulled into the PWA service worker
   themes/index.js     themes as CSS variables; index.css has most component CSS
 install.sh            one-line installer (modes home|proxy|https|lan-https, storage folder|volume|smb,
@@ -142,6 +148,15 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   else's edit. Live updates replace the open note when you're not the editor. Guests open shared
   notes from the server (online only); AI/Chat/Export are hidden for them. History is recorded for
   *every* note on each server save (`note_versions`), shown with a word diff and Restore.
+- **Publishing** (built Nov 2026): owner makes links anyone can open at `/p/<128-bit id>`. Per link:
+  **normal** (server returns the current note → always latest) or **end-to-end encrypted** (the note
+  is AES-GCM-encrypted in the browser; key only in the link fragment `#k=` and the publishing
+  device's localStorage; server stores ciphertext; the publishing device re-uploads after each save
+  via `noteSaved()` in Editor). Optional PIN/password (bcrypt, 8 wrong tries per link+IP → 15 min
+  lock), expiry date, "allow downloading" (print-to-PDF / Word / HTML in the visitor's browser —
+  no anonymous server PDF printing). Visitors render with export/render.js inside a sandboxed iframe
+  (no scripts). Encryption needs a secure context (https/localhost); the dialog warns when the
+  address is LAN-only or not https.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -211,7 +226,7 @@ Sean's priorities first (asked for Nov 2026):
 
 Other ideas:
 
-- Public read-only links; letting "Can edit" people add new notes inside a shared folder;
+- Letting "Can edit" people add new notes inside a shared folder;
   showing embedded Free Draw drawings inside notes shared with you; offline copies of shared notes.
 - Note templates (meeting, project, recipe…); attachments other than images (PDF viewer
   inline, files); import from Obsidian / Notion / OneNote / Evernote.

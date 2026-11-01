@@ -101,7 +101,7 @@ function replaceWikiLinks(root, linkTarget) {
       const [target, alias] = m[1].split('|').map(s => s.trim());
       const id = linkTarget(target);
       const el = doc.createElement(id ? 'a' : 'span');
-      el.className = 'x-link';
+      if (id) el.className = 'x-link'; // a note that isn't in this document: plain text
       if (id) el.setAttribute('href', `#note-${id}`);
       el.textContent = alias || target;
       frag.append(el);
