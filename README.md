@@ -88,6 +88,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Flowcharts**: a simple flowchart note type
 
 **Organizing**
+- **Export**: save a note, a note with everything inside it, or a whole workspace as **PDF** (with page numbers), **Word** (.docx you can keep editing), **Markdown** (Obsidian-friendly .zip with pictures) or a single **web page**. Math, Mermaid charts, diagrams, drawings, callouts and checklists all come along
 - **Workspaces**: keep Home, Work and so on apart, each with its own icon, color and settings
 - **Nested notes** with drag and drop
 - **Trash**: deleted notes (with anything inside them) go to the Trash, with Undo, and are deleted for good after 30 days. Restore or delete them forever from **Trash** at the bottom of the sidebar

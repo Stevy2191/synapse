@@ -188,10 +188,10 @@ function isLight() {
 }
 
 /** SVG for a Mermaid chart (Mermaid is large, so it's only downloaded when a chart is shown). */
-export async function renderMermaid(code) {
+export async function renderMermaid(code, { light = isLight() } = {}) {
   mermaidPromise ||= import('mermaid').then(m => m.default);
   const mermaid = await mermaidPromise;
-  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: isLight() ? 'default' : 'dark', fontFamily: 'inherit' });
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: light ? 'default' : 'dark', fontFamily: 'inherit' });
   const id = `mmd-${Date.now().toString(36)}-${renderCount++}`;
   try {
     const { svg } = await mermaid.render(id, code);

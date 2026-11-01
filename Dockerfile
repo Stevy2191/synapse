@@ -13,6 +13,10 @@ FROM node:20-alpine AS production
 # Install build tools for better-sqlite3
 RUN apk add --no-cache python3 make g++ sqlite-dev
 
+# Chromium prints notes to PDF (Export → PDF). Noto fonts cover most languages and emoji.
+RUN apk add --no-cache chromium font-noto font-noto-emoji
+ENV CHROMIUM_PATH=/usr/bin/chromium-browser
+
 WORKDIR /app
 
 COPY backend/package*.json ./

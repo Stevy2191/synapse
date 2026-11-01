@@ -16,6 +16,7 @@ import workspaceRoutes from './routes/workspaces.js';
 import noteRoutes, { purgeTrash } from './routes/notes.js';
 import attachmentRoutes from './routes/attachments.js';
 import adminRoutes from './routes/admin.js';
+import exportRoutes from './routes/export.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +30,8 @@ app.use(compression());
 if (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*') {
   app.use(cors({ origin: process.env.CORS_ORIGIN.split(',').map(s => s.trim()) }));
 }
+// Export has its own, larger body limit, so it's mounted before the general JSON parser.
+app.use('/api/export', exportRoutes);
 app.use(express.json({ limit: '25mb' })); // drawings with pasted pictures can be large
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Synapse' }));

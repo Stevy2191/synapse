@@ -15,8 +15,9 @@ import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
-  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download,
 } from 'lucide-react';
+import ExportDialog from './ExportDialog';
 import { useStore } from '../../stores/useStore';
 import { saveNote, openNote, openNoteByTitle, createNote, refreshActiveLinks } from '../../offline/sync';
 import toast from 'react-hot-toast';
@@ -300,6 +301,7 @@ export default function Editor() {
   const [editorMode, setEditorMode] = useState('markdown');
   const [linkSuggestions, setLinkSuggestions] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const saveTimer = useRef(null);
   const richEditorRef = useRef(null);
   const cmRef = useRef(null);
@@ -647,8 +649,12 @@ export default function Editor() {
           title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
           {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
         </span>
+        <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
+          <Download size={15} /><span className="hide-narrow">Export</span>
+        </button>
         {railButton}
       </div>
+      {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
 
       {/* Formatting toolbar */}
       {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}

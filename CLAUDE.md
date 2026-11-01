@@ -34,6 +34,8 @@ backend/src/
   routes/attachments.js, workspaces.js, admin.js   uploads, per-workspace prefs, admin tools
   settings.js, users.js, middleware/   server settings (Settings → Server), users, auth + rate limit
   cli.js, setup.js    first-admin setup code, `synapse` CLI helpers
+  exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
+                      equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
   offline/db.js       IndexedDB (per user): notes, workspaces, outbox, calendar
   offline/sync.js     THE data layer: local-first reads/writes, outbox push, pull, search,
@@ -53,6 +55,11 @@ frontend/src/
   components/freedraw/              Free Draw note type (canvas, pen/touch, model/render)
   components/tasks, trash, calendar, sidebar (Settings.jsx, SecuritySettings.jsx), graph
   components/ColorPicker.jsx, noteKinds.js (icons/labels/auto-names per kind of note)
+  export/             Export (lazy-loaded): render.js builds one static HTML doc from notes (math,
+                      Mermaid, code colours, diagrams/drawings as images, links → anchors);
+                      styles.js (fonts inlined), docx.js (HTML → real .docx via `docx`),
+                      markdown.js (zip of .md + attachments/), flowchart.js; UI in
+                      components/editor/ExportDialog.jsx (Export button in the note top bar)
   themes/index.js     themes as CSS variables; index.css has most component CSS
 install.sh            one-line installer (modes home|proxy|https|lan-https, storage folder|volume|smb,
                       optional self-hosted draw.io); wrapped in { } so curl|bash is safe
@@ -61,6 +68,13 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 ```
 
 ## Key design decisions
+
+- **Export** (built Nov 2026): PDF, Word, Markdown (.zip), web page (.html); scope = note /
+  note + sub-notes / whole workspace. All formats are built in the browser from the local copy
+  (work offline) except PDF, which the server prints with Chromium (installed in the Docker
+  image); if the server can't (offline / 503) the browser print dialog opens instead. Word asks
+  the server for pictures of equations/Mermaid/SVGs, falling back to canvas / LaTeX text.
+  New editor blocks need handling in `export/render.js` (and `docx.js` if structural).
 
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
@@ -91,6 +105,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Playwright + headless Chromium (preinstalled in the sandbox): log in, click through, read
   IndexedDB in `page.evaluate`, screenshot and *look at* the screenshots. Pen input:
   CDP `Input.dispatchMouseEvent` with `pointerType: 'pen'`, `force`; touch: `Input.dispatchTouchEvent`.
+- Export: LibreOffice (`soffice --headless --convert-to pdf`) + `pdftoppm` are in the sandbox,
+  so Word/PDF output can be turned into images and looked at.
 - draw.io can't load in the sandbox (no internet): serve a stand-in page that speaks the embed
   protocol and set `DRAWIO_URL=http://localhost:8098`.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -112,9 +128,6 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 
 Sean's priorities first (asked for Nov 2026):
 
-- **Export**: PDF and Word (.docx) for a note or a whole folder; also Markdown/HTML zip.
-  Must render custom blocks (callouts, math, Mermaid, diagrams, Free Draw) — likely
-  server-side (headless Chromium for PDF, `docx` package for Word) or client-side print CSS.
 - **File integrations** — browse, open and save files directly to:
   - OneDrive (Microsoft Graph; needs an Azure app registration Sean creates),
   - Google Drive (Drive API; needs a Google Cloud OAuth client),
