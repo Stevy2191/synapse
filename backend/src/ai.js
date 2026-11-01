@@ -95,6 +95,27 @@ function decrypt(blob) {
   } catch { return null; } // server secret changed: the person re-enters their key
 }
 
+/** The key that protects saved AI keys (included in password-protected backups). */
+export const aiKeyHex = () => KEY.toString('hex');
+
+/** After restoring a backup made on a server with a different secret: re-protect the AI keys. */
+export function reencryptAiKeys(oldKeyHex) {
+  const old = Buffer.from(String(oldKeyHex || ''), 'hex');
+  if (old.length !== 32 || old.equals(KEY)) return 0;
+  let n = 0;
+  for (const r of db.prepare('SELECT rowid, api_key_enc FROM ai_accounts WHERE api_key_enc IS NOT NULL').all()) {
+    try {
+      const [iv, tag, enc] = r.api_key_enc.split(':').map(s => Buffer.from(s, 'base64'));
+      const d = crypto.createDecipheriv('aes-256-gcm', old, iv);
+      d.setAuthTag(tag);
+      const text = Buffer.concat([d.update(enc), d.final()]).toString('utf8');
+      db.prepare('UPDATE ai_accounts SET api_key_enc=? WHERE rowid=?').run(encrypt(text), r.rowid);
+      n++;
+    } catch { /* already readable here, or damaged */ }
+  }
+  return n;
+}
+
 // ───────────────────────── accounts ─────────────────────────
 
 export function cleanBaseUrl(url) {

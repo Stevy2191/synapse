@@ -23,6 +23,8 @@ import aiRoutes from './routes/ai.js';
 import shareRoutes from './routes/shares.js';
 import { ownerRouter as publishRoutes, publicRouter } from './routes/publish.js';
 import { purgeOrphanChatFiles } from './chat.js';
+import backupRoutes from './routes/backups.js';
+import { startBackups } from './backups.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +62,7 @@ app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/backups', backupRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);
@@ -98,6 +101,7 @@ startCalendarSync();
 // Empty old notes out of the Trash now and every 6 hours.
 purgeTrash();
 setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
+startBackups();
 purgeOrphanChatFiles();
 setInterval(purgeOrphanChatFiles, 6 * 60 * 60 * 1000).unref();
 

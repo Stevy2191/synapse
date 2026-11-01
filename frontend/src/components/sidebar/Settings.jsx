@@ -1,16 +1,17 @@
 // Settings, in three groups:
 //   Account    — about you, the same in every workspace (profile, appearance, security)
 //   Workspace  — the current workspace (name, picture, colour, preferences)
-//   Server     — admins only (users, sign-ups, about)
+//   Server     — admins only (users, sign-ups, about, backups)
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Sparkles, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
-  CalendarDays, RefreshCw, Plus,
+  CalendarDays, RefreshCw, Plus, HardDriveDownload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
 import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Avatar';
 import AiSettings from '../ai/AiSettings';
+import BackupsPage from './BackupsPage';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
 import api from '../../api';
@@ -56,6 +57,7 @@ export default function Settings() {
     ...(isAdmin ? [{ label: 'Server', items: [
       ['server-users', <Users size={15} />, 'Users'],
       ['server-general', <Server size={15} />, 'Sign-ups & about'],
+      ['server-backups', <HardDriveDownload size={15} />, 'Backups'],
     ] }] : []),
   ];
 
@@ -105,6 +107,7 @@ export default function Settings() {
             {page === 'ws-preferences' && <WorkspacePreferencesPage />}
             {page === 'server-users' && isAdmin && <ServerUsersPage />}
             {page === 'server-general' && isAdmin && <ServerGeneralPage />}
+            {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
           </div>
         </div>
       </div>
@@ -698,7 +701,7 @@ function ServerGeneralPage() {
               </div>
             ))}
           </div>
-          <p style={{ ...hint, marginTop: 10 }}>Update with <code>synapse update</code> on the server; back up with <code>synapse backup</code>.</p>
+          <p style={{ ...hint, marginTop: 10 }}>Update with <code>synapse update</code> on the server. Backups: see <b>Backups</b> in this menu.</p>
         </section>
       )}
     </div>

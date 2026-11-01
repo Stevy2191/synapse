@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { DATA_DIR, UPLOADS_DIR } from '../config.js';
+import { applyPendingRestore } from '../restore.js';
 
 const DB_PATH = path.join(DATA_DIR, 'synapse.db');
 
@@ -75,6 +76,9 @@ function openDatabase() {
 
 // If the database is locked (another Synapse still running on the same data, or a network share
 // holding on to an old lock), wait and retry with an explanation rather than crash-looping.
+// A restore started from Settings → Server → Backups is finished here, before opening.
+try { applyPendingRestore(); } catch (err) { console.error('❌ Could not finish restoring the backup:', err); }
+
 let db;
 const MAX_TRIES = 24; // about two and a half minutes
 for (let attempt = 1; ; attempt++) {

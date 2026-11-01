@@ -675,7 +675,7 @@ done
 
 # ── 5. Write the configuration ──────────────────────────────────────────────
 step "Setting up Synapse"
-mkdir -p "$DIR"
+mkdir -p "$DIR" "$DIR/backups"
 umask 077
 
 JWT_SECRET=$(random_string 64 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
@@ -698,6 +698,8 @@ SETUP_CODE=$SETUP_CODE
 SYNAPSE_STORAGE=$STORAGE
 SYNAPSE_DATA=$SYNAPSE_DATA
 SYNAPSE_NETWORK_STORAGE=$NETWORK_STORAGE
+# Where automatic backups go (Settings → Server → Backups). Change with: synapse backups-to <folder>
+SYNAPSE_BACKUPS=./backups
 SYNAPSE_CONTAINER=$CONTAINER
 # Your own draw.io (empty = use diagrams.net)
 DRAWIO_PORT=$DRAWIO_PORT
@@ -717,8 +719,10 @@ services:
     restart: unless-stopped
     volumes:
       - "${SYNAPSE_DATA:-./data}:/data"
+      - "${SYNAPSE_BACKUPS:-./backups}:/backups"
     environment:
       - DATA_DIR=/data
+      - SYNAPSE_BACKUPS_HOST=${SYNAPSE_BACKUPS:-./backups}
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}
@@ -757,8 +761,10 @@ services:
     restart: unless-stopped
     volumes:
       - "${SYNAPSE_DATA:-./data}:/data"
+      - "${SYNAPSE_BACKUPS:-./backups}:/backups"
     environment:
       - DATA_DIR=/data
+      - SYNAPSE_BACKUPS_HOST=${SYNAPSE_BACKUPS:-./backups}
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}
@@ -797,8 +803,10 @@ services:
       - "${SYNAPSE_PORT:-3001}:3001"
     volumes:
       - "${SYNAPSE_DATA:-./data}:/data"
+      - "${SYNAPSE_BACKUPS:-./backups}:/backups"
     environment:
       - DATA_DIR=/data
+      - SYNAPSE_BACKUPS_HOST=${SYNAPSE_BACKUPS:-./backups}
       - JWT_SECRET=${JWT_SECRET}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}

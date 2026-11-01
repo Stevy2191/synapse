@@ -21,7 +21,7 @@ and keep everything on your own server.
 
 ## Why Synapse?
 
-- **Yours.** One Docker container on your own server. Your notes live in one data folder (a SQLite database plus uploads) that `synapse backup` saves in one step.
+- **Yours.** One Docker container on your own server. Your notes live in one data folder (a SQLite database plus uploads) that's backed up automatically (optionally encrypted, to your NAS if you like).
 - **Fast to write in.** What you see is the finished note, but it understands Markdown as you type. Press `/` for anything else.
 - **Connected.** Type `[[` to link notes; the graph shows how everything fits together.
 - **Works offline.** Every device keeps its own copy. Keep writing on a plane; it syncs when you're back.
@@ -109,6 +109,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Multi-user**: the first account is the admin, who adds everyone else
 - **Two-step verification**: authenticator apps (works with Bitwarden, 1Password…), passkeys (Face ID, Touch ID, Windows Hello, security keys) and recovery codes
 - **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes
+- **Automatic backups**: daily or weekly, keep as many as you like, optional backup password (encrypted), save to a NAS folder, one-click restore — in Settings → Server → Backups
 - **Proxy-ready**: works behind Nginx Proxy Manager, Cloudflare Tunnel and others
 
 ---
@@ -165,6 +166,7 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse update` | Download and start the latest version |
 | `synapse backup [folder]` | Save notes, uploads and settings to a `.tar.gz` |
 | `synapse restore <file>` | Restore a backup (the current data is kept aside) |
+| `synapse backups-to <folder>` | Save the automatic backups in that folder (e.g. your NAS), or `default` |
 | `synapse logs [-f]` | Recent logs (`synapse logs caddy` for HTTPS) |
 | `synapse setup-code` | Show the admin setup code |
 | `synapse users` | List accounts |

@@ -27,6 +27,7 @@ ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
 
   ${B}backup${R} [folder]             Save all notes, uploads and settings to a .tar.gz
   ${B}restore${R} <file>              Restore from a backup (a safety backup is made first)
+  ${B}backups-to${R} <folder>         Save the automatic backups there (e.g. your NAS), or "default"
 
   ${B}setup-code${R}                  Show the code for creating the admin account
   ${B}users${R}                       List accounts
@@ -205,7 +206,7 @@ make_backup() {
   is_running && was_running=1
   if [ "$was_running" = 1 ]; then echo "Pausing Synapse for a moment to take a consistent copy…"; compose stop synapse >/dev/null; fi
   mkdir -p "$tmp/data"
-  if ! with_data 'cd /data && tar cf - .' | tar xf - -C "$tmp/data"; then
+  if ! with_data 'cd /data && tar cf - --exclude=./backups --exclude=./restore-pending --exclude=./restore-staging .' | tar xf - -C "$tmp/data"; then
     [ "$was_running" = 1 ] && compose start synapse >/dev/null
     rm -rf "$tmp"; die "Couldn't read the notes."
   fi
@@ -215,6 +216,40 @@ make_backup() {
   [ -d caddy ] && cp -r caddy "$tmp/"   # includes the HTTPS-by-IP certificate authority, so devices stay trusted
   tar czf "$file" -C "$tmp" .
   rm -rf "$tmp"
+}
+
+# Automatic backups (Settings → Server → Backups) go to /backups inside the container. Older
+# docker-compose.yml files don't mount it yet: add it next to the data folder's line.
+ensure_backups_mount() {
+  grep -q ':/backups"' docker-compose.yml && return 0
+  grep -qE '^      - .*:/data"?$' docker-compose.yml || { warn "Couldn't find the data folder in docker-compose.yml — add the backups folder by hand."; return 1; }
+  sed -i -E '0,/^      - .*:\/data"?$/s||&\n      - "${SYNAPSE_BACKUPS:-.\/backups}:\/backups"|' docker-compose.yml
+  if ! grep -q 'SYNAPSE_BACKUPS_HOST=' docker-compose.yml; then
+    sed -i '0,/^      - DATA_DIR=\/data$/s||&\n      - SYNAPSE_BACKUPS_HOST=${SYNAPSE_BACKUPS:-.\/backups}|' docker-compose.yml
+  fi
+  [ -n "$(env_get SYNAPSE_BACKUPS)" ] || env_set SYNAPSE_BACKUPS ./backups
+  mkdir -p backups
+  return 0
+}
+
+backups_description() {
+  local b; b="$(env_get SYNAPSE_BACKUPS)"
+  case "${b:-./backups}" in ./backups) echo "$SYNAPSE_DIR/backups" ;; *) echo "$b" ;; esac
+}
+
+# Get the newest version of this command itself (it isn't part of the Docker image).
+self_update() {
+  local self tmp
+  self="$(realpath "$0" 2>/dev/null || echo "$0")"
+  [ -w "$(dirname "$self")" ] || return 1
+  tmp="$(dirname "$self")/.synapse.new.$$"
+  if curl -fsSL "https://raw.githubusercontent.com/Stevy2191/synapse/main/scripts/synapse" -o "$tmp" 2>/dev/null \
+      && head -1 "$tmp" | grep -q '^#!' && bash -n "$tmp" 2>/dev/null; then
+    if cmp -s "$tmp" "$self"; then rm -f "$tmp"; return 1; fi
+    chmod 755 "$tmp" && mv -f "$tmp" "$self" && return 0
+  fi
+  rm -f "$tmp"
+  return 1
 }
 
 cmd="${1:-help}"; shift || true
@@ -229,6 +264,7 @@ case "$cmd" in
       warn "Synapse is not running. Start it with: synapse start  (or check: synapse logs)"
     fi
     printf '  %snotes: %s%s\n' "$D" "$(storage_description)" "$R"
+    if grep -q ':/backups"' docker-compose.yml; then printf '  %sautomatic backups: %s%s\n' "$D" "$(backups_description)" "$R"; fi
     if [ -n "$(env_get DRAWIO_URL)" ]; then printf '  %sdraw.io: %s%s\n' "$D" "$(env_get DRAWIO_URL)" "$R"
     else printf '  %sdraw.io: diagrams.net%s\n' "$D" "$R"; fi
     if is_running && compose exec -T synapse test -f /data/.setup_code 2>/dev/null; then
@@ -245,6 +281,11 @@ case "$cmd" in
 
   update)
     need_docker "$cmd" "$@"
+    if [ "${1:-}" != --no-self-update ] && self_update; then
+      echo "Updated the synapse command itself."
+      exec "$(realpath "$0" 2>/dev/null || echo "$0")" update --no-self-update
+    fi
+    ensure_backups_mount || true
     echo "Downloading the latest Synapse…"
     compose pull --quiet
     compose up -d
@@ -291,6 +332,44 @@ case "$cmd" in
     rm -rf "$tmp"
     compose up -d >/dev/null
     ok "Restored. If anything's wrong, the notes from before are in $safety"
+    ;;
+
+  backups-to)
+    need_docker "$cmd" "$@"
+    dest="${1:-}"
+    [ -n "$dest" ] || die 'Usage: synapse backups-to "/mnt/nas/Synapse Backups"   (or: synapse backups-to default)'
+    # Accept the path with or without quotes/backslashes, as typed or pasted.
+    dest="${dest%\"}"; dest="${dest#\"}"; dest="${dest%\'}"; dest="${dest#\'}"; dest="${dest//\\ / }"
+    if [ "$dest" = default ] || [ "$dest" = "./backups" ]; then
+      dest=./backups; mkdir -p backups; shown="$SYNAPSE_DIR/backups"
+    else
+      case "$dest" in /*) ;; *) die "Use the full path, starting with / (for example /mnt/family/Synapse Backups)." ;; esac
+      dest="${dest%/}"
+      case "$(realpath -m "$dest")" in
+        /|/root|/home|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot|/proc|/sys|/dev) die "Pick a folder of its own, not $dest itself." ;;
+      esac
+      data="$(env_get SYNAPSE_DATA)"
+      if [ -n "$data" ] && [ "${data#/}" != "$data" ] && [ "$(realpath -m "$dest")" = "$(realpath -m "$data")" ]; then
+        die "That's the notes folder itself — choose a different folder for backups."
+      fi
+      if ! mkdir -p "$dest" 2>/dev/null; then die "Couldn't create $dest. Is the share mounted? (findmnt -T \"$(dirname "$dest")\")"; fi
+      probe="$dest/.synapse-write-test.$$"
+      if ! ( : >"$probe" ) 2>/dev/null; then die "Can't write to $dest. Check the share's permissions (Synapse runs as root inside Docker)."; fi
+      rm -f "$probe"
+      shown="$dest"
+      fstype="$(stat -f -c %T "$dest" 2>/dev/null || true)"
+      case "$fstype" in smb*|cifs|nfs*) echo "  (That's a network share — fine for backups; they're plain files, so the nobrl setting doesn't matter here.)" ;; esac
+    fi
+    old="$(backups_description)"
+    ensure_backups_mount || die "Couldn't update docker-compose.yml."
+    env_set SYNAPSE_BACKUPS "$dest"
+    compose up -d >/dev/null
+    ok "Automatic backups will now be saved in: $shown"
+    if [ "$old" != "$shown" ] && ls "$old"/synapse-backup-* >/dev/null 2>&1; then
+      echo "  Backups made before are still in $old — move them over if you want to keep them together:"
+      echo "    sudo mv \"$old\"/synapse-backup-* \"$shown/\""
+    fi
+    echo "  Check it any time in Synapse: Settings → Server → Backups."
     ;;
 
   setup-code)
@@ -429,7 +508,8 @@ case "$cmd" in
     warn "This stops and removes Synapse."
     confirm "Continue?" || { echo "Nothing changed."; exit 0; }
     where="$(storage_description)"
-    if confirm "Also DELETE all notes and uploads ($where)? This cannot be undone."; then
+    bk=""; case "$(env_get SYNAPSE_BACKUPS)" in ""|./backups) bk=" and the backups in $SYNAPSE_DIR/backups" ;; esac
+    if confirm "Also DELETE all notes and uploads ($where)$bk? This cannot be undone."; then
       with_data 'find /data -mindepth 1 -delete' || warn "Couldn't delete everything in $where."
       compose down -v --remove-orphans
       cd / && rm -rf "$SYNAPSE_DIR"

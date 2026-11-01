@@ -4,6 +4,29 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.4.0 — November 2026
+
+### New
+- **Automatic backups** — Settings → Server → **Backups** (admins). Synapse saves a copy of
+  everything (every person's notes, drawings, pictures, chats, accounts and settings) every day at
+  2 am by default — or weekly, at the time you choose — and keeps the newest 14. Backups run while
+  Synapse keeps working; nobody is signed out.
+  - **Back up now**, **Download**, **Delete**, and **Restore** right from Settings. Restoring first
+    saves a backup of how things are now (so it can be undone), then restarts Synapse with the
+    backup in place.
+  - **Optional backup password** — backups are then encrypted (AES-256); nobody can open them
+    without the password. The password can't be recovered, so keep it somewhere safe.
+  - **Restore on a new server** — install Synapse, create an admin, then *Add a backup file* and
+    Restore. Saved AI keys come along in password-protected backups.
+  - Backups go to a `backups` folder next to your notes. To keep them on your NAS instead, run once:
+    `synapse backups-to "/mnt/family/Synapse Backups"`.
+  - Backups made with `synapse backup` show up in the list too and can be restored from there.
+- `synapse update` now also updates the `synapse` command itself.
+
+### Improved
+- When an SMB/NFS data folder refuses file locks, the log and the installer now explain the exact
+  fix (add `nobrl` to the SMB mount).
+
 ## v1.3.1 — November 2026
 
 ### Fixed

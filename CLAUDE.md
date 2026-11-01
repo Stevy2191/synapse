@@ -50,6 +50,10 @@ backend/src/
                       history (one entry per person per 10-min session), live note:update/note:lock
   routes/publish.js   published links (note_publications): owner API /api/publish, public no-auth
                       API /api/public (PIN check w/ lockout, expiry, view count, e2e blob)
+  backups.js + routes/backups.js   automatic backups (admin, Settings → Server → Backups): tar.gz of
+                      db.backup() snapshot + uploads/ + manifest; optional AES-256-GCM (.enc) with a
+                      scrypt key; schedule/keep/password in settings (backup_*); signed download links
+  restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
@@ -157,6 +161,19 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   no anonymous server PDF printing). Visitors render with export/render.js inside a sandboxed iframe
   (no scripts). Encryption needs a secure context (https/localhost); the dialog warns when the
   address is LAN-only or not https.
+- **Backups** (built Nov 2026): the server makes them itself (no Docker access needed) into
+  `/backups` if mounted (installer + `synapse update` add `${SYNAPSE_BACKUPS:-./backups}:/backups`;
+  `synapse backups-to <host folder>` sets SYNAPSE_BACKUPS), else `DATA_DIR/backups`. Default daily
+  02:00 in the admin's browser time zone, keep 14 automatic ones (manual / before-restore / uploaded
+  ones aren't counted; only 3 before-restore kept). Password: never stored — the scrypt-derived key
+  is kept wrapped with a JWT_SECRET-derived key so schedules run unattended; each .enc header has
+  salt + a check value, so the UI knows which backups need an older password. Restore = check +
+  unpack into `restore-staging`, safety backup, rename to `restore-pending` (with `ready` marker +
+  fixups.json), SIGTERM → Docker restarts → restore.js swaps DB + uploads → backups.js
+  `finishRestore()` keeps the *current* backup_* settings, re-encrypts AI keys if the manifest
+  carried the old AI key (only in encrypted backups). Restore also accepts `synapse backup`
+  archives (data/ prefix). Clients need no special handling: pull compares versions and drops
+  notes the server no longer has.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -196,6 +213,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   The Anthropic SDK sends the key as `Authorization: Bearer` (not only `x-api-key`).
 - draw.io can't load in the sandbox (no internet): serve a stand-in page that speaks the embed
   protocol and set `DRAWIO_URL=http://localhost:8098`.
+- Backups: restore makes the server exit (Docker restarts it); in the sandbox start it again by
+  hand. Test a "new server" with a second DATA_DIR + different JWT_SECRET on another port.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
 - Kill the test server by PID (`pgrep -x node` + check cmdline); `pkill -f "node src/index.js"`
   also kills the shell running it.
@@ -253,6 +272,6 @@ Other ideas:
 - Family features: shared workspaces with per-person permissions, shared lists (groceries),
   family calendar view.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
-- Automatic backups to a share or cloud drive with retention; one-click restore.
+- Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
 - Mobile polish; installable PWA "share to Synapse"; quick-capture widget.
 - Public REST API + API tokens / webhooks (for Home Assistant, scripts, n8n).
