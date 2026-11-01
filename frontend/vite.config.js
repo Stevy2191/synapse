@@ -2,9 +2,19 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// A new id for every build: the app compares it with the server's (/api/config) and, if the
+// server has a newer build, replaces its saved offline copy (see src/appUpdate.js).
+const BUILD_ID = `${Date.now().toString(36)}`;
+const buildIdFile = {
+  name: 'synapse-build-id',
+  generateBundle() { this.emitFile({ type: 'asset', fileName: 'build.json', source: JSON.stringify({ build: BUILD_ID }) }); },
+};
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
+    buildIdFile,
     // Service worker: caches the app itself so Synapse opens without a connection.
     // (Notes are stored separately in IndexedDB — see src/offline/.)
     VitePWA({

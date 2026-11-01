@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
+import fs from 'fs';
 import multer from 'multer';
 
 import { FRONTEND_DIST, TRASH_DAYS } from './config.js';
@@ -54,7 +55,14 @@ const DRAWIO_URL = (() => {
     return (u.origin + u.pathname).replace(/\/+$/, '');
   } catch { return 'https://embed.diagrams.net'; }
 })();
-app.get('/api/config', (req, res) => res.json({ drawio_url: DRAWIO_URL, trash_days: TRASH_DAYS }));
+// Which build of the app this server has; open apps compare it with their own (appUpdate.js).
+const BUILD_ID = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(FRONTEND_DIST, 'build.json'), 'utf8')).build || null; } catch { return null; }
+})();
+app.get('/api/config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ drawio_url: DRAWIO_URL, trash_days: TRASH_DAYS, build: BUILD_ID });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', securityRoutes);
@@ -75,9 +83,15 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 // Frontend (single-page app)
 // Vite puts content-hashed files in /assets, so they can be cached forever.
 app.use('/assets', express.static(path.join(FRONTEND_DIST, 'assets'), { maxAge: '1y', immutable: true }));
-app.use(express.static(FRONTEND_DIST, { index: false }));
+// The service worker and the app's entry files must always be fresh — a cached copy (in the
+// browser or a reverse proxy) keeps people on an old version of the app.
+const ALWAYS_FRESH = /(^|\/)(sw\.js|registerSW\.js|push-sw\.js|workbox-[\w-]+\.js|index\.html|manifest\.webmanifest|build\.json)$/;
+app.use(express.static(FRONTEND_DIST, {
+  index: false,
+  setHeaders: (res, file) => { if (ALWAYS_FRESH.test(file)) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); },
+}));
 app.get('*', (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(FRONTEND_DIST, 'index.html'), err => {
     if (err) res.status(500).send('Frontend not built. Run `npm run build` in frontend/.');
   });

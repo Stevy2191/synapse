@@ -239,6 +239,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   app can't switch to the unix-none VFS; the fix is `nobrl` on the mount (installer's own SMB
   option already uses it). The log + installer now detect a cifs mount without nobrl (or NFS
   without working locks) and print the exact fix.
+- Stale app after an update (Sean saw it: new menu item only after a hard refresh): the PWA service
+  worker kept serving the old cached app. Now every build has an id (vite `__BUILD_ID__` +
+  dist/build.json → `/api/config.build`); `src/appUpdate.js` compares on start/visible/online and,
+  if different, unregisters the worker, drops the precache and reloads (once per build per tab).
+  sw.js/index.html/manifest are sent `no-store` so browsers and proxies don't cache them.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

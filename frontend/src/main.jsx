@@ -7,6 +7,7 @@ import { useStore } from './stores/useStore';
 import { applyTheme } from './themes';
 import AuthPage from './pages/AuthPage';
 import AppPage from './pages/AppPage';
+import { startAppUpdateCheck } from './appUpdate';
 
 // Published notes (/p/<link>): open to anyone, no sign-in; loaded only when visited.
 const PublicNotePage = React.lazy(() => import('./pages/PublicNotePage'));
@@ -43,3 +44,4 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+startAppUpdateCheck();

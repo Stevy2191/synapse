@@ -4,6 +4,16 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.4.1 — November 2026
+
+### Fixed
+- **Old version showing after an update** — browsers (or a reverse proxy) could keep showing the
+  previous version of Synapse until a hard refresh (e.g. no Backups in Settings). Synapse now
+  notices when the server has a newer version and switches to it by itself.
+- The `synapse` command finds your install when run from Synapse's folder, and keeps its folder when
+  it updates itself.
+- Backups page: the example uses a generic NFS/SMB share path, and shows the folder you chose.
+
 ## v1.4.0 — November 2026
 
 ### New
