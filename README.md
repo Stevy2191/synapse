@@ -93,7 +93,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Graph view** of every connection
 - **Tags** and **full-text search** (<kbd>Ctrl</kbd> + <kbd>K</kbd>)
 - **Calendar & daily notes**: meetings from any ICS calendar link, daily notes, and a menu on each meeting to make a meeting note, a to-do or a daily-note entry
-- **Tasks**: every checklist item from every note in one view (Overdue / Today / Next 7 days / Later / No date). Tick them off or set due dates there; the note is updated
+- **Tasks**: to-dos from meetings and daily notes, plus any checklist item with a due date, in one view (Overdue / Today / Next 7 days / Later / No date). Tick them off or set due dates there; the note is updated. Tag a note `#no-tasks` to keep it out
 
 **Running it**
 - **Offline-first**: every device keeps a copy; changes sync when you're back online, and conflicts never lose work
@@ -185,7 +185,7 @@ The panel on the right (button at the top right) has a **Calendar** tab:
   - **Add to daily note**: lists the meeting in that day's note.
   - **Copy join link** for online meetings.
 
-**Tasks** (in the sidebar) gathers every checklist item from every note, grouped by when it's due, with a badge for anything due today or overdue. A due date is part of the task's text — `📅 2026-11-20` — so it works in Write and Markdown and survives export. Ticking a box or changing a date in Tasks changes the note itself; *Add a task* puts it in today's daily note.
+**Tasks** (in the sidebar) gathers to-dos, grouped by when they're due, with a badge for anything due today or overdue. It shows everything from meeting and daily notes, plus checklist items anywhere that have a due date; switch to **All checklists** to see the rest too. Tag a note `#no-tasks` (a recipe, a packing list) to keep it out of Tasks entirely. A due date is part of the task's text — `📅 2026-11-20` — so it works in Write and Markdown and survives export. Ticking a box or changing a date in Tasks changes the note itself; *Add a task* puts it in today's daily note.
 
 **Connect calendars** in **Settings → Calendars** by pasting a calendar's ICS link (steps for Outlook, Google, iCloud and others are shown there). Synapse reads them every 15 minutes, never changes them, and keeps the events on your device so the calendar works offline.
 

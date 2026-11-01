@@ -42,6 +42,10 @@ export default function TasksView() {
   const notes = useStore(s => s.notes);
   const [tasks, setTasks] = useState(null);
   const [showDone, setShowDone] = useState(false);
+  // By default: tasks with a due date, plus everything in meeting and daily notes.
+  // "All checklists" also shows undated items from other notes (shopping lists, reading lists…).
+  const [showAll, setShowAllState] = useState(() => { try { return localStorage.getItem('synapse.tasks.all') === '1'; } catch { return false; } });
+  const setShowAll = v => { setShowAllState(v); try { localStorage.setItem('synapse.tasks.all', v ? '1' : '0'); } catch { /* ignore */ } };
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
   const today = isoDay();
@@ -74,9 +78,11 @@ export default function TasksView() {
     } catch (err) { toast.error(err.message || 'Couldn’t add the task'); }
   };
 
+  const shown = useMemo(() => (tasks || []).filter(t => showAll || t.due || t.kind), [tasks, showAll]);
+  const hiddenOpen = (tasks || []).filter(t => !t.done && !(showAll || t.due || t.kind)).length;
   const groups = useMemo(() => {
     if (!tasks) return [];
-    const open = tasks.filter(t => !t.done);
+    const open = shown.filter(t => !t.done);
     const byDue = (a, b) => (a.due || '').localeCompare(b.due || '') || a.noteTitle.localeCompare(b.noteTitle);
     const weekEnd = addDays(today, 7);
     return [
@@ -86,9 +92,9 @@ export default function TasksView() {
       { key: 'later', title: 'Later', items: open.filter(t => t.due > weekEnd).sort(byDue) },
       { key: 'none', title: 'No date', items: open.filter(t => !t.due).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)) },
     ].filter(g => g.items.length);
-  }, [tasks, today]);
-  const done = useMemo(() => (tasks || []).filter(t => t.done).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)), [tasks]);
-  const openCount = (tasks || []).filter(t => !t.done).length;
+  }, [tasks, shown, today]);
+  const done = useMemo(() => shown.filter(t => t.done).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)), [shown]);
+  const openCount = shown.filter(t => !t.done).length;
 
   const Row = ({ t }) => (
     <div className={`task-row${t.done ? ' done' : ''}`}>
@@ -116,7 +122,16 @@ export default function TasksView() {
           <span>{tasks ? `${openCount} open` : ''}</span>
           <button className="btn-ghost" title="Refresh" onClick={load} style={{ marginLeft: 'auto' }}><RefreshCw size={14} /></button>
         </div>
-        <p className="tasks-lead">Every checklist item in <b>{ws?.name}</b>. Add a due date by typing <code>📅 2026-11-20</code> after a task, or with the date button here.</p>
+        <p className="tasks-lead">
+          {showAll ? <>Every checklist item in <b>{ws?.name}</b>.</> : <>To-dos with a due date, plus everything from meeting and daily notes.</>}
+          {' '}Give any checklist item a date by typing <code>📅 2026-11-20</code> after it. Tag a note <code>#no-tasks</code> to keep it out of here.
+        </p>
+        <div className="seg tasks-filter">
+          <button className={!showAll ? 'on' : ''} onClick={() => setShowAll(false)}>To-dos</button>
+          <button className={showAll ? 'on' : ''} onClick={() => setShowAll(true)}>
+            All checklists{!showAll && hiddenOpen > 0 ? ` (+${hiddenOpen})` : ''}
+          </button>
+        </div>
 
         <form className="tasks-add" onSubmit={add}>
           <Plus size={16} />

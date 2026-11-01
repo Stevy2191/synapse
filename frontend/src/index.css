@@ -687,3 +687,4 @@ body {
 .task-row:hover .task-due.none button, .task-due.none button:focus-visible { opacity: 1; }
 @media (hover: none) { .task-due.none button { opacity: 0.7; } }
 @media (max-width: 640px) { .tasks-inner { padding: 24px 16px 30vh; } .tasks-add input[type="date"] { width: 110px; } }
+.tasks-filter { display: inline-flex; margin: -6px 0 16px; }

@@ -49,6 +49,12 @@ export async function listTasks(workspaceId) {
   const out = [];
   for (const note of await getWorkspaceNotes(workspaceId)) {
     if (note.note_type && note.note_type !== 'note') continue;
+    let tags = [];
+    try { tags = JSON.parse(note.tags || '[]').map(t => String(t).toLowerCase().replace(/^#/, '')); } catch {}
+    // A note tagged #no-tasks (a recipe, a packing list…) never shows in Tasks.
+    if (tags.includes('no-tasks')) continue;
+    // Tasks from meeting and daily notes always show; others only once they have a due date.
+    const kind = tags.includes('meeting') ? 'meeting' : (tags.includes('daily') || /^\d{4}-\d{2}-\d{2}$/.test(note.title)) ? 'daily' : null;
     let found = [];
     if (isRich(note)) {
       const html = richHtml(note);
@@ -61,7 +67,7 @@ export async function listTasks(workspaceId) {
     found.forEach((t, index) => {
       const { text, due } = splitDue(t.raw);
       if (!text) return; // empty placeholder items
-      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, updatedAt: note.updated_at });
+      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, kind, updatedAt: note.updated_at });
     });
   }
   return out;
