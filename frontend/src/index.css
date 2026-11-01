@@ -855,7 +855,7 @@ body {
 .chat-day { display: flex; align-items: center; gap: 10px; margin: 14px 16px 6px; color: var(--text-muted); font: 600 11.5px var(--font-sans); }
 .chat-day::before, .chat-day::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
 .chat-newline { display: flex; align-items: center; gap: 8px; margin: 8px 16px; color: var(--danger); font: 700 11px var(--font-sans); text-transform: uppercase; letter-spacing: .04em; }
-.chat-newline::before { content: ''; flex: 1; height: 1px; background: var(--danger); opacity: .5; }
+.chat-newline::before, .chat-newline::after { content: ''; flex: 1; height: 1px; background: var(--danger); opacity: .5; }
 
 .chat-msg { position: relative; padding: 4px 16px 4px 12px; margin-top: 6px; }
 .chat-msg.grouped { margin-top: 0; padding-top: 1px; padding-bottom: 1px; }
