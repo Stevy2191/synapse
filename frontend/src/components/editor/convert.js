@@ -3,6 +3,7 @@
 import { marked } from 'marked';
 import TurndownService from 'turndown';
 import DOMPurify from 'dompurify';
+import { CALLOUTS, CALLOUT_FROM_MD } from './blocks';
 
 // Diagrams (draw.io / Excalidraw) are kept in Markdown as a fenced block, so they survive
 // switching a note between Write and Markdown:
@@ -27,6 +28,27 @@ export function markdownToHtml(md) {
       code.parentElement.replaceWith(fig);
     } catch {}
   }
+  convertCallouts(doc, (box, type) => {
+    box.setAttribute('data-callout', type);
+  });
+  // "[TOC]" on its own line → table of contents
+  for (const p of doc.querySelectorAll('p')) {
+    if (p.textContent.trim().toUpperCase() === '[TOC]') {
+      const toc = doc.createElement('div');
+      toc.setAttribute('data-toc', '');
+      p.replaceWith(toc);
+    }
+  }
+  // <details>: the editor wants <summary> then a content wrapper
+  for (const det of doc.querySelectorAll('details')) {
+    let summary = det.querySelector(':scope > summary');
+    if (!summary) { summary = doc.createElement('summary'); det.prepend(summary); }
+    const wrap = doc.createElement('div');
+    wrap.setAttribute('data-type', 'detailsContent');
+    for (const child of [...det.childNodes]) if (child !== summary) wrap.appendChild(child);
+    if (!wrap.textContent.trim() && !wrap.querySelector('img, table, figure')) wrap.innerHTML = '<p></p>';
+    det.appendChild(wrap);
+  }
   for (const ul of doc.querySelectorAll('ul')) {
     const items = [...ul.children].filter(li => li.tagName === 'LI');
     if (items.length === 0 || !items.every(li => li.querySelector(':scope > input[type="checkbox"], :scope > p > input[type="checkbox"]'))) continue;
@@ -42,7 +64,33 @@ export function markdownToHtml(md) {
   return doc.body.innerHTML;
 }
 
-const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-', emDelimiter: '*' });
+/**
+ * GitHub-style alerts ("> [!NOTE]" as the first line of a quote) → callout boxes.
+ * `make(box, type)` finishes the new element (editor and preview mark it up differently).
+ */
+export function convertCallouts(doc, make) {
+  for (const bq of [...doc.querySelectorAll('blockquote')]) {
+    const first = bq.firstElementChild;
+    if (!first || first.tagName !== 'P') continue;
+    const m = first.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DANGER)\]\s*(<br\s*\/?>)?\s*/i);
+    if (!m) continue;
+    const type = CALLOUT_FROM_MD[m[1].toUpperCase()];
+    first.innerHTML = first.innerHTML.slice(m[0].length);
+    if (!first.innerHTML.trim()) first.remove();
+    const box = doc.createElement('div');
+    box.className = 'callout';
+    while (bq.firstChild) box.appendChild(bq.firstChild);
+    if (!box.firstChild) box.innerHTML = '<p></p>';
+    bq.replaceWith(box);
+    make(box, type);
+  }
+}
+
+const turndown = new TurndownService({
+  headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-', emDelimiter: '*',
+  // Empty elements are normally dropped; the table of contents is empty by design.
+  blankReplacement: (content, node) => (node.nodeName === 'DIV' && node.hasAttribute('data-toc') ? '\n\n[TOC]\n\n' : node.isBlock ? '\n\n' : ''),
+});
 turndown.addRule('taskItem', {
   filter: node => node.nodeName === 'LI' && (node.getAttribute('data-type') === 'taskItem' || node.parentNode?.getAttribute?.('data-type') === 'taskList'),
   replacement: (content, node) => `- [${node.getAttribute('data-checked') === 'true' ? 'x' : ' '}] ${content.trim().replace(/\n+/g, ' ')}\n`,
@@ -68,6 +116,27 @@ turndown.addRule('diagram', {
   replacement: (content, node) => {
     const d = { kind: node.getAttribute('data-diagram'), scene: node.getAttribute('data-scene') || null, preview: node.querySelector('img')?.getAttribute('src') || null };
     return `\n\n\`\`\`synapse-diagram\n${JSON.stringify(d)}\n\`\`\`\n\n`;
+  },
+});
+turndown.addRule('callout', {
+  filter: node => node.nodeName === 'DIV' && node.hasAttribute('data-callout'),
+  replacement: (content, node) => {
+    const kind = (CALLOUTS[node.getAttribute('data-callout')] || CALLOUTS.info).md;
+    const body = content.trim().split('\n').map(l => (l ? `> ${l}` : '>')).join('\n');
+    return `\n\n> [!${kind}]\n${body}\n\n`;
+  },
+});
+turndown.addRule('toc', {
+  filter: node => node.nodeName === 'DIV' && node.hasAttribute('data-toc'),
+  replacement: () => '\n\n[TOC]\n\n',
+});
+turndown.addRule('details', {
+  filter: 'details',
+  replacement: (content, node) => {
+    const summary = node.querySelector(':scope > summary')?.textContent.trim() || '';
+    const inner = node.querySelector(':scope > [data-type="detailsContent"]');
+    const body = inner ? turndown.turndown(inner.innerHTML) : '';
+    return `\n\n<details>\n<summary>${summary.replace(/</g, '&lt;')}</summary>\n\n${body.trim()}\n\n</details>\n\n`;
   },
 });
 turndown.addRule('underline', { filter: ['u'], replacement: content => `<u>${content}</u>` });

@@ -20,6 +20,7 @@
 - **Markdown view** — Switch any note to raw Markdown (with split view and preview); notes are always kept as Markdown too, for search and export
 - **Wiki Links** — Type `[[` to search your notes and link one (or create it); click a link to open it
 - **Graph View** — Interactive D3 mind map of all note connections
+- **"/" menu, in groups** — Basic, Lists, Callouts, Media, Diagrams, Notes & links, Date & time. Includes callout boxes (Note / Tip / Warning / Danger), collapsible toggle sections, a live table of contents, image upload, new sub-note, and today's date / time
 - **Code blocks** — Syntax colors for ~95 languages (PowerShell, Bash, Batch, Python, SQL, YAML, Dockerfile, Nginx…), picked from a searchable list or auto-detected, with a Copy button. Type ```` ```ps1 ```` + space as a shortcut
 - **Diagrams & drawings** — Type `/` for a **draw.io** diagram or an **Excalidraw** drawing inside any note; it shows as a picture, and opens full screen to edit
 - **Calendar & daily notes** — A month calendar in the side panel with your meetings from Outlook, Google, iCloud or any calendar (ICS link). Click a day for its daily note; turn any meeting into a pre-filled meeting note

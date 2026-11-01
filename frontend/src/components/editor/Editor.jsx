@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
-import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE } from './convert';
+import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
+import { CALLOUTS } from './blocks';
 import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
 import { Marked } from 'marked';
@@ -101,7 +102,34 @@ function renderMarkdown(content) {
     } catch { return ''; }
   });
   const withLinks = content.replace(/\[\[([^\]]+)\]\]/g, '<span class="wiki-link" data-link="$1">$1</span>');
-  return DOMPurify.sanitize(previewMarked.parse(withLinks), { ADD_ATTR: ['data-link'] });
+  const html = DOMPurify.sanitize(previewMarked.parse(withLinks), { ADD_ATTR: ['data-link'] });
+  if (!/\[!|\[TOC\]/i.test(html)) return html;
+  // Callouts ("> [!NOTE]") and a table of contents ("[TOC]")
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  convertCallouts(doc, (box, type) => {
+    box.setAttribute('data-callout', type);
+    const title = doc.createElement('div');
+    title.className = 'callout-title';
+    title.textContent = CALLOUTS[type].label;
+    box.prepend(title);
+  });
+  for (const p of doc.querySelectorAll('p')) {
+    if (p.textContent.trim().toUpperCase() !== '[TOC]') continue;
+    const toc = doc.createElement('div');
+    toc.className = 'toc-block';
+    toc.innerHTML = '<div class="toc-head">Contents</div>';
+    const hs = [...doc.querySelectorAll('h1, h2, h3, h4')];
+    const top = Math.min(3, ...hs.map(h => +h.tagName[1]));
+    for (const h of hs) {
+      const item = doc.createElement('div');
+      item.className = 'toc-item';
+      item.style.paddingLeft = `${8 + (+h.tagName[1] - top) * 16}px`;
+      item.textContent = h.textContent;
+      toc.appendChild(item);
+    }
+    p.replaceWith(toc);
+  }
+  return doc.body.innerHTML;
 }
 
 // Markdown formatting toolbar - inserts markdown syntax into CodeMirror

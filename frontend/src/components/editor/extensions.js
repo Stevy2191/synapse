@@ -8,6 +8,8 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { useStore } from '../../stores/useStore';
 import { openNoteByTitle, createNote } from '../../offline/sync';
+import { fitImage } from '../../utils/image';
+import toast from 'react-hot-toast';
 
 // `getUi` returns the React side's handlers ({ open, keyDown, close }), so the menus can be
 // drawn by React while ProseMirror keeps track of what's being typed.
@@ -24,37 +26,102 @@ function notInCode({ state }) {
   return !state.selection.$from.parent.type.spec.code;
 }
 
+// The "/" menu, in groups. `id` also picks the icon (RichEditor's SLASH_ICONS).
+export const SLASH_GROUPS = ['Basic', 'Lists', 'Callouts', 'Media', 'Diagrams', 'Notes & links', 'Date & time'];
+
+const today = () => new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+const now = () => new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+function pickImageFile(editor) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const src = await fitImage(file);
+      editor.chain().focus().setImage({ src, alt: file.name.replace(/\.[^.]+$/, '') }).run();
+    } catch (err) { toast.error(err.message); }
+  };
+  input.click();
+}
+
+const callout = type => (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'callout', attrs: { type }, content: [{ type: 'paragraph' }] }).run();
+
 export const SLASH_ITEMS = [
-  { id: 'text', title: 'Text', desc: 'Plain paragraph', keywords: 'paragraph p', run: (e, r) => e.chain().focus().deleteRange(r).setParagraph().run() },
-  { id: 'h1', title: 'Heading 1', desc: 'Big section heading', keywords: 'title #', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
-  { id: 'h2', title: 'Heading 2', desc: 'Medium heading', keywords: 'subtitle ##', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 2 }).run() },
-  { id: 'h3', title: 'Heading 3', desc: 'Small heading', keywords: '###', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 3 }).run() },
-  { id: 'todo', title: 'Checklist', desc: 'Track tasks with checkboxes', keywords: 'todo task checkbox [ ]', run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run() },
-  { id: 'ul', title: 'Bulleted list', desc: 'Simple bulleted list', keywords: 'unordered bullet -', run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
-  { id: 'ol', title: 'Numbered list', desc: 'List with numbers', keywords: 'ordered 1.', run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
-  { id: 'link', title: 'Link to note', desc: 'Connect to another note', keywords: 'wiki [[ backlink', run: (e, r) => e.chain().focus().deleteRange(r).insertContent('[[').run() },
-  { id: 'quote', title: 'Quote', desc: 'Highlight a quotation', keywords: 'blockquote >', run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
-  { id: 'code', title: 'Code block', desc: 'Code with syntax highlighting', keywords: '```', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
-  { id: 'drawio', title: 'draw.io diagram', desc: 'Flowcharts, network & org diagrams', keywords: 'diagram flowchart drawio diagrams.net chart network uml',
-    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'drawio' } }).run() },
-  { id: 'excalidraw', title: 'Excalidraw drawing', desc: 'Hand-drawn style sketches & whiteboard', keywords: 'excalidraw sketch draw whiteboard drawing',
-    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'excalidraw' } }).run() },
-  { id: 'table', title: 'Table', desc: '3 × 3 table', keywords: 'grid', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-  { id: 'divider', title: 'Divider', desc: 'Horizontal line', keywords: 'hr rule ---', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
-  {
-    id: 'image', title: 'Image', desc: 'Embed an image from a link', keywords: 'picture photo',
+  // Basic
+  { id: 'text', group: 'Basic', title: 'Text', desc: 'Plain paragraph', keywords: 'paragraph p', run: (e, r) => e.chain().focus().deleteRange(r).setParagraph().run() },
+  { id: 'h1', group: 'Basic', title: 'Heading 1', desc: 'Big section heading', keywords: 'title #', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
+  { id: 'h2', group: 'Basic', title: 'Heading 2', desc: 'Medium heading', keywords: 'subtitle ##', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 2 }).run() },
+  { id: 'h3', group: 'Basic', title: 'Heading 3', desc: 'Small heading', keywords: '###', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 3 }).run() },
+  { id: 'quote', group: 'Basic', title: 'Quote', desc: 'Highlight a quotation', keywords: 'blockquote >', run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
+  { id: 'divider', group: 'Basic', title: 'Divider', desc: 'Horizontal line', keywords: 'hr rule --- separator line', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
+  // Lists
+  { id: 'ul', group: 'Lists', title: 'Bulleted list', desc: 'Simple bulleted list', keywords: 'unordered bullet -', run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
+  { id: 'ol', group: 'Lists', title: 'Numbered list', desc: 'List with numbers', keywords: 'ordered 1.', run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
+  { id: 'todo', group: 'Lists', title: 'Checklist', desc: 'Track tasks with checkboxes', keywords: 'todo task checkbox [ ]', run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run() },
+  { id: 'toggle', group: 'Lists', title: 'Toggle section', desc: 'Collapsible section: click to show or hide', keywords: 'collapse collapsible details expand accordion fold dropdown',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'details', attrs: { open: true }, content: [
+      { type: 'detailsSummary' }, { type: 'detailsContent', content: [{ type: 'paragraph' }] }] })
+      // Put the cursor in the title, ready to type it.
+      .command(({ tr, state }) => {
+        const $from = tr.selection.$from;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'details') {
+            tr.setSelection(state.selection.constructor.near(tr.doc.resolve($from.start(d) + 1)));
+            return true;
+          }
+        }
+        return true;
+      }).run() },
+  // Callouts
+  { id: 'callout-info', group: 'Callouts', title: 'Note', desc: 'Blue box for useful information', keywords: 'callout info information admonition box', run: callout('info') },
+  { id: 'callout-tip', group: 'Callouts', title: 'Tip', desc: 'Green box for advice', keywords: 'callout success hint idea box', run: callout('tip') },
+  { id: 'callout-warning', group: 'Callouts', title: 'Warning', desc: 'Yellow box: be careful', keywords: 'callout caution attention box', run: callout('warning') },
+  { id: 'callout-danger', group: 'Callouts', title: 'Danger', desc: 'Red box: don’t do this', keywords: 'callout error critical important box', run: callout('danger') },
+  // Media
+  { id: 'upload', group: 'Media', title: 'Image', desc: 'Upload a picture from this device', keywords: 'picture photo upload file screenshot',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); pickImageFile(e); } },
+  { id: 'image', group: 'Media', title: 'Image from link', desc: 'Embed an image from a web address', keywords: 'picture photo url',
     run: (e, r) => {
       e.chain().focus().deleteRange(r).run();
       const src = window.prompt('Image address (URL):');
       if (src) e.chain().focus().setImage({ src }).run();
-    },
-  },
+    } },
+  { id: 'table', group: 'Media', title: 'Table', desc: '3 × 3 table', keywords: 'grid spreadsheet', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { id: 'code', group: 'Media', title: 'Code block', desc: 'Code with syntax colors', keywords: '``` script snippet', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
+  // Diagrams
+  { id: 'drawio', group: 'Diagrams', title: 'draw.io diagram', desc: 'Flowcharts, network & org diagrams', keywords: 'diagram flowchart drawio diagrams.net chart network uml',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'drawio' } }).run() },
+  { id: 'excalidraw', group: 'Diagrams', title: 'Excalidraw drawing', desc: 'Hand-drawn style sketches & whiteboard', keywords: 'excalidraw sketch draw whiteboard drawing',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'excalidraw' } }).run() },
+  // Notes & links
+  { id: 'link', group: 'Notes & links', title: 'Link to note', desc: 'Connect to another note', keywords: 'wiki [[ backlink', run: (e, r) => e.chain().focus().deleteRange(r).insertContent('[[').run() },
+  { id: 'subnote', group: 'Notes & links', title: 'New sub-note', desc: 'Create a note inside this one and link it', keywords: 'page child subpage nested new',
+    run: async (e, r) => {
+      e.chain().focus().deleteRange(r).run();
+      const { activeWorkspace, activeNote } = useStore.getState();
+      if (!activeWorkspace) return;
+      const title = window.prompt('Name of the new note:')?.trim();
+      if (!title) return;
+      await createNote({ workspace_id: activeWorkspace.id, parent_id: activeNote?.note?.id ?? null, title, note_type: 'note' });
+      e.chain().focus().insertContent(`[[${title}]] `).run();
+    } },
+  { id: 'toc', group: 'Notes & links', title: 'Table of contents', desc: 'List of this note’s headings', keywords: 'toc contents outline index headings summary',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent([{ type: 'tableOfContents' }, { type: 'paragraph' }]).run() },
+  // Date & time
+  { id: 'date', group: 'Date & time', title: 'Today’s date', desc: today(), keywords: 'date today day calendar', run: (e, r) => e.chain().focus().deleteRange(r).insertContent(today() + ' ').run() },
+  { id: 'time', group: 'Date & time', title: 'Current time', desc: now(), keywords: 'time clock now', run: (e, r) => e.chain().focus().deleteRange(r).insertContent(now() + ' ').run() },
+  { id: 'datetime', group: 'Date & time', title: 'Date and time', desc: 'Today’s date with the time', keywords: 'timestamp now date time',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent(`${today()}, ${now()} `).run() },
 ];
 
 export function filterSlashItems(query) {
   const q = query.toLowerCase().trim();
-  if (!q) return SLASH_ITEMS;
-  return SLASH_ITEMS.filter(i => `${i.title} ${i.keywords}`.toLowerCase().includes(q));
+  const items = q ? SLASH_ITEMS.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q)) : SLASH_ITEMS;
+  // Fresh date/time in the descriptions each time the menu opens
+  return items.map(i => (i.id === 'date' ? { ...i, desc: today() } : i.id === 'time' ? { ...i, desc: now() } : i));
 }
 
 export const SlashCommand = Extension.create({

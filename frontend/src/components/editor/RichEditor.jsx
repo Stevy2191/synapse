@@ -22,8 +22,10 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
+  ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
+import { Callout, TableOfContents, ToggleBlocks } from './blocks';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
@@ -31,7 +33,9 @@ import ColorPicker from '../ColorPicker';
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
-  drawio: Workflow, excalidraw: PenTool,
+  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, upload: ImageUp, subnote: FilePlus, toc: ListTree,
+  'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
+  date: CalendarDays, time: Clock, datetime: CalendarClock,
 };
 const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
@@ -75,12 +79,15 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     extensions: [
       StarterKit.configure({ codeBlock: false, link: false, underline: false }),
       Placeholder.configure({
-        placeholder: ({ node }) => (node.type.name === 'heading' ? 'Heading' : 'Type / for blocks, [[ to link a note…'),
+        includeChildren: true,
+        placeholder: ({ node }) => (node.type.name === 'heading' ? 'Heading'
+          : node.type.name === 'detailsSummary' ? 'Toggle title'
+          : 'Type / for blocks, [[ to link a note…'),
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
       CodeBlock,
-      Image.configure({ inline: false }),
+      Image.configure({ inline: false, allowBase64: true }),
       UnderlineExt,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       TextStyle,
@@ -97,6 +104,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       WikiLinkSuggest.configure({ getUi }),
       WikiLinkDecorations,
       DiagramNode,
+      Callout,
+      TableOfContents,
+      ...ToggleBlocks,
     ],
     content: content || '<p></p>',
     // The styles below are scoped to this class.
@@ -155,7 +165,10 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
           .rich-editor-content h3 { font-size: 1.2em; font-weight: 600; margin: 0.8em 0 0.3em; }
           .rich-editor-content h4 { font-size: 1.05em; font-weight: 600; margin: 0.7em 0 0.2em; }
           .rich-editor-content p { margin: 0.3em 0; min-height: 1.6em; }
-          .rich-editor-content p.is-editor-empty:first-child::before {
+          .rich-editor-content p.is-editor-empty:first-child::before,
+          .rich-editor-content summary.is-empty::before,
+          .rich-editor-content .callout p.is-empty::before,
+          .rich-editor-content [data-type="detailsContent"] p.is-empty::before {
             content: attr(data-placeholder);
             color: var(--text-muted);
             float: left;
@@ -242,7 +255,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       {/* Formatting toolbar: appears over selected text */}
       <BubbleMenu editor={editor} pluginKey="formatMenu"
-        shouldShow={({ editor: ed, state }) => !state.selection.empty && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
+        shouldShow={({ editor: ed, state }) => !state.selection.empty && !state.selection.node && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
         options={{ placement: 'top', offset: 8 }}>
         <div className="floating-menu">
           <B on={editor.isActive('bold')} title="Bold (Ctrl+B)" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={15} /></B>
@@ -294,11 +307,15 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       {/* "/" and "[[" menus */}
       {menu && menu.rect && menu.items.length > 0 && (
         <div className="suggest-menu fade-in" style={menuPosition(menu.rect)}>
-          <div className="section-label" style={{ padding: '6px 10px 4px' }}>{menu.kind === 'slash' ? 'Insert' : 'Link to note'}</div>
+          {menu.kind !== 'slash' && <div className="section-label" style={{ padding: '6px 10px 4px' }}>Link to note</div>}
           {menu.items.map((item, i) => {
-            const Icon = menu.kind === 'slash' ? SLASH_ICONS[item.id] : item.kind === 'create' ? Plus : (NOTE_ICONS[item.noteType] || FileText);
+            const Icon = menu.kind === 'slash' ? (SLASH_ICONS[item.id] || Plus) : item.kind === 'create' ? Plus : (NOTE_ICONS[item.noteType] || FileText);
+            const groupStart = menu.kind === 'slash' && item.group !== menu.items[i - 1]?.group;
             return (
-              <button key={item.id} className={`suggest-item${i === menu.index ? ' on' : ''}`}
+              <div key={item.id}>
+              {groupStart && <div className={`section-label suggest-group${i > 0 ? ' sep' : ''}`}>{item.group}</div>}
+              <button className={`suggest-item${i === menu.index ? ' on' : ''}`}
+                ref={i === menu.index ? el => el?.scrollIntoView({ block: 'nearest' }) : undefined}
                 onMouseDown={e => { e.preventDefault(); menu.command(item); }}
                 onMouseEnter={() => setMenu(m => m && { ...m, index: i })}>
                 <span className="suggest-icon"><Icon size={15} /></span>
@@ -309,6 +326,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
                   {item.desc && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-muted)' }}>{item.desc}</span>}
                 </span>
               </button>
+              </div>
             );
           })}
         </div>
@@ -319,7 +337,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
 // Below the cursor, or above it when there's no room.
 function menuPosition(rect) {
-  const height = 320;
+  const height = 380;
   const below = rect.bottom + 8 + height < window.innerHeight;
   return {
     position: 'fixed', zIndex: 200,
