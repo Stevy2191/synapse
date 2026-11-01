@@ -92,7 +92,8 @@ Install it to your home screen and it works like an app — online or off.
 - **Wiki links**: type `[[` to link a note (or create it); backlinks show in the side panel
 - **Graph view** of every connection
 - **Tags** and **full-text search** (<kbd>Ctrl</kbd> + <kbd>K</kbd>)
-- **Calendar & daily notes**: meetings from any ICS calendar link, daily notes, and one-click meeting notes
+- **Calendar & daily notes**: meetings from any ICS calendar link, daily notes, and a menu on each meeting to make a meeting note, a to-do or a daily-note entry
+- **Tasks**: every checklist item from every note in one view (Overdue / Today / Next 7 days / Later / No date). Tick them off or set due dates there; the note is updated
 
 **Running it**
 - **Offline-first**: every device keeps a copy; changes sync when you're back online, and conflicts never lose work
@@ -178,7 +179,13 @@ The panel on the right (button at the top right) has a **Calendar** tab:
 
 - **Days with meetings** have coloured dots; days with a daily note are underlined.
 - **Click a day** to see its meetings; **double-click** it (or use *Open daily note*) to open that day's note, titled like `2026-11-01`, kept in a **Daily notes** folder.
-- **Meeting notes**: the note button on a meeting creates "Team standup · 2026-11-01" inside that day's note, with the time, place, join link and attendees filled in.
+- **The + menu on a meeting** offers:
+  - **Meeting note**: "Team standup · Nov 4, 2026", kept in **Meetings › November 2026**, with the time, place, join link and attendees filled in, plus Agenda, Notes and Action items. The day's daily note links to it.
+  - **Add a to-do…**: type the task and pick a due date (the meeting's day by default). It goes into the meeting note's *Action items* and shows up in **Tasks**.
+  - **Add to daily note**: lists the meeting in that day's note.
+  - **Copy join link** for online meetings.
+
+**Tasks** (in the sidebar) gathers every checklist item from every note, grouped by when it's due, with a badge for anything due today or overdue. A due date is part of the task's text — `📅 2026-11-20` — so it works in Write and Markdown and survives export. Ticking a box or changing a date in Tasks changes the note itself; *Add a task* puts it in today's daily note.
 
 **Connect calendars** in **Settings → Calendars** by pasting a calendar's ICS link (steps for Outlook, Google, iCloud and others are shown there). Synapse reads them every 15 minutes, never changes them, and keeps the events on your device so the calendar works offline.
 

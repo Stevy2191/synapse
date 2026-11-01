@@ -618,3 +618,72 @@ body {
 .rich-editor-content ul:not([data-type="taskList"]), .markdown-preview ul:not(.contains-task-list) { list-style: disc; }
 .rich-editor-content ul:not([data-type="taskList"]) ul:not([data-type="taskList"]), .markdown-preview ul ul { list-style: circle; }
 .rich-editor-content ol ol, .markdown-preview ol ol { list-style: lower-alpha; }
+
+/* "+" menu on a calendar event */
+.event-menu {
+  position: absolute; top: 26px; right: 0; z-index: 60; width: 248px; padding: 4px; border-radius: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow); text-align: left;
+}
+.event-menu-title { padding: 6px 8px 4px; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-menu > button {
+  display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; align-items: center; width: 100%; padding: 7px 8px; border: none;
+  border-radius: 7px; background: transparent; color: var(--text-primary); font-size: 13px; cursor: pointer; text-align: left;
+}
+.event-menu > button svg { color: var(--accent); }
+.event-menu > button small { grid-column: 2; font-size: 11.5px; color: var(--text-muted); }
+.event-menu > button small:empty { display: none; }
+.event-menu > button:hover { background: var(--bg-hover); }
+.event-todo { display: flex; flex-direction: column; gap: 8px; padding: 6px; }
+.event-todo > input, .event-todo label input {
+  height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface);
+  color: var(--text-primary); font-size: 13px; outline: none; min-width: 0;
+}
+.event-todo > input:focus, .event-todo label input:focus { border-color: var(--accent); }
+.event-todo label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.event-todo label input { flex: 1; color-scheme: inherit; }
+.event-todo small { font-size: 11px; color: var(--text-muted); }
+.event-back, .event-clear { border: none; background: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 2px; display: inline-flex; align-items: center; gap: 4px; text-align: left; }
+.event-back { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.event-back:hover, .event-clear:hover { color: var(--text-primary); }
+
+/* ── Tasks view ───────────────────────────────────────────────────────────── */
+.nav-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.tasks-view { flex: 1; overflow-y: auto; background: var(--bg-base); }
+.tasks-inner { max-width: 760px; margin: 0 auto; padding: 48px 28px 30vh; }
+.tasks-head { display: flex; align-items: baseline; gap: 12px; }
+.tasks-head h1 { font: 700 2.1rem var(--font-display); letter-spacing: -0.02em; background: var(--heading); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tasks-head > span { color: var(--text-muted); font-size: 14px; }
+.tasks-lead { color: var(--text-secondary); font-size: 13.5px; margin: 6px 0 18px; line-height: 1.5; }
+.tasks-lead code { font-family: var(--font-mono); font-size: 0.9em; background: var(--bg-elevated); padding: 1px 5px; border-radius: 4px; }
+.tasks-add { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-surface); color: var(--text-muted); margin-bottom: 22px; }
+.tasks-add:focus-within { border-color: var(--accent); }
+.tasks-add input { border: none; outline: none; background: none; color: var(--text-primary); font-size: 14px; min-width: 0; }
+.tasks-add input:first-of-type { flex: 1; }
+.tasks-add input[type="date"] { color: var(--text-secondary); font-size: 12.5px; width: 130px; color-scheme: inherit; }
+.tasks-empty { color: var(--text-muted); font-size: 14px; padding: 20px 4px; }
+.tasks-group { margin-bottom: 22px; }
+.tasks-group h2 { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 0 0 6px 4px; }
+.tasks-group h2 span { font-weight: 600; opacity: 0.8; }
+.tasks-group.overdue h2 { color: var(--danger); }
+.tasks-group.today h2 { color: var(--accent); }
+.tasks-group h2.toggle { cursor: pointer; user-select: none; }
+.task-row { display: flex; gap: 10px; padding: 9px 10px; border-radius: 10px; border: 1px solid transparent; }
+.task-row:hover { background: var(--bg-surface); border-color: var(--border-subtle); }
+.task-check { flex-shrink: 0; width: 24px; height: 24px; display: grid; place-items: center; border: none; background: none; color: var(--text-muted); cursor: pointer; padding: 0; border-radius: 6px; }
+.task-check:hover { color: var(--accent); }
+.task-row.done .task-check { color: var(--accent); }
+.task-main { flex: 1; min-width: 0; }
+.task-text { color: var(--text-primary); font-size: 14.5px; line-height: 1.45; padding-top: 2px; word-break: break-word; }
+.task-row.done .task-text { color: var(--text-muted); text-decoration: line-through; }
+.task-text .wiki-link { color: var(--accent); cursor: pointer; }
+.task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 3px; }
+.task-meta button { display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 1px 4px; margin-left: -4px; border-radius: 5px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+.task-meta button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.task-due { position: relative; display: inline-flex; }
+.task-due input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.task-due.overdue button { color: var(--danger); font-weight: 600; }
+.task-due.today button { color: var(--accent); font-weight: 600; }
+.task-due.none button { opacity: 0; }
+.task-row:hover .task-due.none button, .task-due.none button:focus-visible { opacity: 1; }
+@media (hover: none) { .task-due.none button { opacity: 0.7; } }
+@media (max-width: 640px) { .tasks-inner { padding: 24px 16px 30vh; } .tasks-add input[type="date"] { width: 110px; } }

@@ -3,6 +3,7 @@ import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
 import GraphView from '../components/graph/GraphView';
+import TasksView from '../components/tasks/TasksView';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
 import api from '../api';
@@ -91,7 +92,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : <Editor />}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : <Editor />}
       </main>
       <SearchModal />
       <Settings />

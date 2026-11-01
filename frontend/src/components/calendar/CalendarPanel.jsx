@@ -1,12 +1,12 @@
 // Side-panel calendar: a month view with meetings from connected calendars, daily notes,
-// and the selected day's events (each can become a meeting note).
+// and the selected day's events (each can become a meeting note, a to-do, or a line in the daily note).
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarPlus, MapPin, Video, FileText, NotebookPen, RefreshCw, CloudOff } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ChevronLeft, ChevronRight, CalendarPlus, MapPin, Video, NotebookPen, RefreshCw, CloudOff } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import { monthEvents, eventDays, dayKey, timeRange } from '../../offline/calendar';
-import { openDailyNote, openMeetingNote } from '../../offline/dailyNotes';
+import { openDailyNote } from '../../offline/dailyNotes';
+import EventActions from './EventActions';
 
 // First day of the week from the browser's locale (Sunday in the US, Monday in most places).
 function firstDayOfWeek() {
@@ -141,10 +141,7 @@ export default function CalendarPanel() {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeRange(e)}</span>
             <span style={{ flex: 1 }} />
-            <button className="btn-ghost" style={{ ...mini, height: 22 }} title="Meeting note"
-              onClick={() => openMeetingNote(e, selected, dayEvents).catch(() => toast.error('Couldn’t create the note'))}>
-              <FileText size={13} />
-            </button>
+            <EventActions event={e} date={selected} dayEvents={dayEvents} />
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>{e.title}</div>
           {e.location && !/^microsoft teams meeting$/i.test(e.location) && (

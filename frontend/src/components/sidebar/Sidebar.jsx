@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
@@ -11,6 +11,7 @@ import Logo from '../Logo';
 import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow } from '../../offline/sync';
+import { listTasks, isoDay } from '../../offline/tasks';
 
 const TYPE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 
@@ -237,9 +238,22 @@ export default function Sidebar({ width, onNavigate }) {
 
   const selectNote = useCallback(async (id) => {
     await openNote(id);
-    if (view === 'graph') setView('editor');
+    if (view === 'graph' || view === 'tasks') setView('editor');
     onNavigate?.();
   }, [view, setView, onNavigate]);
+
+  // Tasks due today or overdue, for the badge next to "Tasks"
+  const [dueCount, setDueCount] = useState(0);
+  useEffect(() => {
+    if (!activeWorkspace) return undefined;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const today = isoDay();
+      const n = (await listTasks(activeWorkspace.id)).filter(x => !x.done && x.due && x.due <= today).length;
+      if (!cancelled) setDueCount(n);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [activeWorkspace?.id, notes]);
 
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
@@ -274,6 +288,10 @@ export default function Sidebar({ width, onNavigate }) {
         </button>
         <button className={`nav-item${view === 'graph' ? ' on' : ''}`} onClick={() => { setView(view === 'graph' ? 'editor' : 'graph'); onNavigate?.(); }}>
           <Network size={14} /> Graph
+        </button>
+        <button className={`nav-item${view === 'tasks' ? ' on' : ''}`} onClick={() => { setView(view === 'tasks' ? 'editor' : 'tasks'); onNavigate?.(); }}>
+          <ListTodo size={14} /> Tasks
+          {dueCount > 0 && <span className="nav-badge" title="Due today or overdue">{dueCount}</span>}
         </button>
       </div>
 
