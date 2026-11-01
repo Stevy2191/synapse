@@ -4,6 +4,17 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.3.1 — November 2026
+
+### Fixed
+- **“database is locked” when notes are on an NFS or SMB folder** — Synapse now recognises a data
+  folder on a network share by itself and uses network-safe database settings (before, only the
+  installer's own share option did). No `.env` setting needed.
+- If the database really is locked, Synapse explains the likely causes in the log and keeps trying
+  for a couple of minutes, instead of crash-looping.
+- Synapse now stops cleanly on `synapse update` / `restart` / `stop` (it used to be force-stopped
+  after 10 seconds), so no lock is left behind on a network share.
+
 ## v1.3.0 — November 2026
 
 ### New
