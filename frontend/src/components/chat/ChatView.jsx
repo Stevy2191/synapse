@@ -1,7 +1,7 @@
 // The Chats page: the list of conversations on the left, the open one on the right (one at a
 // time on phones).
 import { useEffect, useState } from 'react';
-import { Plus, PanelLeft, Bell, BellRing, MessageCircle, Search } from 'lucide-react';
+import { Plus, PanelLeft, Bell, BellRing, BellOff, MessageCircle, Search } from 'lucide-react';
 import { UserAvatar } from '../Avatar';
 import ChatRoom from './ChatRoom';
 import { NewChatDialog } from './ChatDialogs';
@@ -22,17 +22,21 @@ function useNarrow() {
 export function NotificationsButton({ compact = false }) {
   const [state, setState] = useState(null);
   useEffect(() => { notificationState().then(setState); }, []);
-  if (!state || state === 'unsupported' && compact) return null;
+  if (!state) return null;
   const toggle = async () => {
+    if (state === 'insecure') {
+      alert(`Notifications only work when Synapse is opened with a secure https:// address.\n\nYou're on ${location.origin}, which browsers don't allow notifications for.\n\nOpen Synapse through your https address (the one with a padlock), add that to your home screen, and turn notifications on there.`);
+      return;
+    }
     if (state === 'on') { await disableNotifications(); setState('off'); }
     else if (state === 'blocked') alert('Notifications are blocked for Synapse in this browser. Allow them in the site settings (the padlock next to the address), then try again.');
     else { await enableNotifications(); setState(await notificationState()); }
   };
   return (
     <button type="button" className={`btn-ghost${state === 'on' ? ' on' : ''}`} onClick={toggle}
-      title={state === 'on' ? 'Notifications are on for this device — click to turn off' : 'Get a notification for new messages when Synapse isn’t open'}>
-      {state === 'on' ? <BellRing size={15} /> : <Bell size={15} />}
-      {!compact && <span>{state === 'on' ? 'Notifications on' : 'Turn on notifications'}</span>}
+      title={state === 'on' ? 'Notifications are on for this device — click to turn off' : state === 'insecure' ? 'Notifications need an https:// address — click for details' : 'Get a notification for new messages when Synapse isn’t open'}>
+      {state === 'on' ? <BellRing size={15} /> : state === 'insecure' || state === 'blocked' ? <BellOff size={15} /> : <Bell size={15} />}
+      {!compact && <span>{state === 'on' ? 'Notifications on' : state === 'insecure' ? 'Notifications need https' : 'Turn on notifications'}</span>}
     </button>
   );
 }

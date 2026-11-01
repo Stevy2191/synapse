@@ -95,6 +95,7 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   for @mentions/@everyone. Files: `DATA_DIR/uploads/chat/`, served via HMAC-signed links (≈1 week)
   because `<img>` can't send the auth header; unsent uploads purged after a day. GIF search needs
   an admin-entered GIPHY/Tenor key (Settings → Server); otherwise paste a GIF link.
+  Push needs a secure context: on http://LAN-IP the bell shows "needs https" and explains.
   Messages are texting-style bubbles: mine on the right (accent colour), others on the left
   (Sean chose this), with the sender's avatar beside *every* bubble on both sides; hover
   actions = react / reply / ⋯ menu beside the bubble.

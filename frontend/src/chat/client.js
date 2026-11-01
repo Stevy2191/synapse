@@ -386,8 +386,10 @@ export function notificationsSupported() {
   return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
 }
 
-/** 'on' | 'off' | 'blocked' | 'unsupported' */
+/** 'on' | 'off' | 'blocked' | 'insecure' | 'unsupported' */
 export async function notificationState() {
+  // Browsers only allow notifications on https:// (or localhost) — on http://10.x.x.x they're off.
+  if (!window.isSecureContext) return 'insecure';
   if (!notificationsSupported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'blocked';
   if (Notification.permission !== 'granted') return 'off';
