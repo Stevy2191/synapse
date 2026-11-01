@@ -28,6 +28,7 @@ import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions
 import { Callout, TableOfContents, ToggleBlocks } from './blocks';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import { VideoEmbed, MathDialog } from './embeds';
+import { DrawingEmbed, DrawingPicker } from '../freedraw/DrawingEmbed';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
@@ -37,7 +38,7 @@ const SLASH_ICONS = {
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
   drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
-  date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
+  date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
 const NOTE_ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
@@ -55,6 +56,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
   const [math, setMath] = useState(null);   // math dialog: { inline, latex, pos, editing }
+  const [drawingPicker, setDrawingPicker] = useState(false);
   const mathClick = useRef(() => {});
   mathClick.current = (node, pos) => setMath({ inline: node.type.name === 'inlineMath', latex: node.attrs.latex, pos, editing: true });
   const menuRef = useRef(null);
@@ -113,6 +115,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       TableOfContents,
       ...ToggleBlocks,
       VideoEmbed,
+      DrawingEmbed,
       Mathematics.configure({
         katexOptions: { throwOnError: false },
         blockOptions: { onClick: (node, pos) => mathClick.current(node, pos) },
@@ -137,8 +140,10 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   useEffect(() => {
     if (!editor) return undefined;
     const open = ({ inline }) => setMath({ inline, latex: '', pos: null, editing: false });
+    const openDrawing = () => setDrawingPicker(true);
     editor.on('synapse:math', open);
-    return () => editor.off('synapse:math', open);
+    editor.on('synapse:drawing', openDrawing);
+    return () => { editor.off('synapse:math', open); editor.off('synapse:drawing', openDrawing); };
   }, [editor]);
 
   const saveMath = (latex, inline) => {
@@ -342,6 +347,8 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       <EditorContent editor={editor} />
 
+      {drawingPicker && <DrawingPicker onClose={() => { setDrawingPicker(false); editor.commands.focus(); }}
+        onPick={title => { setDrawingPicker(false); editor.chain().focus().insertContent([{ type: 'drawingEmbed', attrs: { title } }, { type: 'paragraph' }]).run(); }} />}
       {math && <MathDialog initial={math.latex} inline={math.inline} editing={math.editing}
         onSave={saveMath} onDelete={deleteMath} onClose={() => { setMath(null); editor.commands.focus(); }} />}
 

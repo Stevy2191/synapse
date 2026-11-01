@@ -43,6 +43,14 @@ export function markdownToHtml(md) {
     v.setAttribute('data-video', a.getAttribute('href'));
     p.replaceWith(v);
   }
+  // "![[Drawing]]" on its own line → an embedded Free Draw note
+  for (const p of doc.querySelectorAll('p')) {
+    const m = p.textContent.trim().match(/^!\[\[([^\[\]\n]+)\]\]$/);
+    if (!m) continue;
+    const d = doc.createElement('div');
+    d.setAttribute('data-drawing', m[1].trim());
+    p.replaceWith(d);
+  }
   // "[TOC]" on its own line → table of contents
   for (const p of doc.querySelectorAll('p')) {
     if (p.textContent.trim().toUpperCase() === '[TOC]') {
@@ -83,6 +91,7 @@ function special(node) {
   const type = node.getAttribute('data-type');
   if (type === 'inline-math') return `$${node.getAttribute('data-latex') || ''}$`;
   if (type === 'block-math') return `\n\n$$\n${node.getAttribute('data-latex') || ''}\n$$\n\n`;
+  if (node.hasAttribute('data-drawing')) return `\n\n![[${node.getAttribute('data-drawing')}]]\n\n`;
   if (node.hasAttribute('data-video')) return `\n\n[▶ Video](${node.getAttribute('data-video')})\n\n`;
   return null;
 }

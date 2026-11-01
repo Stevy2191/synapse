@@ -110,6 +110,8 @@ export const SLASH_ITEMS = [
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'drawio' } }).run() },
   { id: 'excalidraw', group: 'Diagrams', title: 'Excalidraw drawing', desc: 'Hand-drawn style sketches & whiteboard', keywords: 'excalidraw sketch draw whiteboard drawing',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'diagram', attrs: { kind: 'excalidraw' } }).run() },
+  { id: 'drawing', group: 'Diagrams', title: 'Embed a drawing', desc: 'Show a Free Draw note as a picture', keywords: 'free draw sketch handwriting ink embed drawing whiteboard',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:drawing', {}); } },
   { id: 'mermaid', group: 'Diagrams', title: 'Mermaid chart', desc: 'Flowcharts, sequences, Gantt & more, written as text', keywords: 'mermaid flowchart sequence gantt pie chart graph timeline mindmap text diagram',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: MERMAID_SAMPLE }] }).run() },
   // Notes & links

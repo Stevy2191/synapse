@@ -84,7 +84,8 @@ Install it to your home screen and it works like an app — online or off.
 - **"/" menu**: headings, lists, checklists, **toggle sections**, **callouts** (Note / Tip / Warning / Danger), tables, **image upload**, **video** (YouTube, Vimeo, Loom, video files), **math** (LaTeX), **Mermaid charts**, **draw.io** and **Excalidraw** diagrams, a live **table of contents**, new sub-notes, and today's date or time
 - **Code blocks**: ~95 languages with theme-aware colors, a searchable language picker, auto-detect and a Copy button. Shortcut: ```` ```ps1 ```` + space
 - **Markdown view**: switch any note to raw Markdown, with split view and preview. Everything above round-trips: callouts as `> [!NOTE]`, math as `$…$`, Mermaid as ```` ```mermaid ````
-- **Other note types**: a simple flowchart editor and a freehand whiteboard with sticky notes
+- **Free Draw notes** for handwriting and sketching, made for tablets and pens: pressure-sensitive pen, marker and highlighter; palm rejection (pen-only mode, fingers pan and pinch-zoom); an infinite page; lasso to select, move, resize and recolor; whole-stroke and pixel erasers; shapes that snap neat when you hold the pen still; text, sticky notes and pictures; lined, grid or dot paper; PNG and SVG export. Embed a drawing in any note with `/` → *Embed a drawing* (`![[Drawing]]`)
+- **Flowcharts**: a simple flowchart note type
 
 **Organizing**
 - **Workspaces**: keep Home, Work and so on apart, each with its own icon, color and settings

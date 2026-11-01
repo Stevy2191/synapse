@@ -4,6 +4,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
+import { drawingPreview } from '../freedraw/DrawingEmbed';
 import { extractMath, restoreMath, renderMath, videoElementHtml, renderMermaid } from './embeds';
 import { EditorView } from '@codemirror/view';
 import { keymap } from '@codemirror/view';
@@ -102,6 +103,8 @@ function renderMarkdown(content) {
       return d.preview?.startsWith('data:image/') ? `\n\n![${d.kind === 'excalidraw' ? 'Excalidraw drawing' : 'draw.io diagram'}](${d.preview})\n\n` : '';
     } catch { return ''; }
   });
+  // "![[Drawing]]" on its own line: a placeholder that PreviewHtml fills with the drawing's picture
+  content = content.replace(/^!\[\[([^\[\]\n]+)\]\]\s*$/gm, (m, t) => `\n<div class="drawing-embed" data-drawing="${t.trim().replace(/"/g, '&quot;')}"></div>\n`);
   const withLinks = content.replace(/\[\[([^\]]+)\]\]/g, '<span class="wiki-link" data-link="$1">$1</span>');
   const math = extractMath(withLinks);
   let html = DOMPurify.sanitize(previewMarked.parse(math.md), { ADD_ATTR: ['data-link'] });
@@ -154,6 +157,17 @@ function PreviewHtml({ html, onClick }) {
         div.className = 'mermaid-preview';
         div.innerHTML = r.svg;
         code.parentElement.replaceWith(div);
+      });
+    }
+    const ws = useStore.getState().activeWorkspace;
+    for (const box of ref.current?.querySelectorAll('.drawing-embed[data-drawing]') || []) {
+      if (!ws) break;
+      drawingPreview(ws.id, box.getAttribute('data-drawing')).then(({ note, preview }) => {
+        if (cancelled || !box.isConnected) return;
+        box.innerHTML = '';
+        if (preview) { const img = document.createElement('img'); img.src = preview; img.alt = note.title; box.appendChild(img); }
+        else box.textContent = note ? 'Empty drawing' : `No drawing called “${box.getAttribute('data-drawing')}”`;
+        if (note) { box.style.cursor = 'pointer'; box.onclick = () => openNote(note.id); }
       });
     }
     return () => { cancelled = true; };
@@ -637,7 +651,7 @@ export default function Editor() {
             <div style={{ padding: '18px 24px 0' }}>{titleBlock}</div>
             <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', borderTop: '1px solid var(--border-subtle)' }}>
               {noteType === 'diagram' && <DiagramEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
-              {noteType === 'draw' && <FreeDrawEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
+              {noteType === 'draw' && <FreeDrawEditor key={activeNote.note.id} canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} title={title} />}
             </div>
           </div>
         )}
