@@ -1,39 +1,107 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="80" height="80" alt="Synapse Logo"/>
+<img src="assets/logo.svg" width="84" height="84" alt="Synapse logo"/>
 
 # Synapse
 
-**Your connected knowledge base**
+**Your connected knowledge base — self-hosted, offline-first, and yours.**
 
-*Self-hosted · Docker · Proxy-ready*
+Write notes that look finished as you type, link them together, see your meetings next to them,
+and keep everything on your own server.
+
+[Install](#install) · [Screenshots](#a-quick-tour) · [Features](#features) · [The `synapse` command](#the-synapse-command)
+
+<br/>
+
+<img src="docs/screenshots/hero.webp" alt="Synapse with a note about a home network: a Mermaid network chart, a table of VLANs, a warning callout, the notes tree on the left and the calendar with today's meetings on the right" width="100%"/>
 
 </div>
 
 ---
 
+## Why Synapse?
+
+- **Yours.** One Docker container on your own server. Your notes live in one data folder (a SQLite database plus uploads) that `synapse backup` saves in one step.
+- **Fast to write in.** What you see is the finished note, but it understands Markdown as you type. Press `/` for anything else.
+- **Connected.** Type `[[` to link notes; the graph shows how everything fits together.
+- **Works offline.** Every device keeps its own copy. Keep writing on a plane; it syncs when you're back.
+- **Easy to run.** A one-line installer that asks plain questions — no YAML required.
+
+---
+
+## A quick tour
+
+### Notes that look finished while you write
+
+Headings, checklists, tables, callouts, toggles, code with syntax colors, math and diagrams — all from the keyboard.
+Everything is still stored as Markdown, and any note can be switched to raw Markdown with a live preview.
+
+<img src="docs/screenshots/light.webp" alt="A Backup Plan note in the light theme with a red danger callout, a table with links to other notes, a math formula and a collapsible section" width="100%"/>
+
+### Type `/` for anything
+
+The menu is grouped — Basic, Lists, Callouts, Media, Math, Diagrams, Notes & links, Date & time — and you can search it (`/video`, `/inline math`, `/toc`…).
+
+<img src="docs/screenshots/slash-menu.webp" alt="The slash menu open in a note, showing the Basic group (Text, Headings, Quote, Divider) and the start of the Lists group" width="100%"/>
+
+### Code that reads like code
+
+~95 languages with syntax colors that follow your theme: PowerShell, Bash, Batch, Python, SQL, YAML, Dockerfile, Nginx and more. Pick the language from a searchable list or let it auto-detect; one click copies the code.
+
+<img src="docs/screenshots/code.webp" alt="A Proxmox Server note with a table of virtual machines and colored Bash and PowerShell code blocks" width="100%"/>
+
+### See how your notes connect
+
+Every `[[link]]` becomes a line in the graph. Click a dot to open that note.
+
+<img src="docs/screenshots/graph.webp" alt="The graph view: notes as glowing dots connected by lines, with Home Lab, Proxmox Server and Backup Plan at the center" width="100%"/>
+
+### Your calendar, next to your notes
+
+Connect Outlook, Google, iCloud or any calendar by its link. See the week's meetings beside your notes, open a daily note for any day,
+and turn a meeting into a meeting note with the time, place, join link and attendees filled in.
+
+<img src="docs/screenshots/calendar.webp" alt="A daily note with a checklist, and the calendar panel showing Wednesday's meetings: Team standup with a Join meeting link, FY27 IT budget planning, and Piano lesson" width="100%"/>
+
+### Find anything
+
+<kbd>Ctrl</kbd> + <kbd>K</kbd> searches every note, even with no connection.
+
+<img src="docs/screenshots/search.webp" alt="The search window with results for backup, each showing the matching text highlighted" width="100%"/>
+
+### On your phone, too
+
+Install it to your home screen and it works like an app — online or off.
+
+<p align="center"><img src="docs/screenshots/phone.webp" alt="A recipe note on a phone: Grandma's Chili with an ingredient checklist, numbered steps and a note callout" width="320"/></p>
+
+---
+
 ## Features
 
-- **Workspaces** — Separate Home, Work, etc. in one instance
-- **Three note types** — Rich text notes, Flowchart diagrams, Freehand whiteboard
-- **Write as you read** — The default editor shows finished formatting while understanding Markdown as you type (`# `, `**bold**`, `- `, `[] `, `> `, ```` ``` ````). Type `/` for a menu of blocks (headings, checklists, tables, code, images…), select text for a formatting toolbar
-- **Markdown view** — Switch any note to raw Markdown (with split view and preview); notes are always kept as Markdown too, for search and export
-- **Wiki Links** — Type `[[` to search your notes and link one (or create it); click a link to open it
-- **Graph View** — Interactive D3 mind map of all note connections
-- **"/" menu, in groups** — Basic, Lists, Callouts, Media, Diagrams, Notes & links, Date & time. Includes callout boxes (Note / Tip / Warning / Danger), collapsible toggle sections, a live table of contents, image upload, video embeds (YouTube, Vimeo, Loom, video files), math equations (LaTeX, shown with KaTeX), Mermaid charts, new sub-note, and today's date / time
-- **Code blocks** — Syntax colors for ~95 languages (PowerShell, Bash, Batch, Python, SQL, YAML, Dockerfile, Nginx…), picked from a searchable list or auto-detected, with a Copy button. Type ```` ```ps1 ```` + space as a shortcut
-- **Diagrams & drawings** — Type `/` for a **draw.io** diagram or an **Excalidraw** drawing inside any note; it shows as a picture, and opens full screen to edit
-- **Calendar & daily notes** — A month calendar in the side panel with your meetings from Outlook, Google, iCloud or any calendar (ICS link). Click a day for its daily note; turn any meeting into a pre-filled meeting note
-- **Full-text Search** — Fast SQLite FTS5 search (Ctrl+K)
-- **Tags** — Tag and filter notes
-- **File Attachments** — Upload images and files (50MB limit)
-- **Themes** — Neural (default) and Neural Light, following your device's light/dark setting, plus Dark, Light, Dracula, Nord, Solarized and Tokyo Night
-- **Multi-user** — First user becomes admin and invites everyone else
-- **Two-step verification** — Authenticator app codes (TOTP), passkeys (Face ID, Touch ID, Windows Hello, security keys), and one-time recovery codes. Passkeys can also sign in without a password
-- **Hierarchical notes** — Nest notes inside each other
-- **Offline-first** — Keep writing with no connection; changes upload automatically when you're back online
-- **Installable** — Add to your phone's home screen or desktop as an app
-- **Proxy-ready** — Works behind Nginx Proxy Manager, Cloudflare Tunnel
+**Writing**
+- **Write as you read**: the editor shows finished formatting and understands Markdown as you type (`# `, `**bold**`, `- `, `[] `, `> `, ```` ``` ````). Select text for a formatting toolbar with any text or highlight color (hex codes and a full color picker)
+- **"/" menu**: headings, lists, checklists, **toggle sections**, **callouts** (Note / Tip / Warning / Danger), tables, **image upload**, **video** (YouTube, Vimeo, Loom, video files), **math** (LaTeX), **Mermaid charts**, **draw.io** and **Excalidraw** diagrams, a live **table of contents**, new sub-notes, and today's date or time
+- **Code blocks**: ~95 languages with theme-aware colors, a searchable language picker, auto-detect and a Copy button. Shortcut: ```` ```ps1 ```` + space
+- **Markdown view**: switch any note to raw Markdown, with split view and preview. Everything above round-trips: callouts as `> [!NOTE]`, math as `$…$`, Mermaid as ```` ```mermaid ````
+- **Other note types**: a simple flowchart editor and a freehand whiteboard with sticky notes
+
+**Organizing**
+- **Workspaces**: keep Home, Work and so on apart, each with its own icon, color and settings
+- **Nested notes** with drag and drop
+- **Wiki links**: type `[[` to link a note (or create it); backlinks show in the side panel
+- **Graph view** of every connection
+- **Tags** and **full-text search** (<kbd>Ctrl</kbd> + <kbd>K</kbd>)
+- **Calendar & daily notes**: meetings from any ICS calendar link, daily notes, and one-click meeting notes
+
+**Running it**
+- **Offline-first**: every device keeps a copy; changes sync when you're back online, and conflicts never lose work
+- **Installable** on phones and computers as an app
+- **Themes**: Neural (default) and Neural Light, following your device's light/dark setting, plus Dark, Light, Dracula, Nord, Solarized and Tokyo Night
+- **Multi-user**: the first account is the admin, who adds everyone else
+- **Two-step verification**: authenticator apps (works with Bitwarden, 1Password…), passkeys (Face ID, Touch ID, Windows Hello, security keys) and recovery codes
+- **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes
+- **Proxy-ready**: works behind Nginx Proxy Manager, Cloudflare Tunnel and others
 
 ---
 
@@ -187,7 +255,7 @@ cd frontend && npm install && npm run dev     # UI on :5173, proxies /api to :30
 ## Architecture
 
 - **Backend:** Node.js + Express + better-sqlite3 (WAL mode)
-- **Frontend:** React 18 + Vite + TipTap + CodeMirror + D3.js; themes are CSS variables in `frontend/src/themes/`
+- **Frontend:** React 18 + Vite + TipTap + CodeMirror + D3.js, with highlight.js (code), KaTeX (math) and Mermaid (charts, loaded only when used); themes are CSS variables in `frontend/src/themes/`
 - **Auth:** JWT (7-day expiry)
 - **Search:** SQLite FTS5 with porter stemmer on the server; in-browser search of the local copy in the app
 - **Offline:** Service worker (vite-plugin-pwa) caches the app; IndexedDB holds notes plus an outbox of pending changes (`frontend/src/offline/`). Notes carry a version number so the server can detect conflicting edits

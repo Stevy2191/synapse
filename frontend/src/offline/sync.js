@@ -229,13 +229,29 @@ export async function searchNotes(workspaceId, query) {
   const results = [];
   for (const note of await getWorkspaceNotes(workspaceId)) {
     const title = note.title.toLowerCase();
-    const text = plainText(note).replace(/\s+/g, ' ').trim();
+    const text = readable(plainText(note)).replace(/\s+/g, ' ').trim();
     const lower = text.toLowerCase();
     if (!terms.every(t => title.includes(t) || lower.includes(t))) continue;
     const score = terms.reduce((s, t) => s + (title.includes(t) ? 10 : 0) + (lower.split(t).length - 1), 0);
     results.push({ id: note.id, title: note.title, note_type: note.note_type, excerpt: excerpt(text, terms), score });
   }
   return results.sort((a, b) => b.score - a.score).slice(0, 30);
+}
+
+// Search excerpts read better without Markdown symbols (**, #, > [!NOTE], table bars, tags…).
+function readable(text) {
+  return text
+    .replace(/```[\w+#.-]*\n?/g, ' ')
+    .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/gm, ' ')   // table divider rows
+    .replace(/\s*\|\s*/g, ' · ')
+    .replace(/<\/?(details|summary|u|br)[^>]*>/gi, ' ')
+    .replace(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DANGER)\]/gi, ' ')
+    .replace(/\[TOC\]/gi, ' ')
+    .replace(/^\s{0,3}(#{1,6}|>+|[-*+]\s+\[[ xX]\]|[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')                            // links and images → their text
+    .replace(/(\*\*|__|~~|`)/g, '')
+    .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?]|$)/g, '$1$2')
+    .replace(/(\s*·\s*)+/g, ' · ');
 }
 
 function escapeHtml(s) {

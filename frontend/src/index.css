@@ -612,3 +612,9 @@ body {
 .mermaid-empty { color: var(--text-muted); font-size: 13px; text-align: center; }
 .mermaid-error { color: var(--danger); font-size: 12px; font-family: var(--font-mono); margin-top: 6px; white-space: pre-wrap; }
 .markdown-preview .mermaid-preview { border-top: 1px solid var(--code-border); border-radius: 10px; cursor: default; margin: 1em 0; }
+
+/* List markers (a library's CSS reset turns them off for every list on the page) */
+.rich-editor-content ol, .markdown-preview ol { list-style: decimal; }
+.rich-editor-content ul:not([data-type="taskList"]), .markdown-preview ul:not(.contains-task-list) { list-style: disc; }
+.rich-editor-content ul:not([data-type="taskList"]) ul:not([data-type="taskList"]), .markdown-preview ul ul { list-style: circle; }
+.rich-editor-content ol ol, .markdown-preview ol ol { list-style: lower-alpha; }
