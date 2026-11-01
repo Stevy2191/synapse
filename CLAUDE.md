@@ -31,6 +31,8 @@ backend/src/
                       conflict copies, [[link]] table, Trash (soft delete, restore, purge)
   routes/auth.js, security.js, mfa.js   login, setup code, TOTP, passkeys, recovery codes
   routes/calendars.js + calendars.js    ICS calendars, fetched server-side every 15 min
+  routes/attachments.js, workspaces.js, admin.js   uploads, per-workspace prefs, admin tools
+  settings.js, users.js, middleware/   server settings (Settings → Server), users, auth + rate limit
   cli.js, setup.js    first-admin setup code, `synapse` CLI helpers
 frontend/src/
   offline/db.js       IndexedDB (per user): notes, workspaces, outbox, calendar
@@ -108,6 +110,33 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 
 ## Ideas not built yet
 
-- Version history per note; sharing / public links; real-time collaboration.
-- Note templates; attachments other than images in the editor; import from Obsidian/Notion.
-- Mobile-specific UI polish; a native "share to Synapse".
+Sean's priorities first (asked for Nov 2026):
+
+- **Export**: PDF and Word (.docx) for a note or a whole folder; also Markdown/HTML zip.
+  Must render custom blocks (callouts, math, Mermaid, diagrams, Free Draw) — likely
+  server-side (headless Chromium for PDF, `docx` package for Word) or client-side print CSS.
+- **File integrations** — browse, open and save files directly to:
+  - OneDrive (Microsoft Graph; needs an Azure app registration Sean creates),
+  - Google Drive (Drive API; needs a Google Cloud OAuth client),
+  - a network share (SMB/NFS mounted into the container, like the install-time SMB option).
+  Online-only feature; tokens stored server-side per user, encrypted. Uses: attach/link files
+  in notes, save exports there, scheduled backups there.
+
+Other ideas:
+
+- Version history per note (diff + restore); sharing / public read-only links; real-time
+  collaboration (Yjs works with Tiptap).
+- Note templates (meeting, project, recipe…); attachments other than images (PDF viewer
+  inline, files); import from Obsidian / Notion / OneNote / Evernote.
+- Web clipper (bookmarklet / browser extension) and email-to-note.
+- Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
+- Reminders / notifications for due tasks (web push, email, or ntfy/Gotify for self-hosters).
+- Kanban board view of tasks; database/table views (properties per note, Notion-style).
+- Handwriting search (OCR of Free Draw and images), PDF annotation with the pen.
+- Local AI helpers (summarise, ask your notes) via a self-hosted Ollama, off by default.
+- Family features: shared workspaces with per-person permissions, shared lists (groceries),
+  family calendar view.
+- Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
+- Automatic backups to a share or cloud drive with retention; one-click restore.
+- Mobile polish; installable PWA "share to Synapse"; quick-capture widget.
+- Public REST API + API tokens / webhooks (for Home Assistant, scripts, n8n).
