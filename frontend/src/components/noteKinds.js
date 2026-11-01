@@ -25,3 +25,28 @@ export function kindInfo(entry) {
   const k = entry.kind || (entry.note_type === 'diagram' ? 'flowchart' : entry.note_type === 'draw' ? 'freedraw' : 'note');
   return { key: k, ...(KINDS[k] || KINDS.note) };
 }
+
+const shortDay = (d = new Date()) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** True for names that say nothing about the note ("Untitled", the old "New Diagram"…). */
+export function isUntitled(title) {
+  return /^(untitled|new diagram|new drawing|)$/i.test(String(title || '').trim());
+}
+
+/** A dated name like "Diagram – Nov 4", made unique among `titles` ("Diagram – Nov 4 (2)"). */
+export function datedName(word, titles = []) {
+  const base = `${word} – ${shortDay()}`;
+  const taken = new Set(titles.map(t => String(t).toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base} (${i})`.toLowerCase())) return `${base} (${i})`;
+}
+
+/** What to call a still-untitled note that has just got its first diagram (or null). */
+export function nameForDiagramNote(html, titles) {
+  // A saved diagram has its picture; a new one still being drawn (or cancelled) doesn't yet.
+  if (!/data-diagram="(drawio|excalidraw)"/.test(html || '') || !/src="data:image\//.test(html)) return null;
+  // Only when the diagram is all there is: other text means the note is about something else.
+  const text = html.replace(/<figure[^>]*data-diagram[\s\S]*?<\/figure>/gi, '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  if (text) return null;
+  return datedName(/data-diagram="excalidraw"/.test(html) ? 'Drawing' : 'Diagram', titles);
+}

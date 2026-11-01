@@ -12,7 +12,7 @@ import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
-import { kindInfo } from '../noteKinds';
+import { kindInfo, datedName } from '../noteKinds';
 
 
 function countDescendants(id, notes) {
@@ -286,9 +286,11 @@ export default function Sidebar({ width, onNavigate }) {
 
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
-    const titles = { note: 'Untitled', diagram: 'New Diagram', draw: 'New Drawing' };
+    // Flowcharts and Free Draw pages start with a dated name ("Drawing – Nov 4"); text notes are named as you write.
+    const word = { diagram: 'Flowchart', draw: 'Drawing' }[type];
+    const title = word ? datedName(word, notes.map(n => n.title)) : 'Untitled';
     try {
-      const note = await createLocalNote({ workspace_id: activeWorkspace.id, parent_id: parentId, title: titles[type] || 'Untitled', note_type: type });
+      const note = await createLocalNote({ workspace_id: activeWorkspace.id, parent_id: parentId, title, note_type: type });
       selectNote(note.id);
     } catch { toast.error('Failed to create note'); }
   };

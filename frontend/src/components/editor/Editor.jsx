@@ -4,7 +4,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
-import { noteKind } from '../noteKinds';
+import { noteKind, isUntitled, nameForDiagramNote } from '../noteKinds';
 import { drawingPreview } from '../freedraw/DrawingEmbed';
 import { extractMath, restoreMath, renderMath, videoElementHtml, renderMermaid } from './embeds';
 import { EditorView } from '@codemirror/view';
@@ -385,7 +385,14 @@ export default function Editor() {
   // (The Markdown copy is made in flushSave, once per save rather than per keystroke.)
   const handleRichContentChange = (html) => {
     setRichContent(html);
-    schedSave(title, content, html, tags, editorMode);
+    // An "Untitled" note whose only content is a new draw.io / Excalidraw diagram gets a name,
+    // so it can be told apart later ("Diagram – Nov 4").
+    let t = title;
+    if (isUntitled(title)) {
+      const named = nameForDiagramNote(html, notes.filter(n => n.id !== activeNote?.note?.id).map(n => n.title));
+      if (named) { t = named; setTitle(named); }
+    }
+    schedSave(t, content, html, tags, editorMode);
   };
 
   const fetchLinkSuggestions = (q) => {
