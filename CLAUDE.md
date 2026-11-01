@@ -95,6 +95,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   for @mentions/@everyone. Files: `DATA_DIR/uploads/chat/`, served via HMAC-signed links (≈1 week)
   because `<img>` can't send the auth header; unsent uploads purged after a day. GIF search needs
   an admin-entered GIPHY/Tenor key (Settings → Server); otherwise paste a GIF link.
+  Messages are texting-style bubbles: mine on the right (accent colour), others on the left
+  (Sean chose this); hover actions = react / reply / ⋯ menu beside the bubble.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.

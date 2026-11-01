@@ -1,6 +1,6 @@
 // One chat message: author, text, pictures/files, GIF, reply quote, reactions and its actions.
 import { memo, useState } from 'react';
-import { Reply, SmilePlus, Pencil, Trash2, Copy, FileText, Download, CornerDownRight } from 'lucide-react';
+import { Reply, SmilePlus, Pencil, Trash2, Copy, FileText, Download, CornerDownRight, MoreHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UserAvatar } from '../Avatar';
 import EmojiPicker from '../EmojiPicker';
@@ -36,8 +36,9 @@ function Files({ files, onOpenImage }) {
   );
 }
 
-function Message({ message: m, grouped, mine, canDelete, fmtCtx, onReply, onEdit, onOpenImage, onJump, onNoteLink, highlight }) {
+function Message({ message: m, grouped, last = true, showNames = true, mine, canDelete, fmtCtx, onReply, onEdit, onOpenImage, onJump, onNoteLink, highlight }) {
   const [picker, setPicker] = useState(false);
+  const [menu, setMenu] = useState(false);
   const users = useChat(s => s.users);
   const author = users[m.user_id];
   const myId = fmtCtx.myId;
@@ -53,30 +54,35 @@ function Message({ message: m, grouped, mine, canDelete, fmtCtx, onReply, onEdit
     if (link) { e.preventDefault(); onNoteLink(link.getAttribute('data-note')); }
   };
 
+  const name = author ? (author.display_name || author.username) : 'Deleted user';
+  const time = timeLabel(m.created_at);
+  const hasText = !m.deleted && m.body;
   return (
-    <div className={`chat-msg${grouped ? ' grouped' : ''}${highlight ? ' flash' : ''}`} id={`msg-${m.id}`}>
-      {m.reply_to && (
-        <button type="button" className="chat-replyref" onClick={() => onJump(m.reply_to.id)}>
-          <CornerDownRight size={12} /> <strong>{userName(m.reply_to.user_id)}</strong> <span>{m.reply_to.text}</span>
-        </button>
-      )}
+    <div className={`chat-msg ${mine ? 'mine' : 'theirs'}${grouped ? ' grouped' : ''}${last ? ' last' : ''}${highlight ? ' flash' : ''}`} id={`msg-${m.id}`}>
       <div className="chat-msg-row">
-        <div className="chat-msg-avatar">
-          {grouped ? <span className="chat-msg-time-hover">{timeLabel(m.created_at)}</span> : <UserAvatar user={author || { username: '?' }} size={34} />}
-        </div>
+        {!mine && (
+          <div className="chat-msg-avatar">
+            {last && <UserAvatar user={author || { username: '?' }} size={30} />}
+          </div>
+        )}
         <div className="chat-msg-main">
           {!grouped && (
             <div className="chat-msg-head">
-              <span className="chat-msg-author">{author ? (author.display_name || author.username) : 'Deleted user'}</span>
-              <span className="chat-msg-time">{timeLabel(m.created_at)}</span>
+              {!mine && showNames && <span className="chat-msg-author">{name}</span>}
+              <span className="chat-msg-time">{time}</span>
             </div>
           )}
+          {m.reply_to && (
+            <button type="button" className="chat-replyref" onClick={() => onJump(m.reply_to.id)}>
+              <CornerDownRight size={12} /> <strong>{userName(m.reply_to.user_id)}</strong> <span>{m.reply_to.text.replace(/\*\*|~~|`/g, '').replace(/(^|\s)[*_]([^*_]+)[*_]/g, '$1$2')}</span>
+            </button>
+          )}
           {m.deleted ? (
-            <div className="chat-msg-deleted">Message deleted</div>
+            <div className="chat-bubble deleted" title={time}>Message deleted</div>
           ) : (
             <>
-              {m.body && (
-                <div className={`chat-msg-body${big ? ' big' : ''}`} onClick={onBodyClick}
+              {hasText && (
+                <div className={`chat-bubble${big ? ' big' : ''}`} title={time} onClick={onBodyClick}
                   dangerouslySetInnerHTML={{ __html: formatMessage(m.body, fmtCtx) + (m.edited_at ? ' <span class="chat-edited">(edited)</span>' : '') }} />
               )}
               {m.gif && (
@@ -99,27 +105,31 @@ function Message({ message: m, grouped, mine, canDelete, fmtCtx, onReply, onEdit
               )}
             </>
           )}
-        </div>
-      </div>
-      {!m.deleted && (
-        <div className="chat-msg-actions">
-          {QUICK.slice(0, 3).map(e => <button key={e} type="button" title={`React ${e}`} onClick={() => toggleReaction(m, e)}>{e}</button>)}
-          <button type="button" title="Add reaction" onClick={() => setPicker(p => !p)}><SmilePlus size={15} /></button>
-          <button type="button" title="Reply" onClick={() => onReply(m)}><Reply size={15} /></button>
-          {m.body && <button type="button" title="Copy text" onClick={() => { navigator.clipboard?.writeText(m.body); toast.success('Copied'); }}><Copy size={14} /></button>}
-          {mine && m.body !== undefined && <button type="button" title="Edit" onClick={() => onEdit(m)}><Pencil size={14} /></button>}
-          {canDelete && <button type="button" title="Delete" className="danger" onClick={() => { if (confirm('Delete this message for everyone?')) deleteMessage(m.id); }}><Trash2 size={14} /></button>}
-          {picker && (
-            <div className="chat-react-picker">
-              <div className="chat-react-quick">
-                {QUICK.map(e => <button key={e} type="button" onMouseDown={ev => { ev.preventDefault(); ev.stopPropagation(); toggleReaction(m, e); setPicker(false); }}>{e}</button>)}
-              </div>
-              <EmojiPicker forChat onPick={e => { toggleReaction(m, e); setPicker(false); }} onClose={() => setPicker(false)}
-                anchorStyle={{ position: 'static', boxShadow: 'none', border: 'none', padding: 0 }} />
+          {!m.deleted && (
+            <div className={`chat-msg-actions${picker || menu ? ' open' : ''}`}>
+              <button type="button" title="React" onClick={() => { setMenu(false); setPicker(p => !p); }}><SmilePlus size={15} /></button>
+              <button type="button" title="Reply" onClick={() => onReply(m)}><Reply size={15} /></button>
+              <button type="button" title="More" onClick={() => { setPicker(false); setMenu(x => !x); }}><MoreHorizontal size={15} /></button>
+              {menu && (
+                <div className="chat-msg-menu" onMouseLeave={() => setMenu(false)}>
+                  {m.body && <button type="button" onClick={() => { navigator.clipboard?.writeText(m.body); toast.success('Copied'); setMenu(false); }}><Copy size={14} /> Copy text</button>}
+                  {mine && <button type="button" onClick={() => { setMenu(false); onEdit(m); }}><Pencil size={14} /> Edit</button>}
+                  {canDelete && <button type="button" className="danger" onClick={() => { setMenu(false); if (confirm('Delete this message for everyone?')) deleteMessage(m.id); }}><Trash2 size={14} /> Delete</button>}
+                </div>
+              )}
+              {picker && (
+                <div className="chat-react-picker">
+                  <div className="chat-react-quick">
+                    {QUICK.map(e => <button key={e} type="button" onMouseDown={ev => { ev.preventDefault(); ev.stopPropagation(); toggleReaction(m, e); setPicker(false); }}>{e}</button>)}
+                  </div>
+                  <EmojiPicker forChat onPick={e => { toggleReaction(m, e); setPicker(false); }} onClose={() => setPicker(false)}
+                    anchorStyle={{ position: 'static', boxShadow: 'none', border: 'none', padding: 0 }} />
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

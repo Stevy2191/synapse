@@ -106,7 +106,8 @@ export default function ChatRoom({ chatId, onBack, onClose, compact = false }) {
     }
     const grouped = prev && !rows[rows.length - 1].type.match(/day|new/) && prev.user_id === m.user_id && !prev.gif?.system && !m.gif?.system
       && !m.reply_to && m.created_at - prev.created_at < GROUP_SECONDS;
-    rows.push({ type: 'msg', key: m.id, m, grouped });
+    if (grouped) rows[rows.length - 1].last = false; // the one before isn't the end of a run any more
+    rows.push({ type: 'msg', key: m.id, m, grouped, last: true });
     prev = m;
   }
 
@@ -166,7 +167,7 @@ export default function ChatRoom({ chatId, onBack, onClose, compact = false }) {
             {rows.map(r => r.type === 'day' ? <div key={r.key} className="chat-day"><span>{r.label}</span></div>
               : r.type === 'new' ? <div key={r.key} className="chat-newline"><span>New messages</span></div>
                 : (
-                  <Message key={r.key} message={r.m} grouped={r.grouped} mine={r.m.user_id === me?.id}
+                  <Message key={r.key} message={r.m} grouped={r.grouped} last={r.last} showNames={chat.members.length > 2} mine={r.m.user_id === me?.id}
                     canDelete={r.m.user_id === me?.id || owner} fmtCtx={fmtCtx} highlight={flash === r.m.id}
                     onReply={m => { setEditing(null); setReplyTo(m); }} onEdit={m => { setReplyTo(null); setEditing(m); }}
                     onOpenImage={setLightbox} onJump={jumpTo} onNoteLink={onNoteLink} />
