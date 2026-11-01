@@ -103,7 +103,7 @@ storage_description() {
 }
 
 # Same as install.sh's write_lan_caddyfile.
-write_lan_caddyfile() { # IP HTTPS_PORT TRUST_PORT
+write_lan_caddyfile() { # IP HTTPS_PORT TRUST_PORT (draw.io port read from .env)
   cat >Caddyfile <<CADDY
 # HTTPS on this server's IP address. Caddy runs a private certificate authority;
 # each device trusts it once via the page on port $3. Rewritten by: synapse set-ip
@@ -133,6 +133,10 @@ http://:$3 {
 	}
 }
 CADDY
+  local dp; dp=$(env_get DRAWIO_PORT)
+  if [ -n "$dp" ]; then
+    printf '\n# Your own draw.io, on HTTPS with the same certificate\nhttps://%s:%s {\n\treverse_proxy drawio:8080\n}\n' "$1" "$dp" >>Caddyfile
+  fi
   printf 'window.SYNAPSE = { httpsPort: %s };\n' "$2" >trust/config.js
 }
 
@@ -174,6 +178,8 @@ case "$cmd" in
       warn "Synapse is not running. Start it with: synapse start  (or check: synapse logs)"
     fi
     printf '  %snotes: %s%s\n' "$D" "$(storage_description)" "$R"
+    if [ -n "$(env_get DRAWIO_URL)" ]; then printf '  %sdraw.io: %s%s\n' "$D" "$(env_get DRAWIO_URL)" "$R"
+    else printf '  %sdraw.io: diagrams.net%s\n' "$D" "$R"; fi
     if is_running && compose exec -T synapse test -f /data/.setup_code 2>/dev/null; then
       warn "No admin account yet — setup code: $(compose exec -T synapse cat /data/.setup_code)"
     fi
@@ -268,7 +274,9 @@ case "$cmd" in
     [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Usage: synapse set-ip [IPv4 address]"
     [ "$new" = "$(env_get SYNAPSE_IP)" ] && { ok "Already set to $new"; exit 0; }
     sed -i "s/^SYNAPSE_IP=.*/SYNAPSE_IP=$new/" .env
+    if [ -n "$(env_get DRAWIO_PORT)" ]; then sed -i "s|^DRAWIO_URL=.*|DRAWIO_URL=https://$new:$(env_get DRAWIO_PORT)|" .env; fi
     write_lan_caddyfile "$new" "$(env_get SYNAPSE_PORT)" "$(env_get SYNAPSE_TRUST_PORT)"
+    compose up -d >/dev/null   # picks up the new DRAWIO_URL too
     compose restart caddy >/dev/null
     ok "Synapse is now at $(address)"
     echo "  Devices that already trust this server don't need to do anything again."

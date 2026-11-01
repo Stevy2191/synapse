@@ -53,6 +53,7 @@ The installer:
   3. **At your own web address with HTTPS**: sets up [Caddy](https://caddyserver.com), which gets a free Let's Encrypt certificate automatically
   4. **HTTPS without a domain**: `https://192.168.x.x:8443`. Caddy creates this server's own certificate, and a small **trust page** (with a QR code) walks each phone or computer through trusting it once. After that there are no warnings, and offline mode works
 - checks which ports are free, tells you what's using a busy one, and suggests a free one
+- offers to run **your own draw.io** for diagrams (optional: by default diagrams use the free diagrams.net editor, which needs internet). It's set up to match how you open Synapse, including HTTPS with the same certificate
 - asks where to keep your notes:
   1. **A folder on this server**: `./data` by default, or any path, such as a second drive or USB disk (it lists mounted drives with their free space). If the folder already holds Synapse notes, they're used
   2. **A Docker volume**: Docker manages the storage

@@ -14,6 +14,8 @@
 #    --port N            Synapse's port (home / proxy: from 3001; lan-https: from 8443)
 #    --trust-port N      lan-https: port for the "trust this server" page (from 8080)
 #    --domain NAME       web address for https mode, e.g. notes.example.com
+#    --drawio yes|no     run your own draw.io (default no: diagrams use diagrams.net)
+#    --drawio-port N     port for your own draw.io
 #    --storage KIND      where notes are kept: folder | volume | smb
 #    --data-path PATH    folder storage: the folder           (default: <install folder>/data)
 #    --volume NAME       volume storage: Docker volume name   (default: synapse-data)
@@ -40,6 +42,9 @@ SMB_DOMAIN=""
 MODE=""
 PORT=""
 TRUST_PORT=""
+DRAWIO=""
+DRAWIO_PORT=""
+DRAWIO_URL=""
 DOMAIN=""
 ASSUME_YES=0
 DRY_RUN="${SYNAPSE_DRY_RUN:-0}"   # testing: write files only, don't touch Docker
@@ -92,6 +97,8 @@ while [ $# -gt 0 ]; do
     --mode) MODE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --trust-port) TRUST_PORT="$2"; shift 2 ;;
+    --drawio) DRAWIO="$2"; shift 2 ;;
+    --drawio-port) DRAWIO_PORT="$2"; shift 2 ;;
     --domain) DOMAIN="$2"; shift 2 ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -100,6 +107,7 @@ while [ $# -gt 0 ]; do
 done
 case "$MODE" in ""|home|proxy|https|lan-https) ;; *) die "--mode must be home, proxy, https or lan-https" ;; esac
 case "$STORAGE" in ""|folder|volume|smb) ;; *) die "--storage must be folder, volume or smb" ;; esac
+case "$DRAWIO" in ""|yes|no) ;; *) die "--drawio must be yes or no" ;; esac
 
 # Files that ship next to this script (when run from a download of the repo rather than via curl).
 SCRIPT_DIR=""
@@ -147,7 +155,7 @@ next_free_port() {
   die "Couldn't find a free port"
 }
 
-# pick_port VAR "what it's for" START [PORT-TO-AVOID]
+# pick_port VAR "what it's for" START ["PORTS TO AVOID"]
 # Suggests the first free port from START, shows what's using busy ones, and checks the answer.
 # If VAR already holds a value (from a command-line option), just checks that one.
 pick_port() {
@@ -155,11 +163,11 @@ pick_port() {
   local label="$2" start="$3" avoid="${4:-}" suggested taken p
   if [ -n "$_out" ]; then
     port_in_use "$_out" && die "Port $_out is already used by $(port_owner "$_out")."
-    [ "$_out" = "$avoid" ] && die "Port $_out is already taken by the other Synapse port."
+    [[ " $avoid " == *" $_out "* ]] && die "Port $_out is already taken by another Synapse port."
     ok "Using port $_out for $label"; return
   fi
   suggested=$(next_free_port "$start")
-  [ "$suggested" = "$avoid" ] && suggested=$(next_free_port $((suggested + 1)))
+  while [[ " $avoid " == *" $suggested "* ]]; do suggested=$(next_free_port $((suggested + 1))); done
   if [ "$suggested" != "$start" ]; then info "Port $start is used by $(port_owner "$start")."; fi
   taken=""
   for p in $(seq $((start - 1)) $((start + 9))) 3001 8000 8080 8443 8888; do
@@ -172,8 +180,8 @@ pick_port() {
       warn "Enter a number between 1024 and 65535."
       [ "$ASSUME_YES" = 1 ] && die "Invalid port"; continue
     fi
-    if [ "$REPLY" = "$avoid" ]; then
-      warn "Port $REPLY is already taken by the other Synapse port."
+    if [[ " $avoid " == *" $REPLY "* ]]; then
+      warn "Port $REPLY is already taken by another Synapse port."
       [ "$ASSUME_YES" = 1 ] && die "Port clash"; continue
     fi
     if port_in_use "$REPLY"; then
@@ -192,7 +200,7 @@ lan_ip() {
 }
 
 # Caddy config for HTTPS on an IP address. (The same text is written by `synapse set-ip`.)
-write_lan_caddyfile() { # DIR IP HTTPS_PORT TRUST_PORT
+write_lan_caddyfile() { # DIR IP HTTPS_PORT TRUST_PORT [DRAWIO_PORT]
   cat >"$1/Caddyfile" <<CADDY
 # HTTPS on this server's IP address. Caddy runs a private certificate authority;
 # each device trusts it once via the page on port $4. Rewritten by: synapse set-ip
@@ -222,6 +230,9 @@ http://:$4 {
 	}
 }
 CADDY
+  if [ -n "${5:-}" ]; then
+    printf '\n# Your own draw.io, on HTTPS with the same certificate\nhttps://%s:%s {\n\treverse_proxy drawio:8080\n}\n' "$2" "$5" >>"$1/Caddyfile"
+  fi
 }
 
 random_string() { # random_string LENGTH ALPHABET
@@ -481,6 +492,42 @@ case "$MODE" in
     ;;
 esac
 
+# ── Diagrams (draw.io) ──────────────────────────────────────────────────────
+step "Diagrams"
+info "draw.io diagrams work out of the box, using the free diagrams.net editor (the browser needs internet)."
+info "You can run your own copy instead: diagrams then work offline and nothing leaves your network."
+info "It's a large download (several hundred MB)."
+if [ -z "$DRAWIO" ]; then
+  if confirm "Run your own draw.io?" N; then DRAWIO=yes; else DRAWIO=no; fi
+fi
+if [ "$DRAWIO" = yes ]; then
+  case "$MODE" in
+    home|proxy)
+      pick_port DRAWIO_PORT "draw.io" 8081 "$PORT"
+      DRAWIO_URL="http://$LAN_IP:$DRAWIO_PORT"
+      if [ "$MODE" = proxy ] && [ "$DRAWIO" = yes ]; then
+  say ""
+  say "  ${B}draw.io${R}: add a proxy host for ${B}$DRAWIO_URL${R} → $LAN_IP:$DRAWIO_PORT (with SSL if Synapse uses HTTPS)."
+fi
+if [ "$MODE" = proxy ]; then
+        info "Browsers block plain-http pages inside an https site, so give draw.io its own"
+        info "proxy host too (forward it to $LAN_IP:$DRAWIO_PORT), e.g. https://drawio.example.com"
+        ask "Address people will use for draw.io:" "$DRAWIO_URL"
+        DRAWIO_URL="${REPLY%/}"
+      fi ;;
+    https)
+      pick_port DRAWIO_PORT "draw.io (HTTPS, same certificate)" 8444
+      DRAWIO_URL="https://$DOMAIN:$DRAWIO_PORT"
+      info "If you're behind a router, forward port $DRAWIO_PORT to this machine as well." ;;
+    lan-https)
+      pick_port DRAWIO_PORT "draw.io (HTTPS, same certificate)" 8444 "$PORT $TRUST_PORT"
+      DRAWIO_URL="https://$LAN_IP:$DRAWIO_PORT" ;;
+  esac
+  ok "Diagrams will use your own draw.io at $DRAWIO_URL"
+else
+  ok "Diagrams will use diagrams.net (you can add your own copy later by re-running the installer)"
+fi
+
 # ── 4. Where notes are kept ─────────────────────────────────────────────────
 step "Where should Synapse keep your notes?"
 SYNAPSE_DATA="./data"
@@ -595,6 +642,9 @@ SYNAPSE_STORAGE=$STORAGE
 SYNAPSE_DATA=$SYNAPSE_DATA
 SYNAPSE_NETWORK_STORAGE=$NETWORK_STORAGE
 SYNAPSE_CONTAINER=$CONTAINER
+# Your own draw.io (empty = use diagrams.net)
+DRAWIO_PORT=$DRAWIO_PORT
+DRAWIO_URL=$DRAWIO_URL
 EOF
 if [ "$STORAGE" = smb ]; then
   printf "SMB_MOUNT_OPTIONS='%s'\n" "$(smb_options "$SMB_IP" "$SMB_VERS")" >>"$DIR/.env"
@@ -616,6 +666,7 @@ services:
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}
       - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
+      - DRAWIO_URL=${DRAWIO_URL:-}
 
   caddy:
     image: caddy:2
@@ -655,6 +706,7 @@ services:
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}
       - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
+      - DRAWIO_URL=${DRAWIO_URL:-}
 
   caddy:
     image: caddy:2
@@ -670,7 +722,7 @@ services:
       - ./caddy/data:/data
       - ./caddy/config:/config
 EOF
-  write_lan_caddyfile "$DIR" "$LAN_IP" "$PORT" "$TRUST_PORT"
+  write_lan_caddyfile "$DIR" "$LAN_IP" "$PORT" "$TRUST_PORT" "$DRAWIO_PORT"
   mkdir -p "$DIR/trust"
   local_or_download scripts/trust.html "$DIR/trust/index.html" || die "Couldn't download the certificate page."
   printf 'window.SYNAPSE = { httpsPort: %s };\n' "$PORT" >"$DIR/trust/config.js"
@@ -694,7 +746,23 @@ services:
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - SETUP_CODE=${SETUP_CODE:-}
       - SYNAPSE_NETWORK_STORAGE=${SYNAPSE_NETWORK_STORAGE:-false}
+      - DRAWIO_URL=${DRAWIO_URL:-}
 EOF
+fi
+if [ "$DRAWIO" = yes ]; then
+  {
+    printf '\n  # Your own draw.io editor (diagrams are still saved in Synapse)\n'
+    printf '  drawio:\n    image: jgraph/drawio:latest\n    container_name: ${SYNAPSE_CONTAINER:-synapse}-drawio\n    restart: unless-stopped\n'
+    case "$MODE" in home|proxy) printf '    ports:\n      - "${DRAWIO_PORT}:8080"\n' ;; esac
+  } >>"$DIR/docker-compose.yml"
+  case "$MODE" in
+    https)
+      # Caddy also serves draw.io on its own port, with the same certificate
+      sed -i 's|^      - "443:443/udp"$|      - "443:443/udp"\n      - "${DRAWIO_PORT}:${DRAWIO_PORT}"|' "$DIR/docker-compose.yml"
+      printf '\n# Your own draw.io, on HTTPS with the same certificate\n%s:%s {\n\treverse_proxy drawio:8080\n}\n' "$DOMAIN" "$DRAWIO_PORT" >>"$DIR/Caddyfile" ;;
+    lan-https)
+      sed -i 's|^      - "${SYNAPSE_TRUST_PORT}:${SYNAPSE_TRUST_PORT}"$|      - "${SYNAPSE_TRUST_PORT}:${SYNAPSE_TRUST_PORT}"\n      - "${DRAWIO_PORT}:${DRAWIO_PORT}"|' "$DIR/docker-compose.yml" ;;
+  esac
 fi
 if [ -n "$VOLUMES_BLOCK" ]; then printf '\n%s\n' "$VOLUMES_BLOCK" >>"$DIR/docker-compose.yml"; fi
 umask 022
@@ -731,6 +799,7 @@ if [ "$DRY_RUN" != 1 ]; then
     lan-https) open_firewall "$PORT"; open_firewall "$TRUST_PORT" ;;
     *) open_firewall "$PORT" ;;
   esac
+  if [ -n "$DRAWIO_PORT" ]; then open_firewall "$DRAWIO_PORT"; fi
 fi
 
 # ── 6. Start ────────────────────────────────────────────────────────────────
@@ -782,6 +851,7 @@ line "${B}${GRN}Synapse is ready!${R}"
 line ""
 line "Open        ${B}$URL${R}"
 line "Setup code  ${B}$SETUP_CODE${R}"
+[ "$DRAWIO" = yes ] && line "draw.io     $DRAWIO_URL"
 case "$STORAGE" in
   folder) line "Notes in    $DATA_PATH" ;;
   volume) line "Notes in    Docker volume \"$VOLUME_NAME\"" ;;
