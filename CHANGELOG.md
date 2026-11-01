@@ -4,6 +4,23 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.3.0 — November 2026
+
+### New
+- **Publish notes as links** — click **Publish** on a note to get a link anyone can open, no account
+  needed. Make as many links as you like, each with a name only you see and a view count.
+  - **Normal link** — always shows the latest version of the note.
+  - **End-to-end encrypted link** — the note is scrambled in your browser with a key that's only in
+    the link; your server stores just a scrambled copy. It updates when you save the note on the
+    device you published it from. (Needs your https address.)
+  - Optional **PIN or password** (locks for 15 minutes after 8 wrong tries), **expiry date**, and
+    **let visitors download** (PDF / Word / web page).
+  - Change or unpublish a link any time.
+
+### Good to know
+- People outside your home can only open a link if Synapse is reachable from the internet — publish
+  from your public https address.
+
 ## v1.2.0 — November 2026
 
 ### New
