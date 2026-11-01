@@ -15,6 +15,11 @@ app. Most of what's here was built in one long session; this file is the hand-of
   `git fetch origin main && git merge-base --is-ancestor origin/main HEAD && git push origin HEAD:main`
 - Releases: every push to `main` → GitHub Actions (`.github/workflows/docker.yml`) builds
   `ghcr.io/stevy2191/synapse:latest` → he runs `synapse update` on his server. Tell him that.
+- Versions: to cut a release, bump `version` in backend/ + frontend/ package.json (and their
+  lockfiles) and add a `## vX.Y.Z` section to CHANGELOG.md. On merge to main,
+  `.github/workflows/release.yml` creates the tag + GitHub Release (notes from the changelog) and
+  builds `ghcr.io/stevy2191/synapse:vX.Y.Z`. (This session can't push tags itself — the git proxy
+  only allows the working branch — which is why the workflow does it.)
 - **Test in a real browser before saying something works** (see Testing). Say honestly what
   was and wasn't tested (e.g. no internet in the sandbox → couldn't load diagrams.net).
 - Uses: Windows PC, a tablet with a pen (iPad/Safari likely), self-hosted Bitwarden,

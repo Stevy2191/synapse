@@ -1,0 +1,69 @@
+name: Publish releases
+
+# After every update to main: if CHANGELOG.md has a version that isn't published yet (and the app's
+# version number was set to it), create its git tag + GitHub Release (notes from CHANGELOG.md) and
+# build a Docker image labelled with that version, e.g. ghcr.io/stevy2191/synapse:v1.2.0.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.pending.outputs.releases }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pending
+        run: echo "releases=$(.github/scripts/pending-releases.sh)" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: find
+    if: needs.find.outputs.releases != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    strategy:
+      max-parallel: 1
+      matrix:
+        release: ${{ fromJSON(needs.find.outputs.releases) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create the tag and release page
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ matrix.release.version }}
+          SHA: ${{ matrix.release.sha }}
+        run: |
+          .github/scripts/release-notes.sh "$VERSION" > notes.md
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "$VERSION is already published"
+          else
+            gh release create "$VERSION" --target "$SHA" --title "Synapse $VERSION" --notes-file notes.md
+          fi
+
+      - name: Check out the released code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.release.sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the versioned image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/stevy2191/synapse:${{ matrix.release.version }}

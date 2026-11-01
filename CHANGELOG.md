@@ -4,6 +4,22 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.2.0 — November 2026
+
+### New
+- **Share notes with permissions** — click **Share** on a note, pick people on your server, and give
+  each **Can view** or **Can edit**; tick “Include the notes inside it” to share a whole folder.
+  They’re notified and see it under **Shared with me**. Only the owner changes sharing.
+- **Take turns editing** — one person edits a shared note at a time; everyone else sees the changes
+  appear live with “Mom is editing”. The turn passes on when they leave or after a minute idle,
+  and there’s a **Take over** button.
+- **History** on every note — who changed what and when, with added and removed words highlighted,
+  and **Restore** for any older version.
+
+### Good to know
+- Notes shared *with* you need a connection to open and edit; your own notes still work offline.
+- New releases are now published automatically (tag, release page and a versioned Docker image).
+
 ## v1.1.0 — November 2026
 
 ### New
