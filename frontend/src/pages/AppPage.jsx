@@ -6,6 +6,7 @@ import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
 import TrashView from '../components/trash/TrashView';
 import ChatView from '../components/chat/ChatView';
+import AskView from '../components/ai/AskView';
 import { startChat, stopChat, useChat, totalUnread } from '../chat/client';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
@@ -117,7 +118,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : <Editor />}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <Editor />}
       </main>
       <SearchModal />
       <Settings />

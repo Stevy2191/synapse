@@ -50,7 +50,15 @@ function pickImageFile(editor) {
 
 const callout = type => (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'callout', attrs: { type }, content: [{ type: 'paragraph' }] }).run();
 
+// Is the AI assistant allowed in the current workspace? (Workspace → Preferences)
+function aiAllowed() {
+  try { return JSON.parse(useStore.getState().activeWorkspace?.settings || '{}').ai !== 'off'; } catch { return true; }
+}
+
 export const SLASH_ITEMS = [
+  // AI
+  { id: 'ai', group: 'AI', title: 'Ask AI', desc: 'Write, rewrite, translate or find action items', keywords: 'ai assistant write generate gpt claude chatgpt gemini grok summarise summarize translate tasks', when: aiAllowed,
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:ai', { fromSlash: true }); } },
   // Basic
   { id: 'text', group: 'Basic', title: 'Text', desc: 'Plain paragraph', keywords: 'paragraph p', run: (e, r) => e.chain().focus().deleteRange(r).setParagraph().run() },
   { id: 'h1', group: 'Basic', title: 'Heading 1', desc: 'Big section heading', keywords: 'title #', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
@@ -137,7 +145,8 @@ export const SLASH_ITEMS = [
 
 export function filterSlashItems(query) {
   const q = query.toLowerCase().trim();
-  const items = q ? SLASH_ITEMS.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q)) : SLASH_ITEMS;
+  const visible = SLASH_ITEMS.filter(i => !i.when || i.when());
+  const items = q ? visible.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q)) : visible;
   // Fresh date/time in the descriptions each time the menu opens
   return items.map(i => (i.id === 'date' ? { ...i, desc: today() } : i.id === 'time' ? { ...i, desc: now() } : i));
 }

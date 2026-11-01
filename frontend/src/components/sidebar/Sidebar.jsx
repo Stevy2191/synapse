@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, ListTodo, MessageCircle, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, MessageCircle, Sparkles, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
-import { UserAvatar, WorkspaceIcon, displayName } from '../Avatar';
+import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
 import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
@@ -257,7 +257,7 @@ export default function Sidebar({ width, onNavigate }) {
   const selectNote = useCallback(async (id) => {
     await openNote(id);
     // Leave Graph / Tasks / Trash / Chats so the note is actually shown.
-    if (['graph', 'tasks', 'trash', 'chat'].includes(view)) setView('editor');
+    if (['graph', 'tasks', 'trash', 'chat', 'ask'].includes(view)) setView('editor');
     onNavigate?.();
   }, [view, setView, onNavigate]);
 
@@ -276,6 +276,7 @@ export default function Sidebar({ width, onNavigate }) {
   // Tasks due today or overdue, for the badge next to "Tasks"
   const [dueCount, setDueCount] = useState(0);
   const chatUnread = useChat(totalUnread);
+  const aiAllowed = workspaceSettings(activeWorkspace).ai !== 'off';
   useEffect(() => {
     if (!activeWorkspace) return undefined;
     let cancelled = false;
@@ -327,6 +328,11 @@ export default function Sidebar({ width, onNavigate }) {
           <ListTodo size={14} /> Tasks
           {dueCount > 0 && <span className="nav-badge" title="Due today or overdue">{dueCount}</span>}
         </button>
+        {aiAllowed && (
+          <button className={`nav-item${view === 'ask' ? ' on' : ''}`} onClick={() => { setView(view === 'ask' ? 'editor' : 'ask'); onNavigate?.(); }}>
+            <Sparkles size={14} /> Ask AI
+          </button>
+        )}
         <button className={`nav-item${view === 'chat' ? ' on' : ''}`} onClick={() => { setView(view === 'chat' ? 'editor' : 'chat'); onNavigate?.(); }}>
           <MessageCircle size={14} /> Chats
           {chatUnread > 0 && <span className="nav-badge" title="Unread messages">{chatUnread > 99 ? '99+' : chatUnread}</span>}

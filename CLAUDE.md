@@ -37,6 +37,9 @@ backend/src/
   chat.js + routes/chats.js   Chat: tables (chats, chat_members, chat_messages, chat_files,
                       chat_reactions, push_subscriptions), SSE live hub, web-push (VAPID keys in
                       settings table), signed file links, GIF search proxy (GIPHY/Tenor key in settings)
+  ai.js + routes/ai.js   AI assistant: per-user AI accounts (keys AES-GCM-encrypted with a key
+                      derived from JWT_SECRET), Claude via @anthropic-ai/sdk, everything else via
+                      OpenAI-compatible /chat/completions; SSE streaming; /write, /tasks, /ask, /models
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
 frontend/src/
@@ -68,6 +71,9 @@ frontend/src/
                       message formatting (**bold**, links, @mentions, [[note]] links)
   components/chat/    ChatView (list+room, view 'chat'), ChatRoom, Message, Composer, GifPicker,
                       ChatDialogs (new chat, people, read the note); Chat button + side panel in Editor
+  ai/client.js        AI calls from the browser (fetch-SSE streaming, settings)
+  components/ai/      AiSettings (Settings → AI assistant), AiPanel (✨ on notes: top bar, selection
+                      bubble, "/ai"), AskView (view 'ask', sidebar "Ask AI")
   public/push-sw.js   push + notificationclick handlers, pulled into the PWA service worker
   themes/index.js     themes as CSS variables; index.css has most component CSS
 install.sh            one-line installer (modes home|proxy|https|lan-https, storage folder|volume|smb,
@@ -103,6 +109,17 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   contacts; set in Chat settings → People. Server adds `nickname` to /chats/users and chat
   members (per viewer) and uses it in push titles; client always names people via
   `personName()` / `userName()` in chat/client.js (nickname → display name → username).
+- **AI assistant** (built Nov 2026): *each person* connects their own AI (Sean's choice — no
+  shared/admin keys). Providers: Claude (official SDK; default model `claude-opus-5-5`, and for
+  current Claude models server-side refusal fallbacks `fallbacks: "default"` + beta
+  `server-side-fallback-2026-07-01`), ChatGPT, Grok, Gemini (its OpenAI-compatible endpoint),
+  Ollama, LM Studio, any OpenAI-compatible URL. Online-only. Model lists come live from the
+  provider ("Load models") — don't hard-code non-Claude model names. Prompts live server-side
+  in routes/ai.js. Features: writing actions on selection/whole note (replace / insert below),
+  "Find action items" → `- [ ] task (who) 📅 date` under "## Action items" (shows in Tasks),
+  "Ask AI" = server FTS (OR of keywords) → top notes → answer citing [[Title]]. Workspace
+  setting `ai: 'off'` hides AI and the server refuses requests for that workspace. Usage counted
+  in `ai_usage`. Not built yet: suggest tags/titles, OCR via vision models.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -137,6 +154,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Chat: two browser contexts (two users) in one Playwright script; add the 2nd user with
   `POST /api/admin/users`. Real push can't be tested in the sandbox (needs the browser's push
   service on the internet); GIF search likewise.
+- AI: no internet in the sandbox — a stand-in script serves the Anthropic Messages API (port
+  8098, used via `ANTHROPIC_BASE_URL`) and an OpenAI-compatible API (8099) with canned replies.
+  The Anthropic SDK sends the key as `Authorization: Bearer` (not only `x-api-key`).
 - draw.io can't load in the sandbox (no internet): serve a stand-in page that speaks the embed
   protocol and set `DRAWIO_URL=http://localhost:8098`.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -166,20 +186,6 @@ Sean's priorities first (asked for Nov 2026):
   - a network share (SMB/NFS mounted into the container, like the install-time SMB option).
   Online-only feature; tokens stored server-side per user, encrypted. Uses: attach/link files
   in notes, save exports there, scheduled backups there.
-
-- **AI assistant, bring your own AI** (Sean wants this): users add whichever provider they
-  have — Claude (Anthropic), OpenAI, Grok (xAI), Gemini, a local Ollama / LM Studio, or any
-  OpenAI-compatible URL (OpenRouter etc.). Off by default.
-  - Keys: admin can set server-wide keys for the family; users can add their own. Stored
-    encrypted server-side; all calls go through the backend (keys never reach the browser).
-    Pick provider + model per user; admin can restrict which providers are allowed.
-  - Features: `/ai` in the slash menu + bubble-menu actions (summarise, rewrite, fix
-    grammar, change tone, translate, continue writing); "Ask your notes" chat with linked
-    sources (search/FTS first, embeddings later); turn meeting notes into tasks with due
-    dates; suggest tags/titles/links; explain or generate Mermaid diagrams; OCR/describe
-    images and handwriting with vision models.
-  - Online-only. Show clearly which provider a note is sent to; per-workspace opt-out
-    (e.g. a private workspace never goes to cloud AI). Streaming responses; usage log.
 
 Other ideas:
 

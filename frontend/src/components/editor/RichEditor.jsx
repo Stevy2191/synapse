@@ -22,7 +22,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
-  Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
+  Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { kindInfo } from '../noteKinds';
@@ -38,7 +38,7 @@ const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
   drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, upload: ImageUp, subnote: FilePlus, toc: ListTree,
-  'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
+  ai: Sparkles, 'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
 const COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#7c7bff', '#a855f7', '#ec4899'];
@@ -51,7 +51,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -141,10 +141,14 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     if (!editor) return undefined;
     const open = ({ inline }) => setMath({ inline, latex: '', pos: null, editing: false });
     const openDrawing = () => setDrawingPicker(true);
+    const openAi = (opts) => onAiRef.current?.(opts || {});
     editor.on('synapse:math', open);
     editor.on('synapse:drawing', openDrawing);
-    return () => { editor.off('synapse:math', open); editor.off('synapse:drawing', openDrawing); };
+    editor.on('synapse:ai', openAi);
+    return () => { editor.off('synapse:math', open); editor.off('synapse:drawing', openDrawing); editor.off('synapse:ai', openAi); };
   }, [editor]);
+  const onAiRef = useRef(onAi);
+  onAiRef.current = onAi;
 
   const saveMath = (latex, inline) => {
     const m = math;
@@ -301,6 +305,13 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
         shouldShow={({ editor: ed, state }) => !state.selection.empty && !state.selection.node && !ed.isActive('codeBlock') && !ed.isActive('image') && !ed.isActive('diagram')}
         options={{ placement: 'top', offset: 8 }}>
         <div className="floating-menu">
+          {onAi && (
+            <>
+              <button type="button" className="ai-bubble-btn" title="Ask AI about the selected text"
+                onMouseDown={e => { e.preventDefault(); onAi({}); }}><Sparkles size={14} /> AI</button>
+              <Sep />
+            </>
+          )}
           <B on={editor.isActive('bold')} title="Bold (Ctrl+B)" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={15} /></B>
           <B on={editor.isActive('italic')} title="Italic (Ctrl+I)" onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={15} /></B>
           <B on={editor.isActive('underline')} title="Underline (Ctrl+U)" onClick={() => editor.chain().focus().toggleUnderline().run()}><Underline size={15} /></B>

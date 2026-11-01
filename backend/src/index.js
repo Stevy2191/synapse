@@ -18,6 +18,7 @@ import attachmentRoutes from './routes/attachments.js';
 import adminRoutes from './routes/admin.js';
 import exportRoutes from './routes/export.js';
 import chatRoutes from './routes/chats.js';
+import aiRoutes from './routes/ai.js';
 import { purgeOrphanChatFiles } from './chat.js';
 
 const app = express();
@@ -28,7 +29,7 @@ app.set('trust proxy', 1);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 // Chat's live stream must not be held back for compression.
-app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/chats/events') && compression.filter(req, res) }));
+app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/chats/events') && !req.path.startsWith('/api/ai/') && compression.filter(req, res) }));
 // The frontend is served from this same origin, so CORS is only needed if CORS_ORIGIN is set.
 if (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*') {
   app.use(cors({ origin: process.env.CORS_ORIGIN.split(',').map(s => s.trim()) }));
@@ -58,6 +59,7 @@ app.use('/api/attachments', attachmentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

@@ -4,12 +4,13 @@
 //   Server     — admins only (users, sign-ups, about)
 import { useEffect, useRef, useState } from 'react';
 import {
-  X, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
+  X, Sparkles, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
   CalendarDays, RefreshCw, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
 import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Avatar';
+import AiSettings from '../ai/AiSettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
 import api from '../../api';
@@ -46,6 +47,7 @@ export default function Settings() {
       ['appearance', <Palette size={15} />, 'Appearance'],
       ['security', <Lock size={15} />, 'Security'],
       ['calendars', <CalendarDays size={15} />, 'Calendars'],
+      ['ai', <Sparkles size={15} />, 'AI assistant'],
     ] },
     { label: activeWorkspace ? `Workspace · ${activeWorkspace.name}` : 'Workspace', workspace: true, items: [
       ['ws-general', <Settings2 size={15} />, 'General'],
@@ -98,6 +100,7 @@ export default function Settings() {
             {page === 'appearance' && <AppearancePage />}
             {page === 'security' && <SecuritySettings />}
             {page === 'calendars' && <CalendarsPage />}
+            {page === 'ai' && <AiSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'ws-general' && <WorkspaceGeneralPage />}
             {page === 'ws-preferences' && <WorkspacePreferencesPage />}
             {page === 'server-users' && isAdmin && <ServerUsersPage />}
@@ -537,6 +540,16 @@ function WorkspacePreferencesPage() {
           <b>Write</b> shows formatted text and understands Markdown as you type. <b>Markdown</b> shows the plain text with its symbols.
           You can switch any note at any time.
         </p>
+      </section>
+      <section style={{ ...section, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>AI assistant in this workspace</label>
+          <p style={hint}>{prefs.ai === 'off'
+            ? 'Off — nothing in this workspace is ever sent to an AI service, and the AI buttons are hidden here.'
+            : 'On — you can use your AI assistant on notes here (set it up in Account → AI assistant).'}</p>
+        </div>
+        <button role="switch" aria-checked={prefs.ai !== 'off'} className={`toggle${prefs.ai !== 'off' ? ' on' : ''}`}
+          onClick={() => save({ settings: { ai: prefs.ai === 'off' ? 'on' : 'off' } }, prefs.ai === 'off' ? 'AI is on for this workspace' : 'AI is off for this workspace')}><span /></button>
       </section>
     </div>
   );

@@ -15,7 +15,7 @@ import { highlightToHtml } from './codeLanguages';
 import DOMPurify from 'dompurify';
 import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
-  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle,
+  PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles,
 } from 'lucide-react';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
@@ -28,7 +28,9 @@ import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
 import FreeDrawEditor from './FreeDrawEditor';
 import Logo from '../Logo';
-import { WorkspaceIcon } from '../Avatar';
+import { WorkspaceIcon, workspaceSettings } from '../Avatar';
+import AiPanel from '../ai/AiPanel';
+import { DOMSerializer } from '@tiptap/pm/model';
 import CalendarPanel from '../calendar/CalendarPanel';
 
 // The preview's own Markdown renderer, with colored code blocks (convert.js keeps a plain one
@@ -305,10 +307,80 @@ export default function Editor() {
   const [linkSuggestions, setLinkSuggestions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [aiTarget, setAiTarget] = useState(null); // what the AI window works on (see openAi)
   const [noteChat, setNoteChat] = useState(null);      // chat id shown beside the note
   const [newNoteChat, setNewNoteChat] = useState(false);
   const noteChatSummary = useChat(s => s.chats.find(c => c.note?.id === activeNote?.note?.id));
-  useEffect(() => { setNoteChat(null); setNewNoteChat(false); }, [activeNote?.note?.id]);
+  useEffect(() => { setNoteChat(null); setNewNoteChat(false); setAiTarget(null); }, [activeNote?.note?.id]);
+  // ── AI assistant ──
+  // Works on the selected text if there is some, otherwise the whole note (or the cursor, from "/").
+  const openAi = ({ fromSlash = false } = {}) => {
+    if (!activeNote?.note) return;
+    if (editorMode === 'rich' && richEditorRef.current) {
+      const ed = richEditorRef.current;
+      const sel = ed.state.selection;
+      const noteText = htmlToMarkdown(ed.getHTML());
+      if (!sel.empty) {
+        const div = document.createElement('div');
+        div.appendChild(DOMSerializer.fromSchema(ed.schema).serializeFragment(sel.content().content));
+        setAiTarget({ mode: 'rich', scope: 'selection', text: htmlToMarkdown(div.innerHTML), noteText, from: sel.from, to: sel.to });
+      } else setAiTarget({ mode: 'rich', scope: fromSlash ? 'cursor' : 'note', text: noteText, noteText, from: sel.from, to: sel.to });
+      return;
+    }
+    const view = cmRef.current?.view;
+    const sel = view?.state.selection.main;
+    if (view && sel && !sel.empty) setAiTarget({ mode: 'markdown', scope: 'selection', text: view.state.sliceDoc(sel.from, sel.to), noteText: content, from: sel.from, to: sel.to });
+    else setAiTarget({ mode: 'markdown', scope: 'note', text: content, noteText: content, from: sel?.from ?? content.length, to: sel?.to ?? content.length });
+  };
+
+  // Put the AI's reply into the note. how: 'replace' (the selection) | 'below' | 'end'
+  const applyAi = (md, how) => {
+    const t = aiTarget;
+    if (!t) return;
+    if (t.mode === 'rich' && richEditorRef.current) {
+      const ed = richEditorRef.current;
+      const doc = ed.state.doc;
+      const html = markdownToHtml(md);
+      const size = doc.content.size;
+      if (how === 'replace' && t.scope === 'selection') {
+        ed.chain().focus().insertContentAt({ from: Math.min(t.from, size), to: Math.min(t.to, size) }, html).run();
+      } else if (how === 'end' || t.scope === 'note') {
+        ed.chain().focus().insertContentAt(size, html).run();
+      } else {
+        const $p = doc.resolve(Math.min(t.to, size));
+        if ($p.depth >= 1 && !$p.node(1).textContent.trim() && $p.node(1).isTextblock) {
+          ed.chain().focus().insertContentAt({ from: $p.before(1), to: $p.after(1) }, html).run(); // fill the empty line "/ai" was typed on
+        } else {
+          const at = $p.depth >= 1 ? $p.after(1) : size;
+          // "/ai" typed on an empty bullet or checklist line: put the reply after the list and drop that empty line.
+          let empty = null;
+          if ($p.parent.isTextblock && !$p.parent.textContent.trim()) {
+            for (let d = $p.depth; d > 1; d--) {
+              if (['listItem', 'taskItem'].includes($p.node(d).type.name) && !$p.node(d).textContent.trim()) {
+                empty = $p.node(d - 1).childCount === 1 ? { from: $p.before(d - 1), to: $p.after(d - 1) } : { from: $p.before(d), to: $p.after(d) };
+                break;
+              }
+            }
+          }
+          const chain = ed.chain().focus().insertContentAt(at, html);
+          if (empty) chain.deleteRange(empty);
+          chain.run();
+        }
+      }
+      return;
+    }
+    const view = cmRef.current?.view;
+    if (!view) { handleContentChange(`${content.replace(/\s+$/, '')}\n\n${md}\n`); return; }
+    const len = view.state.doc.length;
+    if (how === 'replace' && t.scope === 'selection') view.dispatch({ changes: { from: Math.min(t.from, len), to: Math.min(t.to, len), insert: md } });
+    else if (how === 'end' || t.scope === 'note') view.dispatch({ changes: { from: len, insert: `${len ? '\n\n' : ''}${md}\n` } });
+    else {
+      const line = view.state.doc.lineAt(Math.min(t.to, len));
+      view.dispatch({ changes: { from: line.to, insert: `\n\n${md}\n` } });
+    }
+  };
+  const aiAllowed = workspaceSettings(activeWorkspace).ai !== 'off';
+
   const openNoteChat = async () => {
     if (noteChat) { setNoteChat(null); return; }
     const chat = noteChatSummary || await chatForNote(activeNote.note.id);
@@ -662,6 +734,11 @@ export default function Editor() {
           title={syncState.pending > 0 ? 'Saved on this device; waiting to upload' : 'Saved and synced'} className="hide-narrow">
           {saving ? 'Saving…' : syncState.pending > 0 ? 'Saved on device' : 'Saved'}
         </span>
+        {isNote && aiAllowed && (
+          <button className={`btn-ghost${aiTarget ? ' on' : ''}`} onClick={() => (aiTarget ? setAiTarget(null) : openAi())} title="AI assistant — works on the selected text, or the whole note">
+            <Sparkles size={15} /><span className="hide-narrow">AI</span>
+          </button>
+        )}
         <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
           <MessageCircle size={15} /><span className="hide-narrow">Chat</span>
           {noteChatSummary?.unread > 0 && <span className="chat-dot-badge">{noteChatSummary.unread}</span>}
@@ -672,6 +749,7 @@ export default function Editor() {
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {aiTarget && <AiPanel key={`${aiTarget.scope}-${aiTarget.from}-${aiTarget.to}`} target={aiTarget} note={{ ...activeNote.note, title }} onApply={applyAi} onClose={() => setAiTarget(null)} />}
       {newNoteChat && <NewChatDialog note={activeNote.note} onClose={() => setNewNoteChat(false)} onCreated={c => { setNewNoteChat(false); setNoteChat(c.id); }} />}
 
       {/* Formatting toolbar */}
@@ -692,7 +770,7 @@ export default function Editor() {
           <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }} onClick={e => { if (e.target === e.currentTarget) richEditorRef.current?.commands.focus('end'); }}>
             <div className="doc-column">
               {titleBlock}
-              <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} />
+              <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onAi={aiAllowed ? openAi : undefined} />
             </div>
           </div>
         )}

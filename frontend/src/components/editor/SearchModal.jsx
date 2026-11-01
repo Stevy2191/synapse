@@ -36,7 +36,7 @@ export default function SearchModal() {
     await openNote(id);
     setSearchOpen(false);
     const { view, setView } = useStore.getState();
-    if (['graph', 'tasks', 'trash', 'chat'].includes(view)) setView('editor');
+    if (['graph', 'tasks', 'trash', 'chat', 'ask'].includes(view)) setView('editor');
   };
 
   useEffect(() => {

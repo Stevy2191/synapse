@@ -13,6 +13,7 @@ const COLOR = /^#[0-9a-fA-F]{6}$/;
 const SETTING_RULES = {
   default_editor: v => ['rich', 'markdown'].includes(v),   // how new notes open: Write or Markdown
   default_note_type: v => ['note', 'diagram', 'draw'].includes(v),
+  ai: v => ['on', 'off'].includes(v),                      // allow the AI assistant in this workspace
 };
 function cleanSettings(current, incoming) {
   let merged = {};
