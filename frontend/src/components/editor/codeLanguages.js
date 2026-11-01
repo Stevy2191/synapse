@@ -74,7 +74,7 @@ for (const [name, def] of Object.entries(ALL)) hljs.registerLanguage(name, def);
 
 // What the picker shows. `id` is the name saved with the block (and in ```fences);
 // `aliases` are extra words for the picker's search (typing ```ps1 etc. also works).
-export const LANGUAGES = [
+const LANGUAGE_LIST = [
   // Popular
   { id: 'plaintext', label: 'Plain text', aliases: 'text txt none' },
   { id: 'bash', label: 'Bash / Shell', aliases: 'sh shell zsh linux terminal' },
@@ -174,6 +174,13 @@ export const LANGUAGES = [
   { id: 'shell', label: 'Shell session', aliases: 'console terminal output' },
 ];
 
+// Alphabetical (ignoring case and symbols), with Plain text first.
+const sortKey = l => l.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+export const LANGUAGES = [
+  ...LANGUAGE_LIST.filter(l => l.id === 'plaintext'),
+  ...LANGUAGE_LIST.filter(l => l.id !== 'plaintext').sort((a, b) => sortKey(a).localeCompare(sortKey(b))),
+];
+
 const BY_ID = new Map(LANGUAGES.map(l => [l.id, l]));
 
 /** The picker entry for a saved language name or alias ("ps1" → PowerShell); null if unknown. */
@@ -191,9 +198,8 @@ export function findLanguage(name) {
 export function filterLanguages(query) {
   const q = query.toLowerCase().trim();
   if (!q) return LANGUAGES;
-  const hits = LANGUAGES.filter(l => `${l.label} ${l.id} ${l.aliases || ''}`.toLowerCase().includes(q));
-  // Labels that start with the query first
-  return hits.sort((a, b) => (a.label.toLowerCase().startsWith(q) ? 0 : 1) - (b.label.toLowerCase().startsWith(q) ? 0 : 1));
+  // Results stay in alphabetical order.
+  return LANGUAGES.filter(l => `${l.label} ${l.id} ${l.aliases || ''}`.toLowerCase().includes(q));
 }
 
 // Auto-detect only among everyday languages: guessing across ~95 is slow and often wrong.
