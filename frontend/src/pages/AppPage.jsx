@@ -3,6 +3,7 @@ import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
 import TabBar from '../tabs/TabBar';
+import ClusterView from '../components/clusters/ClusterView';
 import { RecorderBar } from '../components/meetings/Recorder';
 import FilePicker from '../components/files/FilePicker';
 import { retryUnsent } from '../meetings/client';
@@ -130,7 +131,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <><TabBar /><Editor /></>}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : view === 'cluster' ? <ClusterView /> : <><TabBar /><Editor /></>}
       </main>
       <RecorderBar />
       {filesOpen && <FilePicker mode="browse" onClose={() => useStore.setState({ filesOpen: false })} />}

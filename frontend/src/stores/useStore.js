@@ -30,9 +30,10 @@ export const useStore = create(
       settingsOpen: false,
       settingsPage: 'profile',
       activeChatId: null,         // the chat open on the Chats page
-      tabs: {},
-      richToolbar: false,
-      filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones         // formatting bar fixed at the top of Write-mode notes (this device)                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
+      tabs: {},                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
+      richToolbar: false,         // formatting bar fixed at the top of Write-mode notes (this device)
+      filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones
+      activeClusterId: null,      // the cluster shown when view === 'cluster' (components/clusters)
 
       // Offline sync status (see offline/sync.js)
       sync: { online: true, pending: 0, syncing: false, lastSyncAt: null },
@@ -92,7 +93,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask'].includes(s.view) ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, activeClusterId: s.activeClusterId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask'].includes(s.view) ? 'editor' : s.view })
     }
   )
 );

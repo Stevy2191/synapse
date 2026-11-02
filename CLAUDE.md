@@ -68,6 +68,7 @@ backend/src/
                       with the person's key) → optional AI summary/to-dos → live 'meeting:update' events +
                       push. Audio in UPLOADS_DIR/meetings (backed up), signed audio links. speech/models.js =
                       admin downloads sherpa-onnx models (GitHub releases) into DATA_DIR/speech-models
+  (clusters)          stored in workspace settings `clusters` — validated by validClusters in routes/workspaces.js
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -119,6 +120,10 @@ frontend/src/
   shares/client.js    Shared-with-me list, turns, live note events (arrive on the chat SSE stream),
                       saving shared notes straight to the server
   components/share/   ShareDialog (people + Can view/Can edit), HistoryPanel (who/when + word diff, restore)
+  clusters/clusters.js  Clusters: rules (FIELDS), inCluster / clusterNotes / clusterCounts (on the device,
+                      offline), saveClusters (PATCH workspace settings — online only)
+  components/clusters/ ClustersSection (sidebar, between the tree and Shared with me), ClusterEditor (rules
+                      modal, live count), ClusterView (view 'cluster', store activeClusterId; add/remove by hand)
   publish/client.js   links + browser-side AES-GCM for end-to-end encrypted links (key in #k=…,
                       kept in this device's localStorage; re-uploads the scrambled copy after saves)
   pages/PublicNotePage.jsx  /p/:id — what visitors see (PIN form, decrypt, render, downloads)
@@ -236,6 +241,12 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   copies segments/speakers into its attrs when done (offline-readable, searchable via the Markdown
   fence) and inserts "### Summary" / "### Action items" (`- [ ] task (who) 📅 date`) below once.
   Online calls need getDisplayMedia (Chrome/Edge desktop; no iPad/phone). Needs https (secure context).
+- **Clusters** (built Nov 2026): AFFiNE-style collections; Sean chose the name "Clusters". Saved smart
+  groups per workspace in `workspaces.settings.clusters` = `[{id, name, icon, match:'all'|'any',
+  rules:[{field, op, value}], pinned:[noteIds], hidden:[noteIds], created_at}]`. Matching runs on the
+  device over getWorkspaceNotes() (works offline); hidden always wins, pinned always included; no
+  rules = only pinned notes. Fields: tag, title, text, kind, created, updated, inside, has. Editing
+  needs a connection (workspace settings PATCH). Real folders were offered and not wanted.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.

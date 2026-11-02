@@ -4,6 +4,19 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.11.0 — November 2026
+
+### New
+- **Clusters** — smart groups of notes (like AFFiNE's collections). A cluster gathers notes from
+  anywhere in a workspace that match its rules, without moving them; a note can be in many clusters.
+  - Make one with **+** next to **Clusters** in the sidebar. Rules: tag, words in the title or text,
+    kind of note, created / edited (in the last week, before or after a date), inside a note, or
+    has open to-dos, a checklist, a meeting recording, pictures, files, links or tags. Match **all**
+    or **any** of the rules, and see how many notes match while you build it.
+  - New notes join by themselves as soon as they match. On a cluster's page you can also **add notes
+    by hand** or **remove** one (the note itself isn't touched; "bring back" undoes it).
+  - Clusters sync to all your devices and work offline (changing them needs a connection).
+
 ## v1.10.2 — November 2026
 
 ### Fixed

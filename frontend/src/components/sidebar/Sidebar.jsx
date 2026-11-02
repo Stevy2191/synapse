@@ -17,6 +17,7 @@ import { kindInfo, datedName } from '../noteKinds';
 import { useChat, totalUnread } from '../../chat/client';
 import { useShares, openSharedNote, loadShares } from '../../shares/client';
 import { openInNewTab } from '../../tabs/tabs';
+import ClustersSection from '../clusters/ClustersSection';
 
 
 function countDescendants(id, notes) {
@@ -427,6 +428,7 @@ export default function Sidebar({ width, onNavigate }) {
         )}
       </div>
 
+      <ClustersSection onNavigate={onNavigate} />
       <SharedWithMe onNavigate={onNavigate} />
 
       {/* Trash, just above the footer */}

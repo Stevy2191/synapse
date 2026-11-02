@@ -14,7 +14,23 @@ const SETTING_RULES = {
   default_editor: v => ['rich', 'markdown'].includes(v),   // how new notes open: Write or Markdown
   default_note_type: v => ['note', 'diagram', 'draw'].includes(v),
   ai: v => ['on', 'off'].includes(v),                      // allow the AI assistant in this workspace
+  clusters: validClusters,                                 // saved smart groups of notes (sidebar → Clusters)
 };
+
+// Clusters: [{ id, name, icon, color, match: 'all'|'any', rules: [{ field, op, value }], pinned: [noteId], hidden: [noteId] }]
+const CLUSTER_FIELDS = new Set(['tag', 'title', 'text', 'kind', 'created', 'updated', 'inside', 'has']);
+const shortStr = (v, max) => typeof v === 'string' && v.length <= max;
+const idList = v => Array.isArray(v) && v.length <= 1000 && v.every(x => shortStr(x, 64));
+function validClusters(list) {
+  return Array.isArray(list) && list.length <= 100 && list.every(c => c && typeof c === 'object'
+    && shortStr(c.id, 64) && shortStr(c.name, 80) && c.name.trim()
+    && (c.icon === undefined || shortStr(c.icon, 16)) && (c.color === undefined || COLOR.test(c.color))
+    && ['all', 'any'].includes(c.match)
+    && Array.isArray(c.rules) && c.rules.length <= 20
+    && c.rules.every(r => r && CLUSTER_FIELDS.has(r.field) && shortStr(r.op, 20) && shortStr(String(r.value ?? ''), 200))
+    && (c.pinned === undefined || idList(c.pinned)) && (c.hidden === undefined || idList(c.hidden))
+    && (c.created_at === undefined || Number.isFinite(c.created_at)));
+}
 function cleanSettings(current, incoming) {
   let merged = {};
   try { merged = JSON.parse(current || '{}'); } catch {}
