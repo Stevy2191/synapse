@@ -5,6 +5,7 @@ import Editor from '../components/editor/Editor';
 import TabBar from '../tabs/TabBar';
 import ClusterView from '../components/clusters/ClusterView';
 import TemplatePicker from '../components/templates/TemplatePicker';
+import { startTeam } from '../team/team';
 import { RecorderBar } from '../components/meetings/Recorder';
 import FilePicker from '../components/files/FilePicker';
 import { retryUnsent } from '../meetings/client';
@@ -87,6 +88,7 @@ export default function AppPage() {
     };
     openFromUrl();
     openFromReminderUrl(window.location.search);
+    startTeam();
     reportTimeZone(user.id);
     const onSwMessage = e => {
       if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId);

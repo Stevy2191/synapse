@@ -8,10 +8,11 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Mapping } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import toast from 'react-hot-toast';
-import { DUE, TIME, REPEAT, PRIORITY, STATUS, splitWhen, whenTokens, nextDue, isoOf, fmtDue } from '../../offline/taskWhen';
+import { ySyncPluginKey } from '@tiptap/y-tiptap';
+import { DUE, TIME, REPEAT, PRIORITY, STATUS, ASSIGNEE, splitWhen, whenTokens, nextDue, isoOf, fmtDue } from '../../offline/taskWhen';
 
 const glob = re => new RegExp(re.source.replace(/^\\s\*/, ''), re.flags.includes('g') ? re.flags : `${re.flags}g`);
-const DUE_G = glob(DUE); const TIME_G = glob(TIME); const REPEAT_G = glob(REPEAT); const PRI_G = glob(PRIORITY); const STATUS_G = glob(STATUS);
+const DUE_G = glob(DUE); const TIME_G = glob(TIME); const REPEAT_G = glob(REPEAT); const PRI_G = glob(PRIORITY); const STATUS_G = glob(STATUS); const ASSIGNEE_G = glob(ASSIGNEE);
 const stripG = re => new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
 
 /** Position of the checklist item around `pos` (or null). */
@@ -36,7 +37,7 @@ function applyWhenTr(tr, itemPos, when) {
   const ranges = [];
   para.descendants((n, p) => {
     if (!n.isText) return;
-    for (const re of [DUE, TIME, REPEAT, PRIORITY, STATUS]) for (const m of n.text.matchAll(stripG(re))) ranges.push([start + p + m.index, start + p + m.index + m[0].length]);
+    for (const re of [DUE, TIME, REPEAT, PRIORITY, STATUS, ASSIGNEE]) for (const m of n.text.matchAll(stripG(re))) ranges.push([start + p + m.index, start + p + m.index + m[0].length]);
   });
   ranges.sort((a, b) => b[0] - a[0]).forEach(([a, b]) => tr.delete(a, b));
   const para2 = tr.doc.nodeAt(itemPos).firstChild;
@@ -59,7 +60,7 @@ function decorations(doc) {
   const decos = [];
   const today = isoOf(new Date());
   doc.descendants((node, pos) => {
-    if (!node.isText || !/[📅⏰🔁⏫🔼🔽🔺⏬🗂]/u.test(node.text)) return;
+    if (!node.isText || !/[📅⏰🔁⏫🔼🔽🔺⏬🗂👤]/u.test(node.text)) return;
     const add = (re, cls) => {
       for (const m of node.text.matchAll(re)) {
         const from = pos + m.index;
@@ -69,7 +70,7 @@ function decorations(doc) {
         decos.push(Decoration.inline(from, from + m[0].length, { class: `task-when ${c}`, title: 'Change the date, reminder or repeat' }));
       }
     };
-    add(DUE_G, 'due'); add(TIME_G, 'time'); add(REPEAT_G, 'repeat'); add(PRI_G, 'pri'); add(STATUS_G, 'status');
+    add(DUE_G, 'due'); add(TIME_G, 'time'); add(REPEAT_G, 'repeat'); add(PRI_G, 'pri'); add(STATUS_G, 'status'); add(ASSIGNEE_G, 'who');
   });
   return DecorationSet.create(doc, decos);
 }
@@ -97,6 +98,8 @@ export const TaskWhen = Extension.create({
       // A repeating task was just ticked: move it to its next date and untick it.
       appendTransaction(trs, oldState, newState) {
         if (!trs.some(t => t.docChanged) || trs.some(t => t.getMeta('taskRepeat'))) return null;
+        // Live editing: a teammate's tick arrives already moved on by their editor — don't move it again.
+        if (trs.some(t => t.getMeta(ySyncPluginKey)?.isChangeOrigin)) return null;
         const before = [];
         oldState.doc.descendants((n, pos) => {
           if (n.type.name === 'taskItem' && !n.attrs.checked && REPEAT.test(n.firstChild?.textContent || '')) before.push(pos);

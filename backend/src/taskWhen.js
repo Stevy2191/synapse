@@ -6,16 +6,17 @@ const DAYN = '(?:sun|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?)(?:day)?s?'
 export const REPEAT = new RegExp(`\\s*🔁\\s*(every\\s+(?:(?:\\d+\\s+)?(?:day|week|month|year)s?|weekdays?|weekends?|other\\s+(?:day|week|month|year)|${DAYN}(?:\\s*(?:,|and|&)\\s*${DAYN})*))`, 'iu');
 export const PRIORITY = /\s*(⏫|🔼|🔽|🔺|⏬)\uFE0F?/u;
 export const STATUS = /\s*🗂\uFE0F?\s*([a-z0-9][a-z0-9-]{0,39})/u;
+export const ASSIGNEE = /\s*👤\s*@?([a-z0-9][\w.-]{0,39})/iu;
 const PRI_OF = { '⏫': 'high', '🔺': 'high', '🔼': 'medium', '🔽': 'low', '⏬': 'low' };
 export const priRank = p => ({ high: 0, medium: 1, low: 2 }[p] ?? 3);
-const ALL = [DUE, TIME, REPEAT, PRIORITY, STATUS];
+const ALL = [DUE, TIME, REPEAT, PRIORITY, STATUS, ASSIGNEE];
 const g = re => new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
 const MD_TASK = /^\s*(?:>\s*)*[-*+]\s+\[([ xX])\]\s?(.*)$/;
 const pad = n => String(n).padStart(2, '0');
 
 export function splitWhen(raw) {
   const s = raw || '';
-  const d = s.match(DUE); const t = s.match(TIME); const r = s.match(REPEAT); const pr = s.match(PRIORITY); const st = s.match(STATUS);
+  const d = s.match(DUE); const t = s.match(TIME); const r = s.match(REPEAT); const pr = s.match(PRIORITY); const st = s.match(STATUS); const as = s.match(ASSIGNEE);
   const text = ALL.reduce((acc, re) => acc.replace(g(re), ' '), s).replace(/\s+/g, ' ').trim();
   const h = t ? Number(t[1]) : null;
   return {
@@ -25,6 +26,7 @@ export function splitWhen(raw) {
     repeat: r ? r[1].toLowerCase().replace(/\s+/g, ' ').trim() : null,
     priority: pr ? PRI_OF[pr[1]] : null,
     status: st ? st[1] : null,
+    assignee: as ? as[1].toLowerCase() : null,
   };
 }
 

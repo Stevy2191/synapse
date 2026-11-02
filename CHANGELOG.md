@@ -4,6 +4,28 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.16.0 — November 2026
+
+### New — team features (part 1)
+- **Shared workspaces.** Workspace menu → **Share this workspace…** (or Settings → Workspace → Members):
+  add people on this server as **Can edit** or **Can view**. They see the workspace in their own
+  workspace menu (with the owner's name) and get a notification. The owner can change or remove
+  people; members can leave. Everything in the workspace is shared — notes, the task board, templates.
+- **Edit together, live** (like Google Docs): Write-mode notes in a shared workspace can be edited by
+  several people at the same time. You see each other's cursors with names, and a bar at the top shows
+  who's in the note. Edits made offline are kept on the device and **merged in automatically** when it
+  reconnects. People who can only view see changes appear as they're typed.
+- **New notes and changes by teammates appear within a couple of seconds** — no refresh needed.
+- **@mentions:** type `@` in a note of a shared workspace and pick someone; they get a notification
+  with a link to the note.
+- **Assign to-dos to people:** in a to-do's details (/due, or click a card on the board) choose
+  **Assigned to**. They get a notification and that to-do's reminders, and their avatar shows on the
+  card. Tasks has an **Assigned to** filter (Everyone / Me / Nobody / a person).
+
+### Notes
+- If you use your own reverse proxy (e.g. Nginx Proxy Manager), turn on **Websockets Support** for
+  live editing. Without it, notes still save normally and Synapse tells you.
+
 ## v1.15.0 — November 2026
 
 ### New

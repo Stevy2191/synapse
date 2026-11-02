@@ -234,6 +234,18 @@ export async function storeServerNote(note, { reopen = false } = {}) {
   if (reopen) await openNote(note.id);
 }
 
+/**
+ * Update this device's copy of a note without queueing an upload — for notes edited live together,
+ * whose text reaches the server through the shared document (collab/session.js).
+ */
+export async function saveLocalCopy(id, fields) {
+  const d = await db();
+  const n = await d.get('notes', id);
+  if (!n) return;
+  await d.put('notes', { ...n, ...fields, updated_at: Math.floor(Date.now() / 1000) });
+  lastLocalEdit.set(id, Date.now());
+}
+
 /** Open a note in the editor from the local copy. */
 export async function openNote(id) {
   const note = await (await db()).get('notes', id);
@@ -703,6 +715,10 @@ async function pull() {
     store.setWorkspaces(data.workspaces);
     if ((!store.activeWorkspace || !serverWs.has(store.activeWorkspace.id)) && data.workspaces[0]) {
       store.setActiveWorkspace(data.workspaces[0]);
+    } else if (store.activeWorkspace) {
+      // Keep the open workspace's settings, role and member count fresh (a teammate may have changed them).
+      const fresh = serverWs.get(store.activeWorkspace.id);
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(store.activeWorkspace)) useStore.setState({ activeWorkspace: fresh });
     }
 
     for (const ws of data.workspaces) await pullWorkspace(ws.id);

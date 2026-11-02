@@ -31,6 +31,17 @@ export function requireAuth(req, res, next) {
   next();
 }
 
+/** The signed-in user for a token (used where there's no Authorization header, e.g. WebSockets), or null. */
+export function userFromToken(token) {
+  try {
+    const payload = jwt.verify(String(token || ''), JWT_SECRET);
+    if (payload.purpose) return null;
+    const user = findUser.get(payload.id);
+    if (!user || (payload.tv ?? 0) !== user.token_version) return null;
+    return { id: user.id, username: user.username, role: user.role, display_name: user.display_name };
+  } catch { return null; }
+}
+
 export function requireAdmin(req, res, next) {
   requireAuth(req, res, () => {
     if (req.user.role !== 'admin') {

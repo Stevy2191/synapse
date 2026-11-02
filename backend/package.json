@@ -1,6 +1,6 @@
 {
   "name": "synapse-backend",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -20,6 +20,7 @@
     "helmet": "^7.2.0",
     "ical.js": "^2.2.1",
     "jsonwebtoken": "^9.0.3",
+    "lib0": "^0.2.119",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.1",
     "otpauth": "^9.5.2",
@@ -28,6 +29,9 @@
     "tar": "^7.5.22",
     "tesseract.js": "^7.0.0",
     "uuid": "^9.0.1",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "ws": "^8.22.1",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.33"
   }
 }

@@ -2,6 +2,7 @@
 // optionally including every note inside the shared one. Plus:
 //   • the editing turn ("lock") — one person edits a shared note at a time; others watch live,
 //   • version history — who changed what and when, for every note.
+import { workspaceRole, workspacePeopleIds } from './members.js';
 import { db } from './db/index.js';
 import { sendTo, pushTo } from './chat.js';
 
@@ -61,6 +62,9 @@ export function noteAccess(noteId, userId) {
   if (!note || note.deleted_at) return null;
   const ownerId = ownerOf.get(noteId)?.user_id;
   if (ownerId === userId) return { note, role: 'owner', ownerId, via: null };
+  // A member of a shared workspace: 'member' tells callers it comes from the workspace (members.js).
+  const wsRole = workspaceRole(note.workspace_id, userId);
+  if (wsRole === 'edit' || wsRole === 'view') return { note, role: wsRole, ownerId, via: null, member: true };
   let role = null, via = null;
   chain(noteId).forEach((n, i) => {
     const s = shareRow.get(n.id, userId);
@@ -74,6 +78,8 @@ export function noteAccess(noteId, userId) {
 export function peopleWithAccess(noteId) {
   const ownerId = ownerOf.get(noteId)?.user_id;
   const ids = new Set(ownerId ? [ownerId] : []);
+  const n0 = noteRow.get(noteId);
+  if (n0) for (const id of workspacePeopleIds(n0.workspace_id)) ids.add(id);
   chain(noteId).forEach((n, i) => {
     for (const s of db.prepare('SELECT user_id, include_children FROM note_shares WHERE note_id=?').all(n.id)) {
       if (i === 0 || s.include_children) ids.add(s.user_id);

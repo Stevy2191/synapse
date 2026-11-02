@@ -5,6 +5,7 @@ import fs from 'fs';
 import { v4 as uuid } from 'uuid';
 import { db, UPLOADS_DIR, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { workspaceFor } from '../members.js';
 import { noteAccess } from '../shares.js';
 
 const router = Router();
@@ -19,18 +20,17 @@ const INLINE_TYPES = new Set([
   'video/mp4', 'video/webm', 'video/ogg',
 ]);
 
+// The note's workspace owner, or a member who can edit (shared workspaces, members.js).
 function ownedNote(noteId, userId) {
-  return db.prepare(`
-    SELECT n.id FROM notes n JOIN workspaces w ON w.id=n.workspace_id
-    WHERE n.id=? AND w.user_id=?`).get(noteId, userId);
+  const n = db.prepare('SELECT id, workspace_id FROM notes WHERE id=?').get(noteId);
+  return n && workspaceFor(n.workspace_id, userId, 'edit') ? n : undefined;
 }
 
 function ownedAttachment(attId, userId) {
-  return db.prepare(`
-    SELECT a.* FROM attachments a
-    JOIN notes n ON n.id=a.note_id
-    JOIN workspaces w ON w.id=n.workspace_id
-    WHERE a.id=? AND w.user_id=?`).get(attId, userId);
+  const a = db.prepare('SELECT a.*, n.workspace_id AS ws FROM attachments a JOIN notes n ON n.id=a.note_id WHERE a.id=?').get(attId);
+  if (!a || !workspaceFor(a.ws, userId, 'edit')) return undefined;
+  const { ws, ...att } = a;
+  return att;
 }
 
 const upload = multer({

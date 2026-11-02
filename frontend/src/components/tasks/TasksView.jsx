@@ -6,6 +6,8 @@ import TaskWhenDialog from './TaskWhenDialog';
 import BoardView, { sortTasks, SORTS } from './BoardView';
 import { PRIORITIES } from '../../offline/taskWhen';
 import { LayoutList, Columns3, Flag } from 'lucide-react';
+import Assignee from './Assignee';
+import { isTeamWorkspace, getMembers, personLabel } from '../../team/team';
 import { fmtDue } from '../../offline/taskWhen';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
@@ -65,6 +67,12 @@ export default function TasksView() {
   const [listGroup, setListGroup] = usePref('listGroup', 'due'); // due | priority
   const [boardGroup, setBoardGroup] = usePref('boardGroup', 'status'); // status | priority
   const [sort, setSort] = usePref('sort', 'priority');         // priority | due | note
+  // Shared workspaces: whose to-dos to show (everyone | me | nobody | a username).
+  const team = isTeamWorkspace(ws);
+  const me = useStore(s => s.user);
+  const [who, setWho] = useState('everyone');
+  const [people, setPeople] = useState([]);
+  useEffect(() => { setWho('everyone'); if (team) getMembers(ws.id).then(setPeople); else setPeople([]); }, [ws?.id, team]);
   const today = isoDay();
 
   const load = useCallback(async () => {
@@ -98,7 +106,9 @@ export default function TasksView() {
     } catch (err) { toast.error(err.message || 'Couldn’t add the task'); }
   };
 
-  const shown = useMemo(() => (tasks || []).filter(t => showAll || t.due || t.kind), [tasks, showAll]);
+  const mine = me?.username?.toLowerCase();
+  const whoOk = t => (who === 'everyone' ? true : who === 'me' ? t.assignee === mine : who === 'nobody' ? !t.assignee : t.assignee === who);
+  const shown = useMemo(() => (tasks || []).filter(t => (showAll || t.due || t.kind || t.assignee) && whoOk(t)), [tasks, showAll, who, mine]);
   const hiddenOpen = (tasks || []).filter(t => !t.done && !(showAll || t.due || t.kind)).length;
   const groups = useMemo(() => {
     if (!tasks) return [];
@@ -129,6 +139,7 @@ export default function TasksView() {
         <div className="task-text">{t.priority && <span className={`kb-label inline pri-${t.priority}`}>{{ high: 'High', medium: 'Medium', low: 'Low' }[t.priority]}</span>}<TaskText text={t.text} workspaceId={ws.id} /></div>
         <div className="task-meta">
           {!t.done && t.due && <DueButton task={t} today={today} onChange={w => change(t, w)} />}
+          {t.assignee && <Assignee username={t.assignee} withName />}
           <button type="button" className="task-source" title="Open the note" onClick={() => { openNote(t.noteId); useStore.getState().setView('editor'); }}>
             <FileText size={12} /> {t.noteTitle}
           </button>
@@ -171,6 +182,16 @@ export default function TasksView() {
               <select value={boardGroup} onChange={e => setBoardGroup(e.target.value)}><option value="status">Lists</option><option value="priority">Priority</option></select>
             )}
           </label>
+          {team && (
+            <label className="tasks-select">Assigned to
+              <select value={who} onChange={e => setWho(e.target.value)}>
+                <option value="everyone">Everyone</option>
+                <option value="me">Me</option>
+                <option value="nobody">Nobody</option>
+                {people.filter(p => p.id !== me?.id).map(p => <option key={p.id} value={p.username.toLowerCase()}>{personLabel(p)}</option>)}
+              </select>
+            </label>
+          )}
           <label className="tasks-select">Sort by
             <select value={sort} onChange={e => setSort(e.target.value)}>{Object.entries(SORTS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           </label>

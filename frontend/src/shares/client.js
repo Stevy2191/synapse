@@ -87,6 +87,9 @@ async function onRemoteUpdate(note, updatedBy) {
     return;
   }
   if (iAmEditing) return; // my own save, echoed back (or I'm mid-edit: mine wins)
+  // Notes in a shared workspace: the regular sync picks the change up (and live notes merge on their own).
+  const ws = store.workspaces.find(w => w.id === note.workspace_id);
+  if (ws && (ws.members > 0 || (ws.role && ws.role !== 'owner'))) return;
   // A note I own, edited by someone I shared it with: update my copy (and the editor, if open).
   await storeServerNote(note, { reopen: active?.note?.id === note.id });
 }

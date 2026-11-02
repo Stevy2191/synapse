@@ -5,6 +5,7 @@
 // lost connection the app reconnects and catches up.
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { handleTeamEvent } from '../team/team';
 import api from '../api';
 import { useStore } from '../stores/useStore';
 import { handleShareEvent, loadShares } from '../shares/client';
@@ -139,6 +140,12 @@ function handle(type, data) {
     case 'note:lock':
     case 'share:changed':
       handleShareEvent(type, data);
+      break;
+    case 'ws:changed':
+    case 'workspaces:changed':
+    case 'members:changed':
+    case 'mention':
+      handleTeamEvent(type, data);
       break;
     case 'template:received':
       toast.success(`${data.from} sent you the template “${data.title}” — it’s in your Templates folder`, { duration: 8000 });

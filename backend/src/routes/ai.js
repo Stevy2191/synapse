@@ -1,6 +1,7 @@
 // AI assistant API: settings, writing help (streamed), action items from a note, and
 // "Ask your notes" (answers from the person's own notes, with the notes it used).
 import { Router } from 'express';
+import { workspaceFor } from '../members.js';
 import { db } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -19,7 +20,7 @@ const MAX_TEXT = 60_000; // characters of note text sent with one request
 // Each workspace can be kept away from AI entirely (Settings → Workspace → Preferences).
 function checkWorkspace(workspaceId, userId) {
   if (!workspaceId) return;
-  const ws = db.prepare('SELECT settings FROM workspaces WHERE id=? AND user_id=?').get(workspaceId, userId);
+  const ws = workspaceFor(workspaceId, userId, 'view');
   if (!ws) throw new AiError(404, 'Workspace not found');
   let s = {};
   try { s = JSON.parse(ws.settings || '{}'); } catch { /* none */ }

@@ -64,9 +64,9 @@ export async function listTasks(workspaceId) {
       found = mdLines(note.content).tasks.map(t => ({ raw: t.text, done: t.done }));
     }
     found.forEach((t, index) => {
-      const { text, due, time, repeat, priority, status } = splitDue(t.raw);
+      const { text, due, time, repeat, priority, status, assignee } = splitDue(t.raw);
       if (!text) return; // empty placeholder items
-      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, time, repeat, priority, status, kind, updatedAt: note.updated_at });
+      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, time, repeat, priority, status, assignee, kind, updatedAt: note.updated_at });
     });
   }
   return out;
@@ -90,7 +90,7 @@ function setDueInText(raw, due) {
   return setWhen(raw, { ...splitWhen(raw), due });
 }
 
-const WHEN_KEYS = ['due', 'time', 'repeat', 'priority', 'status'];
+const WHEN_KEYS = ['due', 'time', 'repeat', 'priority', 'status', 'assignee'];
 
 /**
  * Change one task: { done?, due?: 'YYYY-MM-DD' | null, time?: 'HH:MM' | null, repeat?: 'every …' | null }.
@@ -114,7 +114,7 @@ export async function updateTask(workspaceId, task, change) {
     const next = nextDue(cur.due, cur.repeat);
     if (next) { delete change.done; change.due = next; change.status = null; result = { next }; }
   }
-  const when = WHEN_KEYS.some(k => k in change) ? { due: cur.due, time: cur.time, repeat: cur.repeat, priority: cur.priority, status: cur.status, ...Object.fromEntries(WHEN_KEYS.filter(k => k in change).map(k => [k, change[k] || null])) } : null;
+  const when = WHEN_KEYS.some(k => k in change) ? { due: cur.due, time: cur.time, repeat: cur.repeat, priority: cur.priority, status: cur.status, assignee: cur.assignee, ...Object.fromEntries(WHEN_KEYS.filter(k => k in change).map(k => [k, change[k] || null])) } : null;
   if (rich) {
     if ('done' in change) {
       li.setAttribute('data-checked', change.done ? 'true' : 'false');

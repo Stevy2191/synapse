@@ -7,6 +7,7 @@ import { db } from './db/index.js';
 import { pushTo, sendTo, isOnScreen, onlineUserIds } from './chat.js';
 import { openTasks, priRank } from './taskWhen.js';
 import { sendMail, mailConfigured, appUrl } from './mailer.js';
+import { MY_WORKSPACES_SQL } from './members.js';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS reminder_prefs (
@@ -79,14 +80,20 @@ const minutes = hm => { const [h, m] = hm.split(':').map(Number); return h * 60 
 
 /** A person's open tasks that have a due date: [{ noteId, noteTitle, text, due, time, repeat }]. */
 export function datedTasks(userId) {
-  const notes = db.prepare(`SELECT n.id, n.title, n.content, n.tags FROM notes n JOIN workspaces w ON w.id = n.workspace_id
-    WHERE w.user_id = ? AND n.deleted_at IS NULL AND (n.note_type IS NULL OR n.note_type = 'note') AND n.content LIKE '%📅%'`).all(userId);
+  // My own workspaces (to-dos not assigned to someone else) and shared ones (to-dos assigned to me).
+  const me = db.prepare('SELECT lower(username) AS u FROM users WHERE id=?').get(userId)?.u;
+  const notes = db.prepare(`SELECT n.id, n.title, n.content, n.tags, (w.user_id = ?) AS mine FROM notes n JOIN workspaces w ON w.id = n.workspace_id
+    WHERE ${MY_WORKSPACES_SQL} AND n.deleted_at IS NULL AND (n.note_type IS NULL OR n.note_type = 'note') AND n.content LIKE '%📅%'`).all(userId, userId, userId);
   const out = [];
   for (const n of notes) {
     let tags = [];
     try { tags = JSON.parse(n.tags || '[]').map(t => String(t).toLowerCase().replace(/^#/, '')); } catch { /* none */ }
     if (tags.includes('no-tasks')) continue;
-    for (const t of openTasks(n.content)) if (t.due) out.push({ noteId: n.id, noteTitle: n.title, ...t });
+    for (const t of openTasks(n.content)) {
+      if (!t.due) continue;
+      if (n.mine ? (t.assignee && t.assignee !== me) : t.assignee !== me) continue;
+      out.push({ noteId: n.id, noteTitle: n.title, ...t });
+    }
   }
   return out;
 }

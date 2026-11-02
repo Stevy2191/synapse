@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { workspaceFor, workspacePeople, workspacePeopleIds, MY_WORKSPACES_SQL } from '../members.js';
+import { sendTo, pushTo } from '../chat.js';
 import { v4 as uuid } from 'uuid';
 import { db, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -58,9 +60,65 @@ function clean(str, max) {
   return typeof str === 'string' ? str.trim().slice(0, max) : '';
 }
 
+// Each workspace comes with `role` (owner | edit | view), `owner_name` and `members` (how many besides the owner).
+function withTeam(ws, userId) {
+  const role = ws.user_id === userId ? 'owner' : (db.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').get(ws.id, userId)?.role || null);
+  const owner = db.prepare('SELECT COALESCE(display_name, username) AS n FROM users WHERE id=?').get(ws.user_id)?.n || '';
+  const members = db.prepare('SELECT COUNT(*) AS c FROM workspace_members WHERE workspace_id=?').get(ws.id).c;
+  return { ...ws, role, owner_name: owner, members };
+}
+
 router.get('/', (req, res) => {
-  const workspaces = db.prepare('SELECT * FROM workspaces WHERE user_id=? ORDER BY created_at').all(req.user.id);
+  const workspaces = db.prepare(`SELECT w.* FROM workspaces w WHERE ${MY_WORKSPACES_SQL} ORDER BY (w.user_id = ?) DESC, w.created_at`)
+    .all(req.user.id, req.user.id, req.user.id).map(w => withTeam(w, req.user.id));
   res.json({ workspaces });
+});
+
+// ── Members (shared workspaces) ──
+const personOf = id => db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id=?').get(id);
+function membersView(wsId) {
+  return workspacePeople(wsId).map(p => ({ ...personOf(p.user_id), role: p.role })).filter(p => p.id);
+}
+router.get('/:id/members', (req, res) => {
+  if (!workspaceFor(req.params.id, req.user.id)) return res.status(404).json({ error: 'Not found' });
+  res.json({ members: membersView(req.params.id) });
+});
+router.post('/:id/members', (req, res) => {
+  const ws = workspaceFor(req.params.id, req.user.id, 'owner');
+  if (!ws) return res.status(403).json({ error: 'Only the workspace’s owner can add people' });
+  const { user_id, role } = req.body || {};
+  if (!['edit', 'view'].includes(role)) return res.status(400).json({ error: 'Pick Can edit or Can view' });
+  const person = personOf(String(user_id || ''));
+  if (!person) return res.status(404).json({ error: 'That person isn’t on this server' });
+  if (person.id === ws.user_id) return res.status(400).json({ error: 'That’s the owner' });
+  db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, added_by) VALUES (?,?,?,?)
+    ON CONFLICT(workspace_id, user_id) DO UPDATE SET role=excluded.role`).run(ws.id, person.id, role, req.user.id);
+  const by = personOf(req.user.id);
+  const byName = by.display_name || by.username;
+  sendTo([person.id], 'workspaces:changed', { workspace_id: ws.id, added: true, name: ws.name, by: byName });
+  sendTo(workspacePeopleIds(ws.id), 'members:changed', { workspace_id: ws.id });
+  pushTo(person.id, { title: `${byName} added you to “${ws.name}”`, body: 'Open Synapse to see the shared workspace.', tag: `ws-${ws.id}`, url: '/' }).catch(() => {});
+  res.json({ members: membersView(ws.id) });
+});
+router.patch('/:id/members/:userId', (req, res) => {
+  const ws = workspaceFor(req.params.id, req.user.id, 'owner');
+  if (!ws) return res.status(403).json({ error: 'Only the workspace’s owner can change this' });
+  if (!['edit', 'view'].includes(req.body?.role)) return res.status(400).json({ error: 'Pick Can edit or Can view' });
+  db.prepare('UPDATE workspace_members SET role=? WHERE workspace_id=? AND user_id=?').run(req.body.role, ws.id, req.params.userId);
+  sendTo(workspacePeopleIds(ws.id), 'members:changed', { workspace_id: ws.id });
+  sendTo([req.params.userId], 'workspaces:changed', { workspace_id: ws.id });
+  res.json({ members: membersView(ws.id) });
+});
+router.delete('/:id/members/:userId', (req, res) => {
+  const self = req.params.userId === req.user.id;
+  const ws = workspaceFor(req.params.id, req.user.id, self ? 'view' : 'owner');
+  if (!ws) return res.status(403).json({ error: 'Only the workspace’s owner can remove people' });
+  if (ws.user_id === req.params.userId) return res.status(400).json({ error: 'The owner can’t leave their own workspace' });
+  const before = workspacePeopleIds(ws.id);
+  db.prepare('DELETE FROM workspace_members WHERE workspace_id=? AND user_id=?').run(ws.id, req.params.userId);
+  sendTo(before, 'members:changed', { workspace_id: ws.id });
+  sendTo([req.params.userId], 'workspaces:changed', { workspace_id: ws.id, removed: true });
+  res.json({ members: membersView(ws.id) });
 });
 
 router.post('/', (req, res) => {
@@ -70,13 +128,18 @@ router.post('/', (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name required' });
   const id = uuid();
   db.prepare('INSERT INTO workspaces (id,user_id,name,icon,color) VALUES (?,?,?,?,?)').run(id, req.user.id, name, icon, color);
-  res.json({ workspace: db.prepare('SELECT * FROM workspaces WHERE id=?').get(id) });
+  res.json({ workspace: withTeam(db.prepare('SELECT * FROM workspaces WHERE id=?').get(id), req.user.id) });
 });
 
 router.patch('/:id', (req, res) => {
-  const ws = db.prepare('SELECT * FROM workspaces WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const ws = workspaceFor(req.params.id, req.user.id, 'edit');
   if (!ws) return res.status(404).json({ error: 'Not found' });
-  const body = req.body || {};
+  let body = req.body || {};
+  // People who can edit a shared workspace can change its shared lists (board, clusters); the rest is the owner's.
+  if (ws.role !== 'owner') {
+    const allowed = Object.fromEntries(Object.entries(body.settings || {}).filter(([k]) => ['board', 'clusters'].includes(k)));
+    body = { settings: allowed };
+  }
   const name = clean(body.name, 60) || ws.name;
   const icon = clean(body.icon, 16) || ws.icon;
   const color = COLOR.test(body.color) ? body.color : ws.color;
@@ -87,7 +150,8 @@ router.patch('/:id', (req, res) => {
   }
   const settings = cleanSettings(ws.settings, body.settings);
   db.prepare('UPDATE workspaces SET name=?, icon=?, color=?, icon_image=?, settings=? WHERE id=?').run(name, icon, color, iconImage, settings, ws.id);
-  res.json({ workspace: db.prepare('SELECT * FROM workspaces WHERE id=?').get(ws.id) });
+  sendTo(workspacePeopleIds(ws.id).filter(id => id !== req.user.id), 'workspaces:changed', { workspace_id: ws.id });
+  res.json({ workspace: withTeam(db.prepare('SELECT * FROM workspaces WHERE id=?').get(ws.id), req.user.id) });
 });
 
 router.delete('/:id', (req, res) => {
@@ -96,7 +160,9 @@ router.delete('/:id', (req, res) => {
   const count = db.prepare('SELECT COUNT(*) AS c FROM workspaces WHERE user_id=?').get(req.user.id).c;
   if (count <= 1) return res.status(400).json({ error: 'Cannot delete last workspace' });
   const files = db.prepare('SELECT a.filename FROM attachments a JOIN notes n ON n.id=a.note_id WHERE n.workspace_id=?').all(ws.id).map(r => r.filename);
+  const people = workspacePeopleIds(ws.id).filter(id => id !== req.user.id);
   db.prepare('DELETE FROM workspaces WHERE id=?').run(ws.id);
+  sendTo(people, 'workspaces:changed', { workspace_id: ws.id, removed: true });
   removeUploadFiles(files);
   res.json({ ok: true });
 });

@@ -251,13 +251,19 @@ function WorkspacePicker() {
           {workspaces.map(ws => (
             <button key={ws.id} className="nav-item" onClick={() => { setActiveWorkspace(ws); setOpen(false); }}>
               <WorkspaceIcon workspace={ws} size={18} />
-              <span style={{ flex: 1 }}>{ws.name}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{ws.name}</span>
+              {ws.role && ws.role !== 'owner'
+                ? <span className="ws-badge" title={`Shared by ${ws.owner_name} — you ${ws.role === 'edit' ? 'can edit' : 'can view'}`}>{ws.owner_name}</span>
+                : ws.members > 0 && <span className="ws-badge" title={`Shared with ${ws.members} ${ws.members === 1 ? 'person' : 'people'}`}><Users size={10} /> {ws.members + 1}</span>}
               {activeWorkspace?.id === ws.id && <Check size={13} style={{ color: 'var(--accent)' }} />}
             </button>
           ))}
           <div style={{ height: 1, background: 'var(--border)', margin: '5px 2px' }} />
-          <button className="nav-item" onClick={() => { setOpen(false); useStore.getState().setSettingsOpen('ws-general'); }} style={{ color: 'var(--text-secondary)' }}>
+          <button className="nav-item" onClick={() => { setOpen(false); useStore.getState().setSettingsOpen(!activeWorkspace?.role || activeWorkspace.role === 'owner' ? 'ws-general' : 'ws-members'); }} style={{ color: 'var(--text-secondary)' }}>
             <Settings2 size={14} /> Workspace settings
+          </button>
+          <button className="nav-item" onClick={() => { setOpen(false); useStore.getState().setSettingsOpen('ws-members'); }} style={{ color: 'var(--text-secondary)' }}>
+            <Users size={14} /> {!activeWorkspace?.role || activeWorkspace.role === 'owner' ? 'Share this workspace…' : 'Members'}
           </button>
           {creating ? (
             <div style={{ display: 'flex', gap: 5, padding: 3 }}>

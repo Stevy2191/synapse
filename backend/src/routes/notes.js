@@ -5,9 +5,27 @@ import { requireAuth } from '../middleware/auth.js';
 import { TRASH_DAYS } from '../config.js';
 import { noteAccess, currentLock, takeLock, afterNoteSaved } from '../shares.js';
 import { sendTo } from '../chat.js';
+import { workspaceFor, MY_WORKSPACES_SQL, workspacePeopleIds, isShared, notifyWorkspace } from '../members.js';
+import { isCollabNote, externalChange, setContentSaver } from '../collab.js';
+import { notifyMentions } from '../mentions.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// Shared workspaces: after any change, tell the other members' apps to pull now (members.js).
+router.use((req, res, next) => {
+  if (req.method === 'GET' || req.path === '/batch') return next();
+  res.on('finish', () => {
+    if (res.statusCode >= 400) return;
+    let ws = typeof req.body?.workspace_id === 'string' ? req.body.workspace_id : null;
+    const byNote = req.path.match(/^\/([0-9a-f-]{36})/i);
+    if (!ws && byNote) ws = db.prepare('SELECT workspace_id FROM notes WHERE id=?').get(byNote[1])?.workspace_id;
+    const byWs = req.path.match(/^\/workspace\/([^/]+)/);
+    if (!ws && byWs) ws = byWs[1];
+    if (ws) notifyWorkspace(ws, req.user.id, sendTo);
+  });
+  next();
+});
 
 const NOTE_TYPES = ['note', 'diagram', 'draw'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,14 +34,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTENT_FIELDS = ['title', 'content', 'rich_content', 'canvas_data', 'tags', 'editor_mode', 'note_type'];
 const EDITOR_MODES = ['markdown', 'rich'];
 
-function getWorkspace(wsId, userId) {
-  return db.prepare('SELECT * FROM workspaces WHERE id=? AND user_id=?').get(wsId, userId);
+// Access: the workspace's owner, or a member of a shared workspace (members.js). Reading needs
+// 'view'; changing anything needs 'edit'.
+function getWorkspace(wsId, userId, need = 'view') {
+  return workspaceFor(wsId, userId, need);
 }
 
-function getOwnedNote(id, userId) {
-  return db.prepare(`
-    SELECT n.* FROM notes n JOIN workspaces w ON w.id=n.workspace_id
-    WHERE n.id=? AND w.user_id=?`).get(id, userId);
+function getOwnedNote(id, userId, need = 'edit') {
+  const note = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
+  return note && workspaceFor(note.workspace_id, userId, need) ? note : undefined;
 }
 
 // IDs of a note and everything nested under it.
@@ -100,7 +119,7 @@ router.post('/batch', (req, res) => {
   const placeholders = ids.map(() => '?').join(',');
   const notes = db.prepare(`
     SELECT n.* FROM notes n JOIN workspaces w ON w.id=n.workspace_id
-    WHERE n.id IN (${placeholders}) AND w.user_id=? AND n.deleted_at IS NULL`).all(...ids, req.user.id);
+    WHERE n.id IN (${placeholders}) AND ${MY_WORKSPACES_SQL} AND n.deleted_at IS NULL`).all(...ids, req.user.id, req.user.id);
   res.json({ notes });
 });
 
@@ -151,7 +170,7 @@ router.get('/workspace/:wsId/titles', (req, res) => {
 
 // Single note with content, links and attachments
 router.get('/:id', (req, res) => {
-  const note = getOwnedNote(req.params.id, req.user.id);
+  const note = getOwnedNote(req.params.id, req.user.id, 'view');
   if (!note || (note.deleted_at && req.query.trash !== '1')) return res.status(404).json({ error: 'Not found' });
 
   const links = db.prepare(`
@@ -175,6 +194,7 @@ router.post('/', (req, res) => {
   let parent_id = body.parent_id ?? null;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
   if (!getWorkspace(workspace_id, req.user.id)) return res.status(404).json({ error: 'Workspace not found' });
+  if (!getWorkspace(workspace_id, req.user.id, 'edit')) return res.status(403).json({ error: 'You can view this workspace but not change it' });
   if (!NOTE_TYPES.includes(note_type)) return res.status(400).json({ error: 'Invalid note type' });
   if (!EDITOR_MODES.includes(editor_mode)) return res.status(400).json({ error: 'Invalid editor mode' });
   if (typeof title !== 'string' || typeof content !== 'string') return res.status(400).json({ error: 'Invalid note' });
@@ -287,7 +307,9 @@ router.patch('/:id', (req, res) => {
 
   const touchesContent = CONTENT_FIELDS.some(f => body[f] !== undefined);
   const baseVersion = body.base_version;
-  if (touchesContent && Number.isInteger(baseVersion) && baseVersion !== note.version) {
+  // Notes edited live together (collab.js) merge in the shared document, so there's nothing to conflict.
+  const live = isCollabNote(note);
+  if (touchesContent && !live && Number.isInteger(baseVersion) && baseVersion !== note.version) {
     // Someone with edit rights is online and always has the latest copy: just send it again.
     if (guest) return res.status(409).json({ error: 'This note changed — reloading the latest version', note: db.prepare('SELECT * FROM notes WHERE id=?').get(note.id) });
     const copy = createConflictCopy(note, next, opId);
@@ -308,8 +330,28 @@ router.patch('/:id', (req, res) => {
     return row;
   })();
   // History ("who changed what, when") and live updates for people it's shared with
-  if (touchesContent) afterNoteSaved(updated, req.user.id);
+  if (touchesContent) { afterNoteSaved(updated, req.user.id); notifyMentions(updated, note.content, req.user.id); }
+  // A live note's text changed outside the shared editor (Tasks page, board, an offline device…).
+  if (live && isCollabNote(updated) && (body.rich_content !== undefined || body.content !== undefined) && updated.rich_content !== note.rich_content) {
+    externalChange(note.id, updated.rich_content || '');
+  }
   res.json({ note: updated });
+});
+
+// Text saved from the live editor (collab.js): the shared document is the truth, this keeps the
+// note's HTML / Markdown copies (search, links, offline reading, Tasks) up to date.
+setContentSaver((noteId, userId, { rich_content, content }) => {
+  const note = db.prepare('SELECT * FROM notes WHERE id=? AND deleted_at IS NULL').get(noteId);
+  if (!note || (note.rich_content === rich_content && note.content === content)) return;
+  const row = db.transaction(() => {
+    db.prepare('UPDATE notes SET rich_content=?, content=?, version=version+1, updated_at=unixepoch() WHERE id=?').run(rich_content, content, noteId);
+    const r = db.prepare('SELECT * FROM notes WHERE id=?').get(noteId);
+    saveSideEffects(r, note.title);
+    return r;
+  })();
+  afterNoteSaved(row, userId);
+  notifyMentions(row, note.content, userId);
+  notifyWorkspace(row.workspace_id, userId, sendTo);
 });
 
 function createConflictCopy(original, edited, opId) {
@@ -466,7 +508,7 @@ router.delete('/:id/permanent', (req, res) => {
 });
 
 router.delete('/workspace/:wsId/trash', (req, res) => {
-  if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
+  if (!getWorkspace(req.params.wsId, req.user.id, 'edit')) return res.status(404).json({ error: 'Not found' });
   const ids = db.prepare('SELECT id FROM notes WHERE workspace_id=? AND deleted_at IS NOT NULL').all(req.params.wsId).map(r => r.id);
   destroy(ids);
   res.json({ ok: true, deleted: ids.length });

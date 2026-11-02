@@ -22,7 +22,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, ListTodo, Paperclip, ScanText, PenLine, Mic, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
-  Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
+  Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock, AtSign,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { kindInfo } from '../noteKinds';
@@ -37,6 +37,9 @@ import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
 import TurnInto from './TurnInto';
 import { TaskWhen, applyWhen, taskItemText } from './recurring';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import { MentionSuggest } from './mentions';
 import TaskWhenDialog from '../tasks/TaskWhenDialog';
 import TemplatePicker from '../templates/TemplatePicker';
 import { templateForInsert } from '../../templates/templates';
@@ -70,7 +73,9 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile, onReadText, onRecord }) {
+// `collab` = { session, seedHtml } for live editing together (collab/session.js): the shared Yjs
+// document is the content, and `content` is only used to fill it the very first time.
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile, onReadText, onRecord, collab }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -103,7 +108,12 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false, link: false, underline: false }),
+      StarterKit.configure({ codeBlock: false, link: false, underline: false, ...(collab ? { undoRedo: false } : {}) }),
+      ...(collab ? [
+        Collaboration.configure({ document: collab.session.ydoc }),
+        CollaborationCaret.configure({ provider: { awareness: collab.session.awareness }, user: collab.session.awareness.getLocalState()?.user || { name: 'Me', color: '#6366f1' } }),
+      ] : []),
+      MentionSuggest.configure({ getUi }),
       Placeholder.configure({
         includeChildren: true,
         placeholder: ({ node, pos, editor: ed }) => (node.type.name === 'heading' ? 'Heading'
@@ -144,12 +154,14 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
         inlineOptions: { onClick: (node, pos) => mathClick.current(node, pos) },
       }),
     ],
-    content: content || '<p></p>',
+    ...(collab ? {} : { content: content || '<p></p>' }),
     // The styles below are scoped to this class.
     editorProps: { attributes: { class: 'rich-editor-content' } },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
       const html = editor.getHTML();
       lastHtmlRef.current = html;
+      // Live editing: only save what I changed (everyone saves their own edits).
+      if (collab && transaction?.getMeta('y-sync$')?.isChangeOrigin) return;
       onChange(html);
     },
   });
@@ -228,9 +240,19 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     else editor.chain().focus().deleteBlockMath({ pos: m.pos }).run();
   };
 
+  // Live editing: fill the empty shared document the first time, and fold in changes made outside the editor.
+  useEffect(() => {
+    if (!editor || !collab) return undefined;
+    collab.session.setHandlers({
+      seed: () => { if (editor.isEmpty && collab.seedHtml()) editor.commands.setContent(collab.seedHtml(), { emitUpdate: true }); },
+      external: ({ html }) => { if (html !== editor.getHTML()) editor.commands.setContent(html || '<p></p>', { emitUpdate: true }); },
+    });
+    return () => collab.session.setHandlers({ seed: null, external: null });
+  }, [editor, collab]);
+
   // Only reload when the content changes from outside (another note, a sync, a mode switch)
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || collab) return;
     if (isFirstLoad.current) { isFirstLoad.current = false; return; }
     if (content !== lastHtmlRef.current) {
       lastHtmlRef.current = content;
@@ -442,9 +464,9 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       {/* "/" and "[[" menus */}
       {menu && menu.rect && menu.items.length > 0 && (
         <div className="suggest-menu fade-in" style={menuPosition(menu.rect)}>
-          {menu.kind !== 'slash' && <div className="section-label" style={{ padding: '6px 10px 4px' }}>Link to note</div>}
+          {menu.kind !== 'slash' && <div className="section-label" style={{ padding: '6px 10px 4px' }}>{menu.kind === 'mention' ? 'Mention someone (they get a notification)' : 'Link to note'}</div>}
           {menu.items.map((item, i) => {
-            const Icon = menu.kind === 'slash' ? (SLASH_ICONS[item.id] || Plus) : item.kind === 'create' ? Plus : kindInfo({ kind: item.noteKind, note_type: item.noteType }).icon;
+            const Icon = menu.kind === 'slash' ? (SLASH_ICONS[item.id] || Plus) : menu.kind === 'mention' ? AtSign : item.kind === 'create' ? Plus : kindInfo({ kind: item.noteKind, note_type: item.noteType }).icon;
             const groupStart = menu.kind === 'slash' && item.group !== menu.items[i - 1]?.group;
             return (
               <div key={item.id}>

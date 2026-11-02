@@ -77,6 +77,12 @@ backend/src/
                       AES-GCM with a JWT_SECRET key, app_url for links) — admin Settings → Server → Email
                       (/api/admin/email, /email/test); reminders.js dailyEmail() = meetings (calendar_events in the
                       person's tz) + due/overdue tasks, sent at reminder_prefs.email_time
+  members.js          shared workspaces: workspace_members (role edit|view), workspaceRole/workspaceFor(need),
+                      MY_WORKSPACES_SQL, workspacePeople, notifyWorkspace (SSE 'ws:changed' → members pull)
+  collab.js           live editing: Yjs docs per note over WebSocket /api/collab (y-protocols sync+awareness +
+                      JSON control: hello{gen,role} / seed / external{html} / reset{gen} ← html{html,md}); note_ydocs
+                      (state, gen); isCollabNote = rich note in a workspace with members; externalChange()
+  mentions.js         "@username" / "👤 username" newly added to a note → SSE 'mention' or push to that person
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -100,6 +106,11 @@ frontend/src/
                       fillTemplate (HTML; list fields on their own line → bullets, all-empty lines dropped),
                       newNoteFromTemplate, copyTemplateToWorkspace, sendTemplateToPerson (POST /notes/:id/send-template)
   components/templates/ TemplatePicker (new | insert; store templatePicker → AppPage; share panel), TemplateHint
+  team/team.jsx       members cache (offline too), add/role/remove, live team events (ws:changed, workspaces:changed,
+                      members:changed, mention), startTeam() prefetches members of the open workspace
+  collab/session.js   CollabSession: Y.Doc + y-indexeddb (per user+note) + WebSocket provider + awareness; colorFor()
+  components/team/MembersSettings.jsx (Settings → Workspace → Members); components/editor/mentions.js ("@" menu);
+                      components/tasks/Assignee.jsx
   stores/useStore.js  zustand (persisted): user, workspaces, tree `notes`, activeNote, view …
   pages/AppPage.jsx   layout; `view` = editor | graph | tasks | trash
   components/editor/Editor.jsx      note page (title, tags, Write/Markdown modes, saving)
@@ -314,6 +325,24 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   when renamed; deleting a list strips its token from open tasks). Priority tokens = Obsidian Tasks signs
   (⏫ high, 🔼 medium, 🔽 low; 🔺/⏬ read as high/low). Ticking a repeating task also clears its list.
   Board/list/group/sort choices are per device (localStorage synapse.tasks.*). Done list shows the 30 latest.
+- **Team features** (built Nov 2026, part 1): Sean wants his office to use it; chose "people one by one" (no
+  groups) and "live together, like Google Docs". Access: owner = workspaces.user_id, members in
+  workspace_members; notes.js getWorkspace/getOwnedNote take a needed role ('view' to read, 'edit' to change),
+  noteAccess() returns members first (`member: true`); edit members may only change settings.board/clusters.
+  Live editing only for Write-mode notes in shared workspaces (Markdown notes there use the old conflict-copy
+  rule; note_shares "take turns" sharing is unchanged elsewhere). The Yjs doc is the truth: editors don't
+  save content through the outbox — they send `html` over the socket (server updates rich_content/content,
+  history, mentions, ws:changed) and update the local copy with saveLocalCopy(). Live notes skip conflict
+  copies. Writes from outside the editor (Tasks page, board, fallback) are REST PATCHes → externalChange():
+  a connected editor applies it with setContent (y-prosemirror diffs it) or, with nobody connected, the doc
+  is reset (gen+1) and re-seeded from rich_content by the next opener ("seed" goes to one client). A device
+  whose stored gen differs drops its copy (saving a "(conflict copy)" note if it had unsent text). Editor
+  shows the live editor once the doc is available locally or synced; offline with no local copy, or
+  online but no socket for 12 s (proxy without WebSockets) → 'fallback' = normal editor + REST saves.
+  Remote y-sync transactions are ignored by recurring.js and by saving (each person saves their own edits).
+  Reminders: own workspaces = to-dos not assigned to someone else; shared = to-dos assigned to me.
+  Testing: two/three Playwright contexts; context.setOffline + dispatch 'online' to test merging.
+  Part 2 (not built yet): comments on notes, activity view.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -418,8 +447,8 @@ Other ideas:
 - Database/table views (properties per note, Notion-style). (Kanban board is built.)
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.
-- Family features: shared workspaces with per-person permissions, shared lists (groceries),
-  family calendar view.
+- Team features part 2: comments on notes, activity view ("who changed what"); later maybe groups/teams,
+  shared lists, a team calendar view.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
 - Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
 - Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,

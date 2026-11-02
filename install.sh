@@ -932,7 +932,8 @@ if [ "$MODE" = proxy ]; then
   say ""
   say "  ${B}Reverse proxy settings${R}"
   say "    Nginx Proxy Manager:  Scheme http · Forward Hostname $LAN_IP · Port $PORT"
-  say "                          Turn on \"Block Common Exploits\" and request an SSL certificate."
+  say "                          Turn on \"Websockets Support\" (live editing together) and \"Block Common Exploits\","
+  say "                          and request an SSL certificate."
   say "    Cloudflare Tunnel:    Service http://$LAN_IP:$PORT"
   say "    Same Docker host?     You can also forward to http://synapse:3001 if the proxy shares a Docker network."
 fi

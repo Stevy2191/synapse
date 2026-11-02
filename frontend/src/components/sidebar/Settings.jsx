@@ -17,6 +17,7 @@ import OcrSettings from '../ocr/OcrSettings';
 import { MeetingPrefsPage, MeetingAdminPage } from '../meetings/MeetingSettings';
 import ReminderSettings from '../tasks/ReminderSettings';
 import EmailSettings from './EmailSettings';
+import MembersSettings from '../team/MembersSettings';
 import { ServerFilesPage, ConnectedDrivesPage } from '../files/FileSettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
@@ -60,8 +61,12 @@ export default function Settings() {
       ['meetings', <Mic size={15} />, 'Meetings'],
     ] },
     { label: activeWorkspace ? `Workspace · ${activeWorkspace.name}` : 'Workspace', workspace: true, items: [
-      ['ws-general', <Settings2 size={15} />, 'General'],
-      ['ws-preferences', <SlidersHorizontal size={15} />, 'Preferences'],
+      // A shared workspace's name, icon and preferences are its owner's to change.
+      ...(!activeWorkspace?.role || activeWorkspace.role === 'owner' ? [
+        ['ws-general', <Settings2 size={15} />, 'General'],
+        ['ws-preferences', <SlidersHorizontal size={15} />, 'Preferences'],
+      ] : []),
+      ['ws-members', <Users size={15} />, 'Members'],
     ] },
     ...(isAdmin ? [{ label: 'Server', items: [
       ['server-users', <Users size={15} />, 'Users'],
@@ -123,6 +128,7 @@ export default function Settings() {
             {page === 'server-general' && isAdmin && <ServerGeneralPage />}
             {page === 'drives' && <ConnectedDrivesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-files' && isAdmin && <ServerFilesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'ws-members' && <MembersSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'reminders' && <ReminderSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'meetings' && <MeetingPrefsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-email' && isAdmin && <EmailSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}

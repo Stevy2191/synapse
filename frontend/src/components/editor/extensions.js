@@ -16,7 +16,7 @@ import { videoSource, MERMAID_SAMPLE } from './embeds';
 
 // `getUi` returns the React side's handlers ({ open, keyDown, close }), so the menus can be
 // drawn by React while ProseMirror keeps track of what's being typed.
-function renderer(kind, getUi) {
+export function renderer(kind, getUi) {
   return () => ({
     onStart: props => getUi().open(kind, props),
     onUpdate: props => getUi().open(kind, props),
@@ -25,7 +25,7 @@ function renderer(kind, getUi) {
   });
 }
 
-function notInCode({ state }) {
+export function notInCode({ state }) {
   return !state.selection.$from.parent.type.spec.code;
 }
 

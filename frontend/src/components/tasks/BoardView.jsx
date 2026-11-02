@@ -10,6 +10,8 @@ import { openNote, openNoteByTitle } from '../../offline/sync';
 import { PRIORITIES, priRank, fmtDue } from '../../offline/taskWhen';
 import { boardOf, saveBoard, columnOf, moveTask, columnKey, emptyColumn, COLUMN_COLORS } from '../../tasks/board';
 import TaskWhenDialog from './TaskWhenDialog';
+import Assignee from './Assignee';
+import { isTeamWorkspace, membersNow, personLabel } from '../../team/team';
 
 const PRI_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 const errText = err => err?.response?.data?.error || (err?.response ? 'Couldn’t save' : 'Changing the board’s lists needs a connection');
@@ -195,6 +197,7 @@ export default function BoardView({ tasks, groupBy, sort, onChanged, workspace }
                       {t.time && <span className="kb-badge"><Bell size={12} /> {t.time}</span>}
                       {t.repeat && <span className="kb-badge" title={t.repeat}><Repeat size={12} /></span>}
                       <span className="kb-badge kb-note" title="In this note"><FileText size={12} /> {t.noteTitle}</span>
+                      {t.assignee && <span className="kb-who"><Assignee username={t.assignee} /></span>}
                     </div>
                   </article>
                 ))}
@@ -257,6 +260,15 @@ function CardDialog({ task, columns, ws, onClose, onChanged, run }) {
           <button type="button" className={!task.priority ? 'on' : ''} onClick={() => set({ priority: null })}>None</button>
           {PRIORITIES.map(([k, l]) => <button key={k} type="button" className={`pri-${k}${task.priority === k ? ' on' : ''}`} onClick={() => set({ priority: k })}>{l}</button>)}
         </div>
+        {isTeamWorkspace(ws) && (
+          <>
+            <h4>Assigned to</h4>
+            <select className="chat-field" value={task.assignee || ''} onChange={e => set({ assignee: e.target.value || null })} style={{ minWidth: 220 }}>
+              <option value="">Nobody</option>
+              {membersNow(ws.id).map(p => <option key={p.id} value={p.username.toLowerCase()}>{personLabel(p)} (@{p.username})</option>)}
+            </select>
+          </>
+        )}
         <h4>Move to</h4>
         <div className="kb-move">
           {columns.map(c => <button key={c.key} type="button" className={c.key === col ? 'on' : ''} disabled={c.key === col} onClick={() => { onClose(); run(() => moveTask(ws.id, task, c.key)); }}>{c.name}</button>)}

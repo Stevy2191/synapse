@@ -32,6 +32,7 @@ import { startMeetings } from './meetings.js';
 import { startOcrIndexing, closeOcr, LANG_DIR, CORE_DIR, WORKER_FILE } from './ocr.js';
 import { startBackups } from './backups.js';
 import { startReminders } from './reminders.js';
+import { attachCollab } from './collab.js';
 import reminderRoutes from './routes/reminders.js';
 
 const app = express();
@@ -143,6 +144,7 @@ setInterval(purgeOrphanChatFiles, 6 * 60 * 60 * 1000).unref();
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧠 Synapse running on port ${PORT}`);
 });
+attachCollab(server); // live editing together: WebSocket at /api/collab
 
 // Stop cleanly when Docker stops or replaces the container (synapse update/restart): close the
 // database so its lock is released — this matters on network shares, where a killed process can

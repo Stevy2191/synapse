@@ -31,7 +31,7 @@ import ChatRoom from '../chat/ChatRoom';
 import { NewChatDialog } from '../chat/ChatDialogs';
 import { chatForNote, useChat } from '../../chat/client';
 import { useStore } from '../../stores/useStore';
-import { saveNote, openNote, openNoteByTitle, createNote, refreshActiveLinks } from '../../offline/sync';
+import { saveNote, openNote, openNoteByTitle, createNote, refreshActiveLinks, saveLocalCopy } from '../../offline/sync';
 import toast from 'react-hot-toast';
 import RichEditor from './RichEditor';
 import DiagramEditor from './DiagramEditor';
@@ -42,6 +42,8 @@ import AiPanel from '../ai/AiPanel';
 import ShareDialog from '../share/ShareDialog';
 import HistoryPanel from '../share/HistoryPanel';
 import TemplateHint from '../templates/TemplateHint';
+import { CollabSession } from '../../collab/session';
+import { isTeamWorkspace, myRole } from '../../team/team';
 import { isTemplate } from '../../templates/templates';
 import PublishDialog from '../share/PublishDialog';
 import { listLinks, rememberLinks, noteSaved as publishNoteSaved } from '../../publish/client';
@@ -338,7 +340,11 @@ export default function Editor() {
   const myId = useStore(s => s.user?.id);
   const noteId = activeNote?.note?.id;
   const guest = !!activeNote?.shared?.guest;
-  const role = guest ? activeNote.shared.role : 'owner';
+  // Shared workspaces (team): people who can only view get a read-only editor.
+  const teamWs = !guest && isTeamWorkspace(activeWorkspace);
+  const role = guest ? activeNote.shared.role : (teamWs && myRole(activeWorkspace) === 'view' ? 'view' : 'owner');
+  // Write-mode notes in a shared workspace are edited live together (collab/session.js).
+  const live = teamWs && (activeNote?.note?.note_type || 'note') === 'note' && activeNote?.note?.editor_mode === 'rich';
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -367,9 +373,70 @@ export default function Editor() {
     return () => { cancelled = true; };
   }, [noteId, guest, sharedByMe]);
 
-  const isShared = guest || (ownerShare?.count || 0) > 0;
+  // "Take turns" sharing (one editor at a time) — not for notes edited live together.
+  const isShared = !live && (guest || (ownerShare?.count || 0) > 0);
   const lockedByOther = !!(isShared && lock && lock.user_id !== myId);
   const myTurn = !!(isShared && lock && lock.user_id === myId);
+
+  // ── Live editing together ──
+  // 'wait' until the shared document is here (from this device or the server); 'fallback' = offline
+  // without a copy of it on this device: edit the saved text normally, merged in when back online.
+  const [liveMode, setLiveMode] = useState('wait');
+  const [livePeople, setLivePeople] = useState([]);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [liveNonce, setLiveNonce] = useState(0);
+  const [collabSession, setCollabSession] = useState(null);
+  const liveNoteRef = useRef(null);
+  liveNoteRef.current = activeNote?.note || null;
+  useEffect(() => {
+    setLiveMode('wait'); setLivePeople([]); setLiveConnected(false);
+    if (!live || !noteId) { setCollabSession(null); return undefined; }
+    let session = null;
+    let alive = true;
+    const onStatus = st => {
+      if (!alive) return;
+      setLivePeople(st.people || []);
+      setLiveConnected(!!st.synced);
+      if (st.local || st.synced) setLiveMode(m => (m === 'fallback' ? m : 'live'));
+      if (st.reset) restart();
+    };
+    const restart = async () => {
+      alive = false;
+      // Changes made here that the server never got: keep them as a copy rather than lose them.
+      const ed = richEditorRef.current;
+      const html = ed && !ed.isDestroyed ? ed.getHTML() : null;
+      const saved = liveNoteRef.current?.rich_content || '';
+      if (html && html.replace(/\s+/g, '') !== saved.replace(/\s+/g, '') && !ed.isEmpty) {
+        try {
+          const n = liveNoteRef.current;
+          const copy = await createNote({ workspace_id: n.workspace_id, parent_id: n.parent_id, title: `${n.title} (conflict copy)`, editor_mode: 'rich' });
+          await saveNote(copy.id, { rich_content: html, content: htmlToMarkdown(html) });
+          toast(`“${n.title}” was changed elsewhere while you were offline. Your version was saved as “${copy.title}”.`, { icon: '⚠️', duration: 9000 });
+        } catch { /* ignore */ }
+      }
+      await session.clearLocal();
+      session.destroy();
+      setLiveNonce(x => x + 1);
+    };
+    session = new CollabSession(noteId, { onStatus });
+    setCollabSession(session);
+    const t = setTimeout(() => { if (alive) setLiveMode(m => (m === 'wait' ? 'fallback' : m)); }, 4000);
+    return () => { alive = false; clearTimeout(t); session.destroy(); };
+  }, [live, noteId, liveNonce]);
+  // Online but the live connection never comes up (e.g. a reverse proxy without WebSockets): save normally.
+  useEffect(() => {
+    if (!live || liveMode !== 'live' || liveConnected) return undefined;
+    const t = setTimeout(() => {
+      if (!navigator.onLine) return;
+      setLiveMode('fallback');
+      toast('Live editing couldn’t connect, so this note saves the normal way. If this keeps happening, turn on WebSockets in your reverse proxy (e.g. “Websockets Support” in Nginx Proxy Manager).', { icon: 'ℹ️', duration: 10000, id: 'live-fallback' });
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [live, liveMode, liveConnected]);
+  const collab = useMemo(() => (live && liveMode === 'live' && collabSession
+    ? { session: collabSession, seedHtml: () => liveNoteRef.current?.rich_content || '' } : null), [live, liveMode, collabSession]);
+  const liveRef = useRef(null);
+  liveRef.current = collab;
 
   const readOnly = role === 'view' || lockedByOther;
 
@@ -527,8 +594,24 @@ export default function Editor() {
   }, [activeNote?.note?.id, activeNote?.loadedAt]);
 
   // Saves go to this device first (instant, works offline); offline/sync.js uploads them.
+  const liveSavedRef = useRef({ title: null, tags: null });
+  useEffect(() => { liveSavedRef.current = { title: null, tags: null }; }, [activeNote?.note?.id]);
   const save = useCallback(async (noteId, t, c, rc, tg, mode) => {
     try {
+      const lv = liveRef.current;
+      if (lv && mode === 'rich') {
+        // Live note: the text travels through the shared document; the server saves its HTML copy.
+        lv.session.saveHtml(rc, c);
+        await saveLocalCopy(noteId, { content: c, rich_content: rc });
+        const n = useStore.getState().activeNote?.note;
+        const tagsJson = JSON.stringify(tg);
+        if (n && (t !== (liveSavedRef.current.title ?? n.title) || tagsJson !== (liveSavedRef.current.tags ?? n.tags))) {
+          liveSavedRef.current = { title: t, tags: tagsJson };
+          await saveNote(noteId, { title: t, tags: tg });
+          updateNoteInTree(noteId, { title: t, tags: tagsJson });
+        }
+        return;
+      }
       if (guestRef.current || sharedRef.current) {
         if (!turnRef.current) {
           // Only a real edit takes the turn; the editor tidying a note as it opens is not saved.
@@ -1019,6 +1102,19 @@ export default function Editor() {
       {aiTarget && <AiPanel key={`${aiTarget.scope}-${aiTarget.from}-${aiTarget.to}`} target={aiTarget} note={{ ...activeNote.note, title }} onApply={applyAi} onClose={() => setAiTarget(null)} />}
       {newNoteChat && <NewChatDialog note={activeNote.note} onClose={() => setNewNoteChat(false)} onCreated={c => { setNewNoteChat(false); setNoteChat(c.id); }} />}
 
+      {/* Live notes in a shared workspace: who else is here */}
+      {live && (
+        <div className={`live-bar${liveConnected ? ' on' : ''}`}>
+          <span className="live-dot" />
+          {role === 'view' ? <span>You can view this note. Changes others make appear as they type.</span>
+            : liveMode === 'fallback' ? <span>Offline — your changes are saved on this device and merged in when you’re back online.</span>
+              : liveConnected ? <span>Live — {livePeople.length ? <>{livePeople.map(p => p.name).join(', ')} {livePeople.length === 1 ? 'is' : 'are'} here too.</> : 'everyone in this workspace sees your changes as you type.'}</span>
+                : <span>Offline — your changes are kept on this device and merged in when you’re back online.</span>}
+          <span style={{ flex: 1 }} />
+          {livePeople.map(p => <span key={p.id} className="live-avatar" style={{ background: p.color }} title={`${p.name} is here`}>{(p.name || '?').slice(0, 1).toUpperCase()}</span>)}
+        </div>
+      )}
+
       {/* Shared notes: who it's from, who's editing */}
       {isShared && (
         <div className={`share-banner${lockedByOther ? ' busy' : myTurn ? ' mine' : ''}`}>
@@ -1062,7 +1158,9 @@ export default function Editor() {
             <div className="doc-column">
               {titleBlock}
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
-                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onRecord={!readOnly && !guest ? () => setRecordOpen(true) : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+                {live && liveMode === 'wait'
+                  ? <p className="live-wait">Opening the shared copy…</p>
+                  : <RichEditor key={`${activeNote.note.id}:${collab ? `live${liveNonce}` : 'plain'}`} collab={collab} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onRecord={!readOnly && !guest ? () => setRecordOpen(true) : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />}
               </div>
             </div>
           </div>
