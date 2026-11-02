@@ -8,6 +8,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { useStore } from '../../stores/useStore';
 import { openNoteByTitle, createNote } from '../../offline/sync';
+import { nextInNewTab } from '../../tabs/tabs';
 import { fitImage } from '../../utils/image';
 import toast from 'react-hot-toast';
 import { videoSource, MERMAID_SAMPLE } from './embeds';
@@ -245,6 +246,7 @@ export const WikiLinkDecorations = Extension.create({
           const link = event.target.closest?.('.wiki-link');
           const ws = useStore.getState().activeWorkspace;
           if (!link || !ws) return false;
+          if (event.ctrlKey || event.metaKey) nextInNewTab(); // Ctrl/⌘-click: open in a new tab
           openNoteByTitle(ws.id, link.dataset.link);
           return true;
         },

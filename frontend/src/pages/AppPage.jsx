@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
+import TabBar from '../tabs/TabBar';
 import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
 import TrashView from '../components/trash/TrashView';
@@ -118,7 +119,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <Editor />}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <><TabBar /><Editor /></>}
       </main>
       <SearchModal />
       <Settings />

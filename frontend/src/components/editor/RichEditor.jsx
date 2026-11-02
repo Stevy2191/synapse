@@ -33,6 +33,7 @@ import { DrawingEmbed, DrawingPicker } from '../freedraw/DrawingEmbed';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
+import TurnInto from './TurnInto';
 
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
@@ -314,16 +315,13 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
               <Sep />
             </>
           )}
+          <TurnInto editor={editor} />
+          <Sep />
           <B on={editor.isActive('bold')} title="Bold (Ctrl+B)" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={15} /></B>
           <B on={editor.isActive('italic')} title="Italic (Ctrl+I)" onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={15} /></B>
           <B on={editor.isActive('underline')} title="Underline (Ctrl+U)" onClick={() => editor.chain().focus().toggleUnderline().run()}><Underline size={15} /></B>
           <B on={editor.isActive('strike')} title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={15} /></B>
           <B on={editor.isActive('code')} title="Inline code" onClick={() => editor.chain().focus().toggleCode().run()}><Code size={15} /></B>
-          <Sep />
-          <B on={editor.isActive('heading', { level: 1 })} title="Heading 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 size={16} /></B>
-          <B on={editor.isActive('heading', { level: 2 })} title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={16} /></B>
-          <B on={editor.isActive('blockquote')} title="Quote" onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={15} /></B>
-          <B on={editor.isActive('taskList')} title="Checklist" onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks size={15} /></B>
           <Sep />
           <B on={editor.isActive('link')} title="Link" onClick={setLink}><LinkIcon size={15} /></B>
           <B on={editor.isActive('highlight')} title="Highlight" onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter size={15} /></B>

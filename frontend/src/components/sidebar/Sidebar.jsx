@@ -15,6 +15,7 @@ import { listTasks, isoDay } from '../../offline/tasks';
 import { kindInfo, datedName } from '../noteKinds';
 import { useChat, totalUnread } from '../../chat/client';
 import { useShares, openSharedNote, loadShares } from '../../shares/client';
+import { openInNewTab } from '../../tabs/tabs';
 
 
 function countDescendants(id, notes) {
@@ -54,7 +55,10 @@ function SharedWithMe({ onNavigate }) {
   const [open, setOpen] = useState(true);
   useEffect(() => { loadShares(); }, []);
   if (!items.length) return null;
-  const go = async id => { if (await openSharedNote(id)) onNavigate?.(); };
+  const go = async (id, e) => {
+    if (e && (e.ctrlKey || e.metaKey || e.button === 1)) { await openInNewTab(id, { shared: true }); onNavigate?.(); return; }
+    if (await openSharedNote(id)) onNavigate?.();
+  };
   const rows = [];
   for (const r of items) {
     rows.push({ ...r, depth: 0, root: r });
@@ -77,7 +81,7 @@ function SharedWithMe({ onNavigate }) {
         const kind = kindInfo(r);
         const Icon = kind.icon;
         return (
-          <div key={r.id} className={`tree-row nav-item${activeId === r.id ? ' on' : ''}`} style={{ paddingLeft: 8 + r.depth * 14 }} onClick={() => go(r.id)}
+          <div key={r.id} className={`tree-row nav-item${activeId === r.id ? ' on' : ''}`} style={{ paddingLeft: 8 + r.depth * 14 }} onClick={e => go(r.id, e)} onAuxClick={e => { if (e.button === 1) { e.preventDefault(); go(r.id, e); } }}
             title={`${r.title} — shared by ${r.root.owner?.display_name || r.root.owner?.username} (${r.root.permission === 'edit' ? 'can edit' : 'can view'})`}>
             <Icon size={14} style={{ flexShrink: 0, color: kind.color || 'var(--text-muted)' }} />
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 4 }}>{r.title}</span>
@@ -135,7 +139,9 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
     <div>
       <div
         className={`tree-row nav-item${active ? ' on' : ''}${hint ? ` drop-${hint}` : ''}`}
-        onClick={() => onSelect(note.id)}
+        onClick={e => onSelect(note.id, e)}
+        onMouseDown={e => { if (e.button === 1) e.preventDefault(); }}
+        onAuxClick={e => { if (e.button === 1) { e.preventDefault(); onSelect(note.id, e); } }}
         style={{ paddingLeft: 6 + depth * 14, gap: 4, opacity: dragging ? 0.4 : 1 }}
         role="button"
         draggable
@@ -304,8 +310,10 @@ export default function Sidebar({ width, onNavigate }) {
 
   const roots = notes.filter(n => !n.parent_id);
 
-  const selectNote = useCallback(async (id) => {
-    await openNote(id);
+  // Ctrl/⌘-click or middle-click opens the note in a new tab (like a web browser).
+  const selectNote = useCallback(async (id, e) => {
+    if (e && (e.ctrlKey || e.metaKey || e.button === 1)) await openInNewTab(id);
+    else await openNote(id);
     // Leave Graph / Tasks / Trash / Chats so the note is actually shown.
     if (['graph', 'tasks', 'trash', 'chat', 'ask'].includes(view)) setView('editor');
     onNavigate?.();

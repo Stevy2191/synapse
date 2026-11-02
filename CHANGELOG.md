@@ -4,6 +4,19 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.5.0 — November 2026
+
+### New
+- **Tabs** — keep several notes open at once, in tabs above the note. Works like a web browser:
+  clicking a note opens it in the current tab; **Ctrl/⌘-click** or **middle-click** a note (or a
+  `[[link]]`) opens it in a new tab, and **+** opens an empty tab to fill by picking a note (handy on
+  a tablet). Close with ×, middle-click, or right-click → *Close other tabs*; drag tabs to reorder.
+  Each device remembers its own tabs, even after a refresh.
+- **Turn into** — select text and use the new menu at the start of the formatting toolbar to turn it
+  into text, a heading, quote, bulleted/numbered list, checklist, toggle section, callout (note,
+  tip, warning, danger), code block, equation, inline math, or a link to the note with that title.
+  (It replaces the separate heading / quote / checklist buttons in that toolbar.)
+
 ## v1.4.1 — November 2026
 
 ### Fixed

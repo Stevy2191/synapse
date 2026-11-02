@@ -66,6 +66,8 @@ frontend/src/
   pages/AppPage.jsx   layout; `view` = editor | graph | tasks | trash
   components/editor/Editor.jsx      note page (title, tags, Write/Markdown modes, saving)
   components/editor/RichEditor.jsx  Tiptap v3 editor ("Write" mode, the default)
+  components/editor/TurnInto.jsx    "Turn into" dropdown in the selection toolbar (block conversions)
+  tabs/tabs.js + TabBar.jsx         tabs of open notes (per workspace, persisted per device in store `tabs`)
   components/editor/extensions.js   "/" menu (SLASH_ITEMS, grouped), [[ suggest, wiki decorations
   components/editor/convert.js      Markdown ⇄ HTML (marked + turndown) incl. all custom blocks
   components/editor/blocks.jsx      callouts, table of contents, toggles (details)
@@ -174,6 +176,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   carried the old AI key (only in encrypted backups). Restore also accepts `synapse backup`
   archives (data/ prefix). Clients need no special handling: pull compares versions and drops
   notes the server no longer has.
+- **Tabs** (built Nov 2026): browser-like (Sean's choice). `activeNote` is still the one open note;
+  a store subscription in tabs/tabs.js puts every opened note into the current tab (or switches to
+  its tab if already open). `openInNewTab()` / `nextInNewTab()` (Ctrl/⌘/middle-click in the sidebar,
+  Ctrl-click on [[links]]) and "+" (blank `new:` tab, filled by the next pick) add tabs. Tabs whose
+  notes vanish from the tree are pruned; shared-with-me tabs reopen via openSharedNote.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
