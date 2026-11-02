@@ -25,6 +25,11 @@ so you can go back to a known version if you ever need to.
   - English is built in. Admins can add other languages in Settings → Server → **Text recognition**
     (downloaded once; the server needs internet for that) and turn off reading pictures for search.
 
+### Fixed
+- **AI “Test” (and AI replies) timing out with Gemini** and some other services: Synapse now stops
+  waiting as soon as the reply says it’s complete, instead of waiting for the connection to close.
+  A real timeout now says so clearly and suggests a faster model.
+
 ## v1.8.0 — November 2026
 
 ### New

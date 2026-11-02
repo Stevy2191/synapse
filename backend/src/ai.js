@@ -205,6 +205,9 @@ function friendly(err, acct) {
   if (status === 401 || status === 403) return new AiError(400, `${acct.label} didn’t accept the key. Check it in Settings → AI assistant.`);
   if (status === 404) return new AiError(400, `${acct.label} doesn’t know the model “${acct.model}”. Pick another in Settings → AI assistant.`);
   if (status === 429) return new AiError(429, `${acct.label} says you’ve hit a limit (too many requests or out of credit). ${raw}`);
+  if (err?.name === 'TimeoutError' || /due to timeout/i.test(raw)) {
+    return new AiError(504, `${acct.label} didn’t answer in time${acct.model ? ` (model “${acct.model}”)` : ''}. Try again, or pick a faster model (one with “flash” in the name).`);
+  }
   if (err?.name === 'AbortError') return new AiError(499, 'Stopped');
   if (/ECONNREFUSED|ENOTFOUND|fetch failed|EAI_AGAIN|ETIMEDOUT/i.test(raw + (err?.cause?.code || ''))) {
     return new AiError(502, `Couldn’t reach ${acct.label}${acct.baseUrl ? ` at ${acct.baseUrl}` : ''}. Is it running, and can the Synapse server reach it?`);
@@ -268,6 +271,9 @@ export async function streamChat(acct, { system, messages, signal, onText }) {
           if (j.error) throw Object.assign(new Error(j.error.message || 'error'), { status: 400 });
           const t = j.choices?.[0]?.delta?.content;
           if (t) { full += t; onText?.(t); }
+          // Some services (e.g. Gemini) end the reply with a finish reason but may not send [DONE]
+          // or close the connection straight away — stop reading as soon as the reply is complete.
+          if (j.choices?.[0]?.finish_reason) { reader.cancel().catch(() => {}); return full; }
         } catch (e) { if (e.status) throw e; }
       }
     }
