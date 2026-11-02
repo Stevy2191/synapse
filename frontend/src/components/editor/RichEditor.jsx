@@ -62,7 +62,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -145,6 +145,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
   useEffect(() => {
     if (editorRefProp) editorRefProp.current = editor;
+    onEditor?.(editor);
   }, [editor, editorRefProp]);
 
   // "/" → Math opens the equation dialog

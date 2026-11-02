@@ -194,7 +194,8 @@ async function renderBody(note, ctx) {
     const items = [...det.querySelectorAll('li[data-checked]')].filter(li => li.closest('details') === det && li.textContent.trim());
     const left = items.filter(li => li.getAttribute('data-checked') !== 'true').length;
     const count = items.length ? ` <span class="x-task-count">${left ? `${left} of ${items.length} remaining` : `All ${items.length} done`}</span>` : '';
-    box.append(make('div', 'x-toggle-summary', (summary ? summary.innerHTML : '') + count));
+    const lvl = parseInt(summary?.getAttribute('data-level'), 10) || 0;
+    box.append(make('div', `x-toggle-summary${lvl ? ` x-level-${lvl}` : ''}`, (summary ? summary.innerHTML : '') + count));
     const content = make('div', 'x-toggle-body');
     for (const child of [...det.childNodes]) {
       if (child === summary) continue;

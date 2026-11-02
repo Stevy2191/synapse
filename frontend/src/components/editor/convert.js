@@ -165,10 +165,12 @@ turndown.addRule('special', {
 turndown.addRule('details', {
   filter: 'details',
   replacement: (content, node) => {
-    const summary = node.querySelector(':scope > summary')?.textContent.trim() || '';
+    const summaryEl = node.querySelector(':scope > summary');
+    const summary = summaryEl?.textContent.trim() || '';
+    const level = parseInt(summaryEl?.getAttribute('data-level'), 10) || 0;
     const inner = node.querySelector(':scope > [data-type="detailsContent"]');
     const body = inner ? turndown.turndown(inner.innerHTML) : '';
-    return `\n\n<details>\n<summary>${summary.replace(/</g, '&lt;')}</summary>\n\n${body.trim()}\n\n</details>\n\n`;
+    return `\n\n<details>\n<summary${level ? ` data-level="${level}"` : ''}>${summary.replace(/</g, '&lt;')}</summary>\n\n${body.trim()}\n\n</details>\n\n`;
   },
 });
 turndown.addRule('underline', { filter: ['u'], replacement: content => `<u>${content}</u>` });

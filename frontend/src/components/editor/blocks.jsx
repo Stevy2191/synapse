@@ -160,7 +160,13 @@ const TaskCounter = Extension.create({
   name: 'taskCounter',
   priority: 1000, // before the toggle's own Enter key
   addKeyboardShortcuts() {
+    // Ctrl+Alt+0–3 on a toggle title sets its size (the heading shortcuts can't work there).
+    const level = n => ({ editor }) => {
+      if (editor.state.selection.$from.parent.type.name !== 'detailsSummary') return false;
+      return setTextLevel(editor, n);
+    };
     return {
+      'Mod-Alt-0': level(0), 'Mod-Alt-1': level(1), 'Mod-Alt-2': level(2), 'Mod-Alt-3': level(3),
       // Enter in a task list's name goes to its first task (a new one if the first isn't empty).
       Enter: ({ editor }) => {
         const { state } = editor;
@@ -233,9 +239,42 @@ const TaskCounter = Extension.create({
   },
 });
 
+// A toggle's title can be sized like a heading (data-level 1–3; 0 = normal text). The title can only
+// hold text, so real headings aren't possible there — this gives it the same look.
+const ToggleTitle = DetailsSummary.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      level: {
+        default: 0,
+        parseHTML: el => Math.min(3, Math.max(0, parseInt(el.getAttribute('data-level'), 10) || 0)),
+        renderHTML: attrs => (attrs.level ? { 'data-level': attrs.level } : {}),
+      },
+    };
+  },
+});
+
+/** Heading level where the cursor is: 1–6, or 0 for normal text (toggle titles included). */
+export function textLevel(editor) {
+  const { $from } = editor.state.selection;
+  if ($from.parent.type.name === 'detailsSummary') return $from.parent.attrs.level || 0;
+  if ($from.parent.type.name === 'heading') return $from.parent.attrs.level;
+  return 0;
+}
+
+/** Make the current line a heading of `level` (0 = normal text) — also works on toggle titles. */
+export function setTextLevel(editor, level) {
+  const { $from } = editor.state.selection;
+  if ($from.parent.type.name === 'detailsSummary') {
+    return editor.chain().focus().updateAttributes('detailsSummary', { level }).run();
+  }
+  if (!level) return editor.chain().focus().setParagraph().run();
+  return editor.chain().focus().setHeading({ level }).run();
+}
+
 export const ToggleBlocks = [
   Details.configure({ persist: true, HTMLAttributes: { class: 'toggle-block' } }),
-  DetailsSummary,
+  ToggleTitle,
   DetailsContent,
   TaskCounter,
 ];

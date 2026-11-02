@@ -66,6 +66,7 @@ frontend/src/
   pages/AppPage.jsx   layout; `view` = editor | graph | tasks | trash
   components/editor/Editor.jsx      note page (title, tags, Write/Markdown modes, saving)
   components/editor/RichEditor.jsx  Tiptap v3 editor ("Write" mode, the default)
+  components/editor/RichToolbar.jsx optional fixed formatting bar for Write mode (store `richToolbar`, per device)
   components/editor/TurnInto.jsx    "Turn into" dropdown in the selection toolbar (block conversions)
   tabs/tabs.js + TabBar.jsx         tabs of open notes (per workspace, persisted per device in store `tabs`)
   components/editor/extensions.js   "/" menu (SLASH_ITEMS, grouped), [[ suggest, wiki decorations
@@ -256,6 +257,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Task lists = a toggle (details) holding a checklist; the "N of M remaining" badge is a widget
   decoration (TaskCounter in blocks.jsx), nothing stored — so Markdown/export formats are unchanged
   (export/render.js adds the same badge).
+- Toggle titles (detailsSummary) can only hold text, so "headings" there are a `level` attribute
+  (`<summary data-level="2">`, kept by Turndown/markdownToHtml/export). Use `setTextLevel()` /
+  `textLevel()` from blocks.jsx for anything that sets heading levels, not setHeading directly.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

@@ -1263,3 +1263,21 @@ body {
 .rich-editor-content .task-count { display: inline-block; margin-left: 10px; padding: 1px 9px; border-radius: 999px; font: 500 12px var(--font-sans); vertical-align: 2px; color: var(--accent); background: var(--accent-subtle); user-select: none; white-space: nowrap; }
 .rich-editor-content .task-count.all-done { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
 .rich-editor-content .task-count.all-done::before { content: '✓ '; }
+
+/* Toggle / task list titles sized like headings (summary data-level) */
+.rich-editor-content summary[data-level="1"], .markdown-preview summary[data-level="1"] { font: 700 1.75em/1.25 var(--font-display); letter-spacing: -0.02em; }
+.rich-editor-content summary[data-level="2"], .markdown-preview summary[data-level="2"] { font: 700 1.4em/1.3 var(--font-display); letter-spacing: -0.01em; }
+.rich-editor-content summary[data-level="3"], .markdown-preview summary[data-level="3"] { font: 650 1.17em/1.35 var(--font-display); }
+.rich-editor-content [data-type="details"]:has(> div > summary[data-level="1"]) > button { margin-top: 0.45em; }
+.rich-editor-content [data-type="details"]:has(> div > summary[data-level="2"]) > button { margin-top: 0.3em; }
+.rich-editor-content summary[data-level] .task-count { font-family: var(--font-sans); letter-spacing: 0; vertical-align: 0.3em; }
+
+/* Formatting bar at the top of Write-mode notes (optional) */
+.rich-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 1px; padding: 5px 14px; min-height: 42px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-base); flex-shrink: 0; position: relative; z-index: 5; }
+.rich-tb-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px; border: none; border-radius: 7px; background: none; color: var(--text-secondary); cursor: pointer; }
+.rich-tb-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.rich-tb-btn.on { background: var(--accent-subtle); color: var(--accent); }
+.rich-tb-btn:disabled { opacity: 0.35; cursor: default; }
+.rich-tb-h { font: 700 12px var(--font-sans); }
+.rich-tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+.rich-toolbar .turn-into-btn { height: 30px; }

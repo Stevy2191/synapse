@@ -90,6 +90,9 @@ body { margin: 0; background: #fff; color: #1f2330; font: 400 11pt/1.6 "Inter", 
 .x-callout > :last-child { margin-bottom: 0; }
 .x-toggle { margin: 0.8em 0; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 14px; }
 .x-toggle-summary { font-weight: 600; }
+.x-toggle-summary.x-level-1 { font-size: 1.75em; font-weight: 700; }
+.x-toggle-summary.x-level-2 { font-size: 1.4em; font-weight: 700; }
+.x-toggle-summary.x-level-3 { font-size: 1.17em; font-weight: 700; }
 .x-toggle-summary::before { content: "▾ "; color: #9ca3af; }
 .x-task-count { font-weight: 500; font-size: 0.8em; color: #6b7280; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #f3f4f6; }
 .x-toc { margin: 0.8em 0; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; }

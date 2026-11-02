@@ -2,6 +2,7 @@
 // checklist, quote, callout, toggle, code block, equation… (the block types from the "/" menu).
 // Renders inline (not in a portal) so clicking it doesn't close the floating toolbar.
 import { useEffect, useRef, useState } from 'react';
+import { textLevel, setTextLevel } from './blocks';
 import {
   Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse, ListTodo, Quote, Info, Lightbulb, TriangleAlert,
   OctagonAlert, Code2, Sigma, Radical, FileText, ChevronDown, Check,
@@ -37,10 +38,10 @@ function replaceText(editor, make) {
 
 const ITEMS = [
   { id: 'text', group: 'Basic', title: 'Text', icon: Type, active: e => e.isActive('paragraph') && !e.isActive('bulletList') && !e.isActive('orderedList') && !e.isActive('taskList') && !e.isActive('blockquote') && !e.isActive('callout') && !e.isActive('details'),
-    run: e => e.chain().focus().clearNodes().setParagraph().run() },
-  { id: 'h1', group: 'Basic', title: 'Heading 1', icon: Heading1, active: e => e.isActive('heading', { level: 1 }), run: e => e.chain().focus().clearNodes().setHeading({ level: 1 }).run() },
-  { id: 'h2', group: 'Basic', title: 'Heading 2', icon: Heading2, active: e => e.isActive('heading', { level: 2 }), run: e => e.chain().focus().clearNodes().setHeading({ level: 2 }).run() },
-  { id: 'h3', group: 'Basic', title: 'Heading 3', icon: Heading3, active: e => e.isActive('heading', { level: 3 }), run: e => e.chain().focus().clearNodes().setHeading({ level: 3 }).run() },
+    run: e => (inTitle(e) ? setTextLevel(e, 0) : e.chain().focus().clearNodes().setParagraph().run()), titleOk: true },
+  { id: 'h1', group: 'Basic', title: 'Heading 1', icon: Heading1, active: e => e.isActive('heading', { level: 1 }), run: e => (inTitle(e) ? setTextLevel(e, 1) : e.chain().focus().clearNodes().setHeading({ level: 1 }).run()), titleOk: true },
+  { id: 'h2', group: 'Basic', title: 'Heading 2', icon: Heading2, active: e => e.isActive('heading', { level: 2 }), run: e => (inTitle(e) ? setTextLevel(e, 2) : e.chain().focus().clearNodes().setHeading({ level: 2 }).run()), titleOk: true },
+  { id: 'h3', group: 'Basic', title: 'Heading 3', icon: Heading3, active: e => e.isActive('heading', { level: 3 }), run: e => (inTitle(e) ? setTextLevel(e, 3) : e.chain().focus().clearNodes().setHeading({ level: 3 }).run()), titleOk: true },
   { id: 'quote', group: 'Basic', title: 'Quote', icon: Quote, active: e => e.isActive('blockquote'), run: e => e.chain().focus().clearNodes().setBlockquote().run() },
   { id: 'ul', group: 'Lists', title: 'Bulleted list', icon: List, active: e => e.isActive('bulletList'), run: e => e.chain().focus().clearNodes().toggleBulletList().run() },
   { id: 'ol', group: 'Lists', title: 'Numbered list', icon: ListOrdered, active: e => e.isActive('orderedList'), run: e => e.chain().focus().clearNodes().toggleOrderedList().run() },
@@ -83,9 +84,12 @@ const ITEMS = [
     run: e => replaceText(e, text => `[[${text.replace(/[[\]]/g, '')}]]`) },
 ];
 
+const inTitle = e => e.state.selection.$from.parent.type.name === 'detailsSummary';
+
 // What the block where the selection starts is (innermost wins: a heading inside a callout is a heading).
 function currentId(editor) {
   const { $from } = editor.state.selection;
+  if ($from.parent.type.name === 'detailsSummary') { const l = textLevel(editor); return l ? `h${l}` : 'text'; }
   for (let d = $from.depth; d > 0; d--) {
     const n = $from.node(d);
     switch (n.type.name) {
@@ -134,7 +138,7 @@ export default function TurnInto({ editor }) {
       {open && (
         <div className="turn-into-menu" onMouseDown={e => e.preventDefault()}>
           <div className="turn-into-head">Turn into</div>
-          {ITEMS.filter(i => !i.textOnly || oneLine).map(item => {
+          {ITEMS.filter(i => (inTitle(editor) ? i.titleOk : !i.textOnly || oneLine)).map(item => {
             const head = item.group !== lastGroup ? item.group : null;
             lastGroup = item.group;
             const Icon = item.icon;

@@ -4,6 +4,17 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.7.0 — November 2026
+
+### New
+- **Formatting bar in Write mode** — click the new bar button next to *Write / Markdown* to keep a
+  formatting bar at the top of the note (like Markdown mode has): undo/redo, Turn into, bold,
+  italic, underline, strikethrough, code, highlight, H1–H3, lists, checklist, task list, toggle,
+  quote, code block, link, image, table, divider and alignment. Each device remembers the choice.
+- **Headings on toggle and task list titles** — titles can now be Heading 1, 2 or 3 (or normal
+  text) with the bar's H1–H3 buttons, *Turn into*, or Ctrl+Alt+1/2/3 (Ctrl+Alt+0 for normal). The
+  size is kept in Markdown, previews and exports.
+
 ## v1.6.0 — November 2026
 
 ### New

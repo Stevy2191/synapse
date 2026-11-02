@@ -17,6 +17,8 @@ import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
   PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock, Globe,
 } from 'lucide-react';
+import { PanelTop } from 'lucide-react';
+import RichToolbar from './RichToolbar';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
 import { NewChatDialog } from '../chat/ChatDialogs';
@@ -313,6 +315,8 @@ export default function Editor() {
   const [editorMode, setEditorMode] = useState('markdown');
   const [linkSuggestions, setLinkSuggestions] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [richEditor, setRichEditor] = useState(null);
+  const richToolbar = useStore(s => s.richToolbar);
   const [exportOpen, setExportOpen] = useState(false);
   const [aiTarget, setAiTarget] = useState(null); // what the AI window works on (see openAi)
   const [noteChat, setNoteChat] = useState(null);      // chat id shown beside the note
@@ -857,6 +861,10 @@ export default function Editor() {
             ))}
           </div>
         )}
+        {isNote && editorMode === 'rich' && !readOnly && (
+          <button className={`btn-ghost${richToolbar ? ' on' : ''}`} title={richToolbar ? 'Hide the formatting bar' : 'Show a formatting bar at the top (like in Markdown)'}
+            onClick={() => useStore.setState({ richToolbar: !richToolbar })}><PanelTop size={15} /></button>
+        )}
         {isMarkdown && (
           <div className="seg">
             {[['editor', <Edit size={13} />, 'Edit'], ['split', <Columns size={13} />, 'Split'], ['preview', <Eye size={13} />, 'Preview']].map(([v, icon, label]) => (
@@ -926,6 +934,7 @@ export default function Editor() {
 
       {/* Formatting toolbar */}
       {isMarkdown && showEditor && <MarkdownToolbar onFormat={handleMarkdownFormat} />}
+      {isNote && editorMode === 'rich' && richToolbar && !readOnly && <RichToolbar editor={richEditor} />}
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {!isNote && (
@@ -945,7 +954,7 @@ export default function Editor() {
             <div className="doc-column">
               {titleBlock}
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
-                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
               </div>
             </div>
           </div>
