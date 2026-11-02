@@ -15,7 +15,18 @@ const SETTING_RULES = {
   default_note_type: v => ['note', 'diagram', 'draw'].includes(v),
   ai: v => ['on', 'off'].includes(v),                      // allow the AI assistant in this workspace
   clusters: validClusters,                                 // saved smart groups of notes (sidebar → Clusters)
+  board: validBoard,                                       // Tasks → Board columns
 };
+
+// Board: { columns: [{ key, name, color? }] } — keys 'todo' and 'done' must be there; others are written
+// into tasks as "🗂 <key>".
+function validBoard(b) {
+  if (!b || typeof b !== 'object' || !Array.isArray(b.columns) || b.columns.length > 20) return false;
+  const keys = b.columns.map(c => c && c.key);
+  return keys.includes('todo') && keys.includes('done') && new Set(keys).size === keys.length
+    && b.columns.every(c => c && typeof c === 'object' && typeof c.key === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(c.key)
+      && typeof c.name === 'string' && c.name.trim() && c.name.length <= 40 && (c.color === undefined || COLOR.test(c.color)));
+}
 
 // Clusters: [{ id, name, icon, color, match: 'all'|'any', rules: [{ field, op, value }], pinned: [noteId], hidden: [noteId] }]
 const CLUSTER_FIELDS = new Set(['tag', 'title', 'text', 'kind', 'created', 'updated', 'inside', 'has']);

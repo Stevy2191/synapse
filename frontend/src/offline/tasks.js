@@ -6,7 +6,7 @@
 import { getWorkspaceNotes, saveNote, openNote } from './sync';
 import { useStore } from '../stores/useStore';
 import { htmlToMarkdown, markdownToHtml } from '../components/editor/convert';
-import { DUE, TIME, REPEAT, splitWhen, whenTokens, setWhen, nextDue } from './taskWhen';
+import { DUE, WHEN_REGEXES, splitWhen, whenTokens, setWhen, nextDue } from './taskWhen';
 
 export { DUE };
 const MD_TASK = /^(\s*[-*+]\s+\[)([ xX])(\]\s?)(.*)$/;
@@ -64,9 +64,9 @@ export async function listTasks(workspaceId) {
       found = mdLines(note.content).tasks.map(t => ({ raw: t.text, done: t.done }));
     }
     found.forEach((t, index) => {
-      const { text, due, time, repeat } = splitDue(t.raw);
+      const { text, due, time, repeat, priority, status } = splitDue(t.raw);
       if (!text) return; // empty placeholder items
-      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, time, repeat, kind, updatedAt: note.updated_at });
+      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, time, repeat, priority, status, kind, updatedAt: note.updated_at });
     });
   }
   return out;
@@ -90,7 +90,7 @@ function setDueInText(raw, due) {
   return setWhen(raw, { ...splitWhen(raw), due });
 }
 
-const WHEN_KEYS = ['due', 'time', 'repeat'];
+const WHEN_KEYS = ['due', 'time', 'repeat', 'priority', 'status'];
 
 /**
  * Change one task: { done?, due?: 'YYYY-MM-DD' | null, time?: 'HH:MM' | null, repeat?: 'every …' | null }.
@@ -112,9 +112,9 @@ export async function updateTask(workspaceId, task, change) {
   const cur = splitDue(raw);
   if (change.done && cur.repeat) {
     const next = nextDue(cur.due, cur.repeat);
-    if (next) { delete change.done; change.due = next; result = { next }; }
+    if (next) { delete change.done; change.due = next; change.status = null; result = { next }; }
   }
-  const when = WHEN_KEYS.some(k => k in change) ? { due: cur.due, time: cur.time, repeat: cur.repeat, ...Object.fromEntries(WHEN_KEYS.filter(k => k in change).map(k => [k, change[k] || null])) } : null;
+  const when = WHEN_KEYS.some(k => k in change) ? { due: cur.due, time: cur.time, repeat: cur.repeat, priority: cur.priority, status: cur.status, ...Object.fromEntries(WHEN_KEYS.filter(k => k in change).map(k => [k, change[k] || null])) } : null;
   if (rich) {
     if ('done' in change) {
       li.setAttribute('data-checked', change.done ? 'true' : 'false');
@@ -129,7 +129,7 @@ export async function updateTask(workspaceId, task, change) {
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);
         for (const n of nodes) {
-          n.textContent = n.textContent.replace(new RegExp(DUE.source, 'gu'), '').replace(new RegExp(TIME.source, 'gu'), '').replace(new RegExp(REPEAT.source, 'giu'), '');
+          n.textContent = WHEN_REGEXES.reduce((acc, re) => acc.replace(new RegExp(re.source, `${re.flags}g`), ''), n.textContent);
         }
         const last = nodes[nodes.length - 1];
         if (last) last.textContent = last.textContent.replace(/\s+$/, '');
@@ -157,10 +157,10 @@ const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&
  * and list are created at the end of the note if they aren't there. An empty "☐" placeholder
  * in that list is filled in instead of adding another line.
  */
-export async function addTaskToNote(workspaceId, noteId, heading, text, due) {
+export async function addTaskToNote(workspaceId, noteId, heading, text, due, extra = {}) {
   const note = await getNote(workspaceId, noteId);
   if (!note) throw new Error('That note no longer exists');
-  const line = setDueInText(text.trim(), due);
+  const line = setWhen(text.trim(), { ...splitWhen(text.trim()), due: due || null, ...extra });
   if (isRich(note)) {
     const doc = parse(richHtml(note));
     const body = doc.body;

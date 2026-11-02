@@ -5,7 +5,7 @@
 // 'reminder' event that the open app shows. Checked every minute.
 import { db } from './db/index.js';
 import { pushTo, sendTo, isOnScreen, onlineUserIds } from './chat.js';
-import { openTasks } from './taskWhen.js';
+import { openTasks, priRank } from './taskWhen.js';
 import { sendMail, mailConfigured, appUrl } from './mailer.js';
 
 db.exec(`
@@ -105,7 +105,8 @@ export function summaryFor(tasks, today) {
   const parts = [];
   if (due.length) parts.push(`${due.length} due today`);
   if (overdue.length) parts.push(`${overdue.length} overdue`);
-  const list = [...due.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')), ...overdue.sort((a, b) => a.due.localeCompare(b.due))];
+  const byPri = (a, b) => priRank(a.priority) - priRank(b.priority);
+  const list = [...due.sort((a, b) => byPri(a, b) || (a.time || '99').localeCompare(b.time || '99')), ...overdue.sort((a, b) => byPri(a, b) || a.due.localeCompare(b.due))];
   const lines = list.slice(0, 5).map(t => `• ${short(t.text)}${t.time && t.due === today ? ` (${t.time})` : ''}`);
   if (list.length > 5) lines.push(`…and ${list.length - 5} more`);
   return { title: `📋 Today: ${parts.join(', ')}`, body: lines.join('\n'), count: list.length };
@@ -162,8 +163,8 @@ export function dailyEmail(userId, prefs = getPrefs(userId), now = localNow(pref
   if (!user?.email) return null;
   const events = eventsOn(userId, now.date, prefs.tz);
   const tasks = datedTasks(userId);
-  const due = tasks.filter(t => t.due === now.date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
-  const overdue = tasks.filter(t => t.due < now.date).sort((a, b) => a.due.localeCompare(b.due));
+  const due = tasks.filter(t => t.due === now.date).sort((a, b) => priRank(a.priority) - priRank(b.priority) || (a.time || '99').localeCompare(b.time || '99'));
+  const overdue = tasks.filter(t => t.due < now.date).sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.due.localeCompare(b.due));
   if (prefs.email_skip_empty && !events.length && !due.length && !overdue.length) return null;
 
   const dayName = new Date(`${now.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -182,7 +183,8 @@ export function dailyEmail(userId, prefs = getPrefs(userId), now = localNow(pref
   txt.push('MEETINGS');
   if (events.length) for (const e of events) txt.push(`  ${e.all_day ? 'All day' : `${e.start}${e.end ? `–${e.end}` : ''}`}  ${e.title}${e.location ? ` (${e.location})` : ''}`);
   else txt.push('  Nothing on the calendar.');
-  const taskLine = t => `  [ ] ${t.text}${t.time ? ` at ${t.time}` : ''} — ${t.noteTitle}${link(`/?note=${t.noteId}`) ? ` ${link(`/?note=${t.noteId}`)}` : ''}`;
+  const PRI_TXT = { high: '(High) ', medium: '(Medium) ', low: '(Low) ' };
+  const taskLine = t => `  [ ] ${PRI_TXT[t.priority] || ''}${t.text}${t.time ? ` at ${t.time}` : ''} — ${t.noteTitle}${link(`/?note=${t.noteId}`) ? ` ${link(`/?note=${t.noteId}`)}` : ''}`;
   txt.push('', 'DUE TODAY');
   if (due.length) due.forEach(t => txt.push(taskLine(t))); else txt.push('  Nothing due today.');
   if (overdue.length) { txt.push('', 'OVERDUE'); overdue.forEach(t => txt.push(`${taskLine(t)} (was due ${t.due})`)); }
@@ -199,7 +201,9 @@ export function dailyEmail(userId, prefs = getPrefs(userId), now = localNow(pref
     + `<td style="${cell};width:1%;white-space:nowrap;padding-right:16px;color:#5b5bd6;font-weight:600">${e.all_day ? 'All day' : `${escHtml(e.start)}${e.end ? `<br><span style="font-weight:400;color:#8a8aa0;font-size:13px">to ${escHtml(e.end)}</span>` : ''}`}</td>`
     + `<td style="${cell}"><b>${escHtml(e.title)}</b>${e.location || safeUrl(e.join_url) ? `<br><span style="color:#8a8aa0;font-size:13px">${escHtml(e.location || '')}</span>` : ''}`
     + `${safeUrl(e.join_url) ? ` <a href="${escHtml(e.join_url)}" style="font-size:13px;color:#5b5bd6">Join</a>` : ''}</td></tr>`).join('')) : empty('Nothing on the calendar.');
-  const tHtml = (t, late) => row(`☐ ${link(`/?note=${t.noteId}`) ? `<a href="${escHtml(link(`/?note=${t.noteId}`))}" style="color:#1d1d29;text-decoration:none">${escHtml(t.text)}</a>` : escHtml(t.text)}`
+  const PRI_HTML = { high: ['High', '#e5534b'], medium: ['Medium', '#f2a93b'], low: ['Low', '#2fb67c'] };
+  const priTag = t => (PRI_HTML[t.priority] ? `<span style="display:inline-block;background:${PRI_HTML[t.priority][1]};color:#fff;font-size:11px;font-weight:700;border-radius:4px;padding:0 6px;margin-right:6px">${PRI_HTML[t.priority][0]}</span>` : '');
+  const tHtml = (t, late) => row(`☐ ${priTag(t)}${link(`/?note=${t.noteId}`) ? `<a href="${escHtml(link(`/?note=${t.noteId}`))}" style="color:#1d1d29;text-decoration:none">${escHtml(t.text)}</a>` : escHtml(t.text)}`
     + `${t.time ? ` <span style="color:#5b5bd6;font-size:13px">⏰ ${t.time}</span>` : ''}`
     + `${late ? ` <span style="color:#d33;font-size:13px">was due ${t.due}</span>` : ''}`
     + `<br><span style="color:#8a8aa0;font-size:13px">${escHtml(t.noteTitle)}</span>`);

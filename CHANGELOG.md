@@ -4,6 +4,26 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.15.0 — November 2026
+
+### New
+- **Board view for Tasks** (like Trello): Tasks → **Board**. A list per status — To do, Doing, Done — with
+  cards showing priority labels, due dates (orange today, red overdue), reminder time, repeat and the
+  note each to-do lives in.
+  - **Drag cards** between lists with the mouse or pen; on a phone or tablet, press and hold a card,
+    then drag. Dropping on Done ticks it off (repeating to-dos move to their next date instead).
+  - **Add your own lists** (“Add another list”), rename, recolour, move or delete them from a list's ⋯
+    menu. Lists are shared by all your devices.
+  - **Add a card** at the bottom of any list — it's saved to today's daily note, already in that list.
+  - **Click a card** to set its priority, move it, change the date/reminder/repeat, open its note, or mark it done.
+- **Priority: High / Medium / Low** on any to-do — from the card, the date window (**/due** or
+  **/priority** in a note), or when adding a task. Shown as coloured labels everywhere.
+  - **Sort by** priority, due date or note, and **group by** priority — on the board (columns per
+    priority; drag to change it) and on the list (sections per priority).
+  - The daily email and the morning summary list high-priority to-dos first.
+- In notes these are small signs after the to-do, like dates: `⏫` high, `🔼` medium, `🔽` low (the same
+  signs as Obsidian's Tasks plugin) and `🗂 doing` for the list it's in.
+
 ## v1.14.0 — November 2026
 
 ### New

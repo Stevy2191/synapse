@@ -1,7 +1,9 @@
 // When a task is due, when to be reminded, and how it repeats — written in the task's own text so it
 // survives Markdown, copying and exporting:
 //   Pay the water bill 📅 2026-11-20 ⏰ 09:00 🔁 every month
-// 📅 = due date, ⏰ = reminder time on that day (needs a date), 🔁 = repeats. Ticking a repeating
+// 📅 = due date, ⏰ = reminder time on that day (needs a date), 🔁 = repeats,
+// ⏫ / 🔼 / 🔽 = high / medium / low priority (same signs as Obsidian's Tasks plugin),
+// 🗂 doing = the board column it's in (To do and Done have no sign: Done = ticked). Ticking a repeating
 // task moves it to its next date and leaves it unticked (offline/tasks.js, editor/recurring.js).
 // The server reads the same tokens for reminders — keep backend/src/taskWhen.js in sync.
 
@@ -9,6 +11,13 @@ export const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/u;
 export const TIME = /\s*⏰\s*(\d{1,2}):(\d{2})/u;
 const DAYN = '(?:sun|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?)(?:day)?s?';
 export const REPEAT = new RegExp(`\\s*🔁\\s*(every\\s+(?:(?:\\d+\\s+)?(?:day|week|month|year)s?|weekdays?|weekends?|other\\s+(?:day|week|month|year)|${DAYN}(?:\\s*(?:,|and|&)\\s*${DAYN})*))`, 'iu');
+
+export const PRIORITY = /\s*(⏫|🔼|🔽|🔺|⏬)\uFE0F?/u;
+export const STATUS = /\s*🗂\uFE0F?\s*([a-z0-9][a-z0-9-]{0,39})/u;
+const PRI_OF = { '⏫': 'high', '🔺': 'high', '🔼': 'medium', '🔽': 'low', '⏬': 'low' };
+export const PRI_SIGN = { high: '⏫', medium: '🔼', low: '🔽' };
+export const PRIORITIES = [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']];
+export const priRank = p => ({ high: 0, medium: 1, low: 2 }[p] ?? 3);
 
 export const REPEAT_CHOICES = [
   ['', 'Doesn’t repeat'],
@@ -28,25 +37,33 @@ const dateOf = iso => { const [y, m, d] = iso.split('-').map(Number); return new
 /** Split a task's text into { text, due, time, repeat } (time "HH:MM", repeat e.g. "every week"). */
 export function splitWhen(raw) {
   const s = raw || '';
-  const d = s.match(DUE); const t = s.match(TIME); const r = s.match(REPEAT);
-  const text = s.replace(DUE, ' ').replace(TIME, ' ').replace(REPEAT, ' ').replace(/\s+/g, ' ').trim();
+  const d = s.match(DUE); const t = s.match(TIME); const r = s.match(REPEAT); const pr = s.match(PRIORITY); const st = s.match(STATUS);
+  const text = stripWhen(s).replace(/\s+/g, ' ').trim();
   const h = t ? Number(t[1]) : null;
   return {
     text,
     due: d ? d[1] : null,
     time: t && h < 24 && Number(t[2]) < 60 ? `${pad(h)}:${t[2]}` : null,
     repeat: r ? r[1].toLowerCase().replace(/\s+/g, ' ').trim() : null,
+    priority: pr ? PRI_OF[pr[1]] : null,
+    status: st ? st[1] : null,
   };
 }
 
+const ALL = [DUE, TIME, REPEAT, PRIORITY, STATUS];
+const g = re => new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
+/** The text without any of the signs. */
+export function stripWhen(s) { return ALL.reduce((acc, re) => acc.replace(g(re), ' '), String(s || '')); }
+export const WHEN_REGEXES = ALL;
+
 /** The tokens for a task, e.g. " 📅 2026-11-20 ⏰ 09:00 🔁 every month" (empty if nothing). */
-export function whenTokens({ due, time, repeat }) {
-  return `${due ? ` 📅 ${due}` : ''}${due && time ? ` ⏰ ${time}` : ''}${repeat ? ` 🔁 ${repeat}` : ''}`;
+export function whenTokens({ due, time, repeat, priority, status }) {
+  return `${PRI_SIGN[priority] ? ` ${PRI_SIGN[priority]}` : ''}${due ? ` 📅 ${due}` : ''}${due && time ? ` ⏰ ${time}` : ''}${repeat ? ` 🔁 ${repeat}` : ''}${status ? ` 🗂 ${status}` : ''}`;
 }
 
 /** Replace any date / time / repeat in `raw` with these. */
 export function setWhen(raw, when) {
-  const base = (raw || '').replace(DUE, '').replace(TIME, '').replace(REPEAT, '').replace(/\s+$/, '');
+  const base = ALL.reduce((acc, re) => acc.replace(g(re), ''), raw || '').replace(/\s+$/, '');
   return `${base}${whenTokens(when)}`;
 }
 

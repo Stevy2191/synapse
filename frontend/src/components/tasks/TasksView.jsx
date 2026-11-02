@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckSquare, Square, CalendarDays, FileText, Plus, ChevronRight, RefreshCw, Bell, Repeat } from 'lucide-react';
 import TaskWhenDialog from './TaskWhenDialog';
+import BoardView, { sortTasks, SORTS } from './BoardView';
+import { PRIORITIES } from '../../offline/taskWhen';
+import { LayoutList, Columns3, Flag } from 'lucide-react';
 import { fmtDue } from '../../offline/taskWhen';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
@@ -52,6 +55,16 @@ export default function TasksView() {
   const setShowAll = v => { setShowAllState(v); try { localStorage.setItem('synapse.tasks.all', v ? '1' : '0'); } catch { /* ignore */ } };
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
+  const [pri, setPri] = useState('');
+  const pref = (key, def) => { try { return localStorage.getItem(`synapse.tasks.${key}`) || def; } catch { return def; } };
+  const usePref = (key, def) => {
+    const [v, setV] = useState(() => pref(key, def));
+    return [v, x => { setV(x); try { localStorage.setItem(`synapse.tasks.${key}`, x); } catch { /* ignore */ } }];
+  };
+  const [layout, setLayout] = usePref('layout', 'list');       // list | board (this device)
+  const [listGroup, setListGroup] = usePref('listGroup', 'due'); // due | priority
+  const [boardGroup, setBoardGroup] = usePref('boardGroup', 'status'); // status | priority
+  const [sort, setSort] = usePref('sort', 'priority');         // priority | due | note
   const today = isoDay();
 
   const load = useCallback(async () => {
@@ -78,8 +91,8 @@ export default function TasksView() {
     e.preventDefault();
     if (!text.trim()) return;
     try {
-      await addDailyTask(new Date(), text.trim(), due || null);
-      setText(''); setDue('');
+      await addDailyTask(new Date(), text.trim(), due || null, pri ? { priority: pri } : {});
+      setText(''); setDue(''); setPri('');
       toast.success('Added to today’s daily note');
       load();
     } catch (err) { toast.error(err.message || 'Couldn’t add the task'); }
@@ -90,16 +103,20 @@ export default function TasksView() {
   const groups = useMemo(() => {
     if (!tasks) return [];
     const open = shown.filter(t => !t.done);
-    const byDue = (a, b) => (a.due || '').localeCompare(b.due || '') || a.noteTitle.localeCompare(b.noteTitle);
+    const s = list => sortTasks(list, sort);
+    if (listGroup === 'priority') {
+      return [...PRIORITIES.map(([k, l]) => ({ key: `pri-${k}`, title: `${l} priority`, items: s(open.filter(t => t.priority === k)) })),
+        { key: 'pri-none', title: 'No priority', items: s(open.filter(t => !t.priority)) }].filter(g => g.items.length);
+    }
     const weekEnd = addDays(today, 7);
     return [
-      { key: 'overdue', title: 'Overdue', items: open.filter(t => t.due && t.due < today).sort(byDue) },
-      { key: 'today', title: 'Today', items: open.filter(t => t.due === today).sort(byDue) },
-      { key: 'week', title: 'Next 7 days', items: open.filter(t => t.due > today && t.due <= weekEnd).sort(byDue) },
-      { key: 'later', title: 'Later', items: open.filter(t => t.due > weekEnd).sort(byDue) },
-      { key: 'none', title: 'No date', items: open.filter(t => !t.due).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)) },
+      { key: 'overdue', title: 'Overdue', items: s(open.filter(t => t.due && t.due < today)) },
+      { key: 'today', title: 'Today', items: s(open.filter(t => t.due === today)) },
+      { key: 'week', title: 'Next 7 days', items: s(open.filter(t => t.due > today && t.due <= weekEnd)) },
+      { key: 'later', title: 'Later', items: s(open.filter(t => t.due > weekEnd)) },
+      { key: 'none', title: 'No date', items: s(open.filter(t => !t.due)) },
     ].filter(g => g.items.length);
-  }, [tasks, shown, today]);
+  }, [tasks, shown, today, listGroup, sort]);
   const done = useMemo(() => shown.filter(t => t.done).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)), [shown]);
   const openCount = shown.filter(t => !t.done).length;
 
@@ -109,7 +126,7 @@ export default function TasksView() {
         {t.done ? <CheckSquare size={17} /> : <Square size={17} />}
       </button>
       <div className="task-main">
-        <div className="task-text"><TaskText text={t.text} workspaceId={ws.id} /></div>
+        <div className="task-text">{t.priority && <span className={`kb-label inline pri-${t.priority}`}>{{ high: 'High', medium: 'Medium', low: 'Low' }[t.priority]}</span>}<TaskText text={t.text} workspaceId={ws.id} /></div>
         <div className="task-meta">
           {!t.done && t.due && <DueButton task={t} today={today} onChange={w => change(t, w)} />}
           <button type="button" className="task-source" title="Open the note" onClick={() => { openNote(t.noteId); useStore.getState().setView('editor'); }}>
@@ -122,43 +139,66 @@ export default function TasksView() {
   );
 
   return (
-    <div className="tasks-view">
+    <div className={`tasks-view${layout === 'board' ? ' board-mode' : ''}`}>
       <div className="tasks-inner">
         <div className="tasks-head">
           <SidebarButton />
           <h1>Tasks</h1>
           <span>{tasks ? `${openCount} open` : ''}</span>
-          <button className="btn-ghost" title="Refresh" onClick={load} style={{ marginLeft: 'auto' }}><RefreshCw size={14} /></button>
+          <div className="seg tasks-layout" style={{ marginLeft: 'auto' }}>
+            <button className={layout === 'list' ? 'on' : ''} onClick={() => setLayout('list')} title="List"><LayoutList size={14} /> List</button>
+            <button className={layout === 'board' ? 'on' : ''} onClick={() => setLayout('board')} title="Board (like Trello)"><Columns3 size={14} /> Board</button>
+          </div>
+          <button className="btn-ghost" title="Refresh" onClick={load}><RefreshCw size={14} /></button>
         </div>
-        <p className="tasks-lead">
-          {showAll ? <>Every checklist item in <b>{ws?.name}</b>.</> : <>To-dos with a due date, plus everything from meeting and daily notes.</>}
-          {' '}Give a checklist item a date, a reminder time or make it repeat with <b>/due</b> in a note, or type <code>📅 2026-11-20 ⏰ 09:00 🔁 every week</code> after it. Tag a note <code>#no-tasks</code> to keep it out of here.
-        </p>
-        <div className="seg tasks-filter">
-          <button className={!showAll ? 'on' : ''} onClick={() => setShowAll(false)}>To-dos</button>
-          <button className={showAll ? 'on' : ''} onClick={() => setShowAll(true)}>
-            All checklists{!showAll && hiddenOpen > 0 ? ` (+${hiddenOpen})` : ''}
-          </button>
+        {layout === 'list' && (
+          <p className="tasks-lead">
+            {showAll ? <>Every checklist item in <b>{ws?.name}</b>.</> : <>To-dos with a due date, plus everything from meeting and daily notes.</>}
+            {' '}Give a checklist item a date, priority or reminder with <b>/due</b> in a note, or click its date here. Tag a note <code>#no-tasks</code> to keep it out of here.
+          </p>
+        )}
+        <div className="tasks-controls">
+          <div className="seg tasks-filter">
+            <button className={!showAll ? 'on' : ''} onClick={() => setShowAll(false)}>To-dos</button>
+            <button className={showAll ? 'on' : ''} onClick={() => setShowAll(true)}>
+              All checklists{!showAll && hiddenOpen > 0 ? ` (+${hiddenOpen})` : ''}
+            </button>
+          </div>
+          <label className="tasks-select">Group by
+            {layout === 'list' ? (
+              <select value={listGroup} onChange={e => setListGroup(e.target.value)}><option value="due">Due date</option><option value="priority">Priority</option></select>
+            ) : (
+              <select value={boardGroup} onChange={e => setBoardGroup(e.target.value)}><option value="status">Lists</option><option value="priority">Priority</option></select>
+            )}
+          </label>
+          <label className="tasks-select">Sort by
+            <select value={sort} onChange={e => setSort(e.target.value)}>{Object.entries(SORTS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          </label>
         </div>
 
-        <form className="tasks-add" onSubmit={add}>
-          <Plus size={16} />
-          <input value={text} onChange={e => setText(e.target.value)} placeholder="Add a task to today’s daily note…" maxLength={300} />
-          <input type="date" value={due} onChange={e => setDue(e.target.value)} aria-label="Due date" title="Due date (optional)" />
-          <button type="submit" className="cp-btn primary" disabled={!text.trim()}>Add</button>
-        </form>
+        {layout === 'list' && (
+          <form className="tasks-add" onSubmit={add}>
+            <Plus size={16} />
+            <input value={text} onChange={e => setText(e.target.value)} placeholder="Add a task to today’s daily note…" maxLength={300} />
+            <select value={pri} onChange={e => setPri(e.target.value)} aria-label="Priority" title="Priority (optional)" className="tasks-add-pri">
+              <option value="">No priority</option>{PRIORITIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+            <input type="date" value={due} onChange={e => setDue(e.target.value)} aria-label="Due date" title="Due date (optional)" />
+            <button type="submit" className="cp-btn primary" disabled={!text.trim()}>Add</button>
+          </form>
+        )}
 
         {tasks === null && <p className="tasks-empty">Loading…</p>}
-        {tasks && openCount === 0 && (
+        {layout === 'list' && tasks && openCount === 0 && (
           <p className="tasks-empty">Nothing to do. 🎉 Checklist items from your notes and meetings will show up here.</p>
         )}
-        {groups.map(g => (
+        {layout === 'list' && groups.map(g => (
           <section key={g.key} className={`tasks-group ${g.key}`}>
             <h2>{g.title} <span>{g.items.length}</span></h2>
             {g.items.map(t => <Row key={`${t.noteId}:${t.index}`} t={t} />)}
           </section>
         ))}
-        {done.length > 0 && (
+        {layout === 'list' && done.length > 0 && (
           <section className="tasks-group done">
             <h2 className="toggle" onClick={() => setShowDone(s => !s)}>
               <ChevronRight size={14} style={{ transform: showDone ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} /> Done <span>{done.length}</span>
@@ -167,6 +207,7 @@ export default function TasksView() {
           </section>
         )}
       </div>
+      {layout === 'board' && tasks && ws && <BoardView tasks={shown} groupBy={boardGroup} sort={sort} onChanged={load} workspace={ws} />}
     </div>
   );
 }

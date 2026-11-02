@@ -143,10 +143,10 @@ export async function addMeetingToDailyNote(event, date, dayEvents = []) {
 }
 
 /** Add a to-do to a day's daily note (used by "Add task" in the Tasks view). */
-export async function addDailyTask(date, text, due) {
+export async function addDailyTask(date, text, due, extra = {}) {
   const workspaceId = activeWorkspaceId();
   if (!workspaceId) return null;
   const day = await ensureDailyNote(workspaceId, date, []);
-  await addTaskToNote(workspaceId, day.id, 'To-do', text, due);
+  await addTaskToNote(workspaceId, day.id, 'To-do', text, due, extra);
   return day;
 }

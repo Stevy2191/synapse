@@ -85,7 +85,10 @@ frontend/src/
   offline/sync.js     THE data layer: local-first reads/writes, outbox push, pull, search,
                       graph, links, trash helpers, undoDelete
   offline/tasks.js    Tasks: parse/edit checklist items in notes (rich via DOM, markdown by line)
-  offline/taskWhen.js 📅 due / ⏰ time / 🔁 repeat tokens: splitWhen, setWhen, parseRepeat, nextDue (keep the
+  tasks/board.js      Board lists (workspace settings `board.columns` [{key,name,color}], todo/done required),
+                      columnOf, moveTask, columnKey, emptyColumn; components/tasks/BoardView.jsx = Trello-style
+                      board (pointer-event drag; touch = 280 ms press, touchmove blocked while dragging), CardDialog
+  offline/taskWhen.js 📅 due / ⏰ time / 🔁 repeat / ⏫🔼🔽 priority / 🗂 <list> tokens: splitWhen, setWhen, parseRepeat, nextDue (keep the
                       regexes in sync with backend/src/taskWhen.js)
   components/editor/recurring.js   TaskWhen extension: token chips (click → synapse:taskWhen → TaskWhenDialog),
                       ticking a 🔁 task moves it to the next date (appendTransaction), applyWhen()
@@ -305,6 +308,12 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   (to another own workspace locally, or to a person via the server into their first workspace's
   Templates folder + SSE 'template:received' toast). New note title: template title with fields filled
   if it has `{{…}}`, else "<Template> – Nov 2" (datedName, kept unique).
+- **Board & priority** (built Nov 2026): Sean wanted it "almost like Trello", chose "status lists, add your
+  own" and "new cards → today's daily note". List membership is a token in the task (`🗂 doing`; To do =
+  none, Done = ticked) so it lives in the note like dates; list names live in workspace settings (key stays
+  when renamed; deleting a list strips its token from open tasks). Priority tokens = Obsidian Tasks signs
+  (⏫ high, 🔼 medium, 🔽 low; 🔺/⏬ read as high/low). Ticking a repeating task also clears its list.
+  Board/list/group/sort choices are per device (localStorage synapse.tasks.*). Done list shows the 30 latest.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -406,7 +415,7 @@ Other ideas:
 - Web clipper (bookmarklet / browser extension) and email-to-note.
 - Outlook calendar two-way: push tasks with due dates (meeting notes from events are built).
 - Reminders via ntfy/Gotify; per-task email reminders (push reminders + the daily email are built).
-- Kanban board view of tasks; database/table views (properties per note, Notion-style).
+- Database/table views (properties per note, Notion-style). (Kanban board is built.)
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.
 - Family features: shared workspaces with per-person permissions, shared lists (groceries),
