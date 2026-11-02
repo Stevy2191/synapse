@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   MousePointer2, Hand, PenLine, Highlighter, Eraser, Shapes, Type, StickyNote, ImagePlus, Undo2, Redo2,
-  ZoomIn, ZoomOut, Maximize, Download, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, LayoutGrid, Minus,
+  ZoomIn, ZoomOut, Maximize, Download, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, LayoutGrid, Minus, ScanText,
   Square, Circle, MoveUpRight, Fingerprint, Check, ChevronDown, Brush,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,6 +17,9 @@ import {
   load, serialize, uid, unionBounds, hits, hitTop, lassoSelect, translate, scale, recognize,
   STICKY_COLORS, STICKY_W, textSize, stickyLayout,
 } from './model';
+import ReadTextDialog from '../ocr/ReadTextDialog';
+import { useStore } from '../../stores/useStore';
+import { createNote, saveNote, openNote } from '../../offline/sync';
 import { drawScene, drawElement, backgroundStyle, resolvePaper, inkColor, PAPER, previewDataUrl, renderToCanvas, toSvg } from './render';
 
 const INK = ['ink', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7'];
@@ -575,6 +578,26 @@ export default function FreeDraw({ canvasData, onChange, title = 'Drawing' }) {
     c.toBlob(b => download(b, `${safeName}.png`), 'image/png');
     setMenu(null);
   };
+  // Handwriting → text (the selection, or the whole page), via the AI assistant (or printed-text OCR).
+  const [readSrc, setReadSrc] = useState(null);
+  const toText = () => {
+    const d = docRef.current;
+    const els = selected.length ? selected : d.elements;
+    const c = renderToCanvas({ ...d, elements: els }, { paperKey, scale: 2 });
+    if (!c) { toast('Nothing to read yet'); return; }
+    setReadSrc(c.toDataURL('image/png'));
+  };
+  const textToNote = async text => {
+    const ws = useStore.getState().activeWorkspace;
+    if (!ws) return;
+    const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const n = await createNote({ workspace_id: ws.id, title: `${title || 'Drawing'} (text)`, note_type: 'note' });
+    const looksMd = /^\s*([-*+] (\[[ xX]\] )?|\d+[.)] |#{1,6} )/m.test(text);
+    const { markdownToHtml } = await import('../editor/convert');
+    await saveNote(n.id, { content: text, rich_content: looksMd ? markdownToHtml(text) : text.split('\n').map(l => `<p>${esc(l) || '<br>'}</p>`).join('') });
+    await openNote(n.id);
+  };
+
   const exportSvg = () => {
     const svg = toSvg(docRef.current, paperKey);
     if (!svg) { toast('Nothing to export yet'); return; }
@@ -703,6 +726,7 @@ export default function FreeDraw({ canvasData, onChange, title = 'Drawing' }) {
               </div>
             )}
           </span>
+          <button type="button" className="fd-btn" title="Turn handwriting into text (the selection, or the whole page)" aria-label="To text" onClick={toText}><ScanText size={17} /></button>
           <span className="fd-split">
             <button type="button" className="fd-btn" title="Download" aria-label="Download" onClick={() => setMenu(m => (m === 'export' ? null : 'export'))}><Download size={17} /></button>
             {menu === 'export' && (
@@ -768,6 +792,7 @@ export default function FreeDraw({ canvasData, onChange, title = 'Drawing' }) {
           </div>
         )}
       </div>
+    {readSrc && <ReadTextDialog source={readSrc} defaultMode="handwriting" title="Handwriting to text" onNewNote={textToNote} onClose={() => setReadSrc(null)} />}
     </div>
   );
 }

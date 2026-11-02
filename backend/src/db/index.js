@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { DATA_DIR, UPLOADS_DIR } from '../config.js';
 import { applyPendingRestore } from '../restore.js';
+import { noteImages } from '../imagehash.js';
 
 const DB_PATH = path.join(DATA_DIR, 'synapse.db');
 
@@ -228,6 +229,12 @@ addColumn('notes', `trash_root TEXT`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_notes_trash ON notes(deleted_at) WHERE deleted_at IS NOT NULL`);
 
 /** Plain text used for search and [[link]] detection, covering both markdown and rich-text notes. */
+// Text read from the pictures in notes (OCR, see ocr.js), keyed by picture hash.
+db.exec(`CREATE TABLE IF NOT EXISTS ocr_cache (
+  hash TEXT PRIMARY KEY, text TEXT NOT NULL DEFAULT '', lang TEXT NOT NULL DEFAULT 'eng',
+  confidence REAL, created_at INTEGER NOT NULL DEFAULT (unixepoch()))`);
+const ocrText = db.prepare('SELECT text FROM ocr_cache WHERE hash=?');
+
 export function searchableText(note) {
   // Diagrams (draw.io / Excalidraw) carry large embedded data; index them as just "[diagram]".
   const content = (note.content || '').replace(/```synapse-diagram\n[\s\S]*?\n```/g, ' [diagram] ');
@@ -237,7 +244,10 @@ export function searchableText(note) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  return note.editor_mode === 'rich' ? `${rich}\n${content}` : `${content}\n${rich}`;
+  // Words inside pictures (already read by OCR) are searchable too.
+  const pictures = noteImages(note).map(i => ocrText.get(i.hash)?.text).filter(Boolean).join('\n');
+  const base = note.editor_mode === 'rich' ? `${rich}\n${content}` : `${content}\n${rich}`;
+  return pictures ? `${base}\n${pictures}` : base;
 }
 
 const ftsDelete = db.prepare('DELETE FROM notes_fts WHERE id=?');

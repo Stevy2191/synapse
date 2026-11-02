@@ -20,7 +20,7 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Link as LinkExt } from '@tiptap/extension-link';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
-  Type, ListChecks, ListTodo, Paperclip, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
+  Type, ListChecks, ListTodo, Paperclip, ScanText, PenLine, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
   Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
@@ -49,7 +49,7 @@ function isTaskListTitle(ed, pos) {
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
-  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, file: Paperclip, upload: ImageUp, subnote: FilePlus, toc: ListTree,
+  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, file: Paperclip, ocr: ScanText, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   ai: Sparkles, 'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
@@ -63,7 +63,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile, onReadText }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -153,11 +153,15 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   // "/" → File, or the formatting bar's paperclip: open the file picker (Editor.jsx owns it).
   const pickFileRef = useRef(onPickFile);
   pickFileRef.current = onPickFile;
+  const readTextRef = useRef(onReadText);
+  readTextRef.current = onReadText;
   useEffect(() => {
     if (!editor) return undefined;
     const open = () => pickFileRef.current?.();
+    const read = arg => readTextRef.current?.(arg);
     editor.on('synapse:pickFile', open);
-    return () => editor.off('synapse:pickFile', open);
+    editor.on('synapse:readText', read);
+    return () => { editor.off('synapse:pickFile', open); editor.off('synapse:readText', read); };
   }, [editor]);
 
   // "/" → Math opens the equation dialog
@@ -364,6 +368,18 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
           </span>
         </div>
       </BubbleMenu>
+
+      {/* Picture: read the text in it (OCR / handwriting via AI) */}
+      {onReadText && (
+        <BubbleMenu editor={editor} pluginKey="imageMenu"
+          shouldShow={({ editor: ed }) => ed.isEditable && ed.isActive('image')}
+          options={{ placement: 'top', offset: 8 }}>
+          <div className="floating-menu">
+            <B title="Read the printed text in this picture" onClick={() => onReadText({ source: editor.getAttributes('image').src, mode: 'print', after: true })}><ScanText size={15} /> Read text</B>
+            <B title="Read handwriting in this picture — uses your AI assistant" onClick={() => onReadText({ source: editor.getAttributes('image').src, mode: 'handwriting', after: true })}><PenLine size={15} /> Handwriting</B>
+          </div>
+        </BubbleMenu>
+      )}
 
       {/* Table controls: appear while the cursor is in a table */}
       <BubbleMenu editor={editor} pluginKey="tableMenu"

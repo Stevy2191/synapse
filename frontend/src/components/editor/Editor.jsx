@@ -20,9 +20,10 @@ import {
 import { PanelTop } from 'lucide-react';
 import RichToolbar from './RichToolbar';
 import FilePicker from '../files/FilePicker';
+import ReadTextDialog from '../ocr/ReadTextDialog';
 import { attachCopy, fetchFile, fileHref } from '../../files/client';
 import { fitImage } from '../../utils/image';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, ScanText } from 'lucide-react';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
 import { NewChatDialog } from '../chat/ChatDialogs';
@@ -208,6 +209,7 @@ function MarkdownToolbar({ onFormat }) {
     '|',
     ['hr', <Minus size={14} />, 'Divider'], ['link', <Link size={14} />, 'Link'], ['image', <ImageIcon size={14} />, 'Image'],
     ['file', <Paperclip size={14} />, 'File from a folder or drive'],
+    ['ocr', <ScanText size={14} />, 'Text from a picture or PDF'],
   ];
   return (
     <div style={toolbarRow}>
@@ -337,6 +339,7 @@ export default function Editor() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [filePicker, setFilePicker] = useState(false);
+  const [readTextFor, setReadTextFor] = useState(null); // { source, mode, after, at }
   const [published, setPublished] = useState(0); // number of live links for my note
   const [ownerShare, setOwnerShare] = useState(null); // { count } for my own notes
   const sharedByMe = useShares(s => s.sharedByMe);
@@ -689,8 +692,39 @@ export default function Editor() {
     }
   };
 
+  // Text read from a picture / PDF goes into the note (Write: paragraphs; Markdown: as typed).
+  const insertReadText = text => {
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    if (editorMode === 'rich') {
+      const ed = richEditorRef.current;
+      if (!ed) return;
+      const looksMd = /^\s*([-*+] (\[[ xX]\] )?|\d+[.)] |#{1,6} )/m.test(clean);
+      const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const html = looksMd ? markdownToHtml(clean) : clean.split(/\n/).map(l => `<p>${esc(l) || '<br>'}</p>`).join('');
+      const at = readTextFor?.after ? ed.state.selection.to : ed.state.selection.from;
+      ed.chain().focus().insertContentAt(at, html).run();
+      setTimeout(() => richEditorRef.current?.commands.focus(), 60);
+    } else {
+      const cm = cmRef.current?.view;
+      if (cm) {
+        const sel = cm.state.selection.main;
+        cm.dispatch({ changes: { from: sel.from, to: sel.to, insert: clean }, selection: { anchor: sel.from + clean.length } });
+        handleContentChange(cm.state.doc.toString());
+      } else handleContentChange(`${content}\n\n${clean}`);
+    }
+  };
+
   const handleMarkdownFormat = useCallback((action) => {
     if (action === 'file') { setFilePicker(true); return; }
+    if (action === 'ocr') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,application/pdf';
+      input.onchange = () => { const f = input.files?.[0]; if (f) setReadTextFor({ source: f, mode: 'print' }); };
+      input.click();
+      return;
+    }
     const cm = cmRef.current?.view;
     if (!cm) {
       // Fallback: append to content
@@ -950,6 +984,7 @@ export default function Editor() {
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {readTextFor && <ReadTextDialog source={readTextFor.source} defaultMode={readTextFor.mode} onInsert={insertReadText} onClose={() => setReadTextFor(null)} />}
       {filePicker && <FilePicker mode="insert" onClose={() => setFilePicker(false)} onInsert={insertFile} />}
       {publishOpen && <PublishDialog note={{ ...activeNote.note, title }} onClose={() => setPublishOpen(false)} onLinksChanged={l => setPublished(l.filter(x => !x.expired).length)} />}
       {shareOpen && <ShareDialog note={{ ...activeNote.note, title }} onClose={() => { setShareOpen(false); getNoteShares(noteId).then(d => setOwnerShare({ count: d.shares.length + d.inherited.length })).catch(() => {}); }} />}
@@ -999,7 +1034,7 @@ export default function Editor() {
             <div className="doc-column">
               {titleBlock}
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
-                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
               </div>
             </div>
           </div>

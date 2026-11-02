@@ -4,6 +4,27 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.9.0 — November 2026
+
+### New
+- **Text recognition (OCR)** — get the text out of pictures, screenshots, photos of documents or
+  whiteboards, and scanned PDFs.
+  - Click a picture in a note → **Read text** (printed) or **Handwriting** (uses your AI assistant —
+    needs a model that can see pictures). Check or correct the text, then **Copy text** or
+    **Insert below**.
+  - Type `/text` (or the scan button in the formatting bar / Markdown toolbar) to pick a picture or
+    PDF from your device and insert its text. PDFs use their own text where they have it and read
+    scanned pages.
+  - **Free Draw**: the new **To text** button turns your handwriting (the selection, or the whole
+    page) into text — copy it or make a new note from it.
+  - **Read text** on files opened from a note or a folder/drive.
+  - **Search finds words inside pictures** — Synapse quietly reads the pictures in notes in the
+    background; results say “🖼 In a picture: …”. Works on every device, offline too.
+  - Printed text is read on your server (nothing is sent anywhere else). When a device can’t reach
+    the server it reads the text itself — the reader is downloaded from your server once and kept.
+  - English is built in. Admins can add other languages in Settings → Server → **Text recognition**
+    (downloaded once; the server needs internet for that) and turn off reading pictures for search.
+
 ## v1.8.0 — November 2026
 
 ### New

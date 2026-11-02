@@ -109,6 +109,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Multi-user**: the first account is the admin, who adds everyone else
 - **Two-step verification**: authenticator apps (works with Bitwarden, 1Password…), passkeys (Face ID, Touch ID, Windows Hello, security keys) and recovery codes
 - **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes
+- **Text recognition (OCR)**: copy or insert the text from pictures, screenshots, scanned PDFs and photos of whiteboards; handwriting (and Free Draw) to text via your AI; search finds words inside pictures — runs on your own server, and on the device when offline
 - **Files**: network folders (NAS), OneDrive and Google Drive — attach files to notes as a copy or a link, save exports there, browse from the sidebar; the admin decides who can use each folder, everyone connects their own cloud account
 - **Automatic backups**: daily or weekly, keep as many as you like, optional backup password (encrypted), save to a NAS folder, one-click restore — in Settings → Server → Backups
 - **Proxy-ready**: works behind Nginx Proxy Manager, Cloudflare Tunnel and others

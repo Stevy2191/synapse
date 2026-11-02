@@ -5,13 +5,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Sparkles, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
-  CalendarDays, RefreshCw, Plus, HardDriveDownload, Cloud, FolderOpen,
+  CalendarDays, RefreshCw, Plus, HardDriveDownload, Cloud, FolderOpen, ScanText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
 import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Avatar';
 import AiSettings from '../ai/AiSettings';
 import BackupsPage from './BackupsPage';
+import OcrSettings from '../ocr/OcrSettings';
 import { ServerFilesPage, ConnectedDrivesPage } from '../files/FileSettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
@@ -60,6 +61,7 @@ export default function Settings() {
       ['server-users', <Users size={15} />, 'Users'],
       ['server-general', <Server size={15} />, 'Sign-ups & about'],
       ['server-files', <FolderOpen size={15} />, 'Files'],
+      ['server-ocr', <ScanText size={15} />, 'Text recognition'],
       ['server-backups', <HardDriveDownload size={15} />, 'Backups'],
     ] }] : []),
   ];
@@ -112,6 +114,7 @@ export default function Settings() {
             {page === 'server-general' && isAdmin && <ServerGeneralPage />}
             {page === 'drives' && <ConnectedDrivesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-files' && isAdmin && <ServerFilesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'server-ocr' && isAdmin && <OcrSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
           </div>
         </div>

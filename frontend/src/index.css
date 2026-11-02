@@ -1346,3 +1346,19 @@ body {
 .openfile-view { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0; overflow: auto; }
 .openfile-view img, .openfile-view video { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: var(--shadow); }
 .openfile-frame { flex: 1; border: none; width: 100%; background: #fff; }
+
+/* ───────── Text recognition (OCR) ───────── */
+.ocr-modes { margin-bottom: 12px; display: inline-flex; }
+.ocr-modes button { display: inline-flex; align-items: center; gap: 5px; }
+.ocr-status { display: flex; align-items: center; gap: 8px; padding: 26px 4px; font-size: 13.5px; color: var(--text-secondary); }
+.ocr-status.error { color: var(--danger); }
+.ocr-text { width: 100%; min-height: 220px; max-height: 50vh; resize: vertical; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-base); color: var(--text-primary); font: 13.5px/1.55 var(--font-sans); outline: none; }
+.ocr-text:focus { border-color: var(--accent); }
+.ocr-note { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; line-height: 1.5; }
+.ocr-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.ocr-actions .btn-ghost, .ocr-actions .export-go { display: inline-flex; align-items: center; gap: 6px; }
+.ocr-settings svg { display: inline-block; vertical-align: -2px; margin-right: 3px; }
+.ocr-langs { display: flex; flex-direction: column; gap: 4px; }
+.ocr-lang { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-primary); }
+.ocr-lang label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.ocr-builtin { font-size: 11px; color: var(--text-muted); }

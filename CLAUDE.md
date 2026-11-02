@@ -57,6 +57,11 @@ backend/src/
                       access per folder in file_folders), OneDrive (Graph) + Google Drive (v3) via OAuth —
                       admin client id/secret in settings (secret encrypted), per-user tokens in
                       file_accounts (encrypted, refreshed); list/download/upload/attach-copy
+  ocr.js + routes/ocr.js   OCR with tesseract.js (wasm, local): one worker, queued; languages in
+                      DATA_DIR/ocr-lang (eng copied from @tesseract.js-data/eng 4.0.0_best_int, others
+                      downloaded by the admin); background job reads pictures in notes → ocr_cache
+                      (picture hash → text) → FTS; /api/ocr/lookup for devices; /ocr-assets serves the
+                      engine + languages for offline reading on devices. imagehash.js = picture hash
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -76,6 +81,9 @@ frontend/src/
   components/editor/FileLink.jsx    📎 file chip node (copy → /open-file?att=…, link → /open-file?src=… or drive web URL)
   files/client.js, components/files/ FilePicker (insert | save | browse), FileSettings (Server → Files, Connected drives)
   pages/OpenFilePage.jsx            /open-file — fetches a file with the sign-in header, shows or downloads it
+  ocr/client.js, ocr/hash.js        readText (server, else tesseract.js on the device; handwriting → /api/ai/read-image),
+                                    readPdf (pdf.js text, OCR for scanned pages), search index (IndexedDB store `ocr`)
+  components/ocr/                   ReadTextDialog (Printed / Handwriting, Copy / Insert / New note), OcrSettings (admin)
   components/editor/extensions.js   "/" menu (SLASH_ITEMS, grouped), [[ suggest, wiki decorations
   components/editor/convert.js      Markdown ⇄ HTML (marked + turndown) incl. all custom blocks
   components/editor/blocks.jsx      callouts, table of contents, toggles (details)
@@ -199,6 +207,16 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   opener. Copies go to the attachments table (50 MB cap; pictures are embedded as data URLs instead);
   downloads are served as attachments except safe inline types. Online-only. Nothing install-specific
   in code: all names/paths/keys come from settings or the CLI.
+- **OCR** (built Nov 2026): Sean chose "both" (server when online, device when offline) and "English,
+  more optional". Pictures are data URLs inside notes, so OCR results are keyed by a cyrb53 hash of the
+  data URL (same function in backend/src/imagehash.js and frontend/src/ocr/hash.js — keep in sync).
+  The server reads pictures in the background (every 2 min, ~90 s per round, tracked in ocr_note_scan
+  by updated_at) and appends their text to the FTS row (searchableText); devices fetch texts for the
+  hashes they have via /api/ocr/lookup after each pull and search them locally ("🖼 In a picture").
+  Device fallback: tesseract.js with workerPath/corePath/langPath under /ocr-assets (CacheFirst in the
+  service worker; prepareOffline() warms it after the first server read). Handwriting = the person's
+  AI (vision; Anthropic image block / OpenAI image_url) — online only. Changing languages clears the
+  cache so pictures are re-read.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -242,6 +260,10 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   OAuth + Drive (scratchpad mock/mock_cloud.py, port 8097) via MS_LOGIN_BASE, MS_GRAPH_BASE,
   GOOGLE_AUTH_URL, GOOGLE_TOKEN_URL, GOOGLE_API_BASE, GOOGLE_UPLOAD_BASE (client secret "SECRET").
   After a rebuild the open app reloads itself once (appUpdate.js) — wait for it in scripts.
+- OCR: test pictures can be made with Playwright screenshots of text; PDFs with page.pdf (an <img>
+  only → a "scanned" PDF). The AI stand-in answers "transcribe images" system prompts. Simulate the
+  device fallback with `page.route('**/api/ocr/image', r => r.abort())`. OCR_LANG_URL overrides where
+  languages are downloaded from (serve a copy of eng as another code to test adding one).
 - Backups: restore makes the server exit (Docker restarts it); in the sandbox start it again by
   hand. Test a "new server" with a second DATA_DIR + different JWT_SECRET on another port.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -301,11 +323,7 @@ Other ideas:
 - Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
 - Reminders / notifications for due tasks (web push, email, or ntfy/Gotify for self-hosters).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
-- **OCR text recognition** (Sean wants this): pull text out of pasted images, screenshots,
-  scanned PDFs and photos of documents/whiteboards — "Copy text from image" and "Insert text
-  below", plus indexing the recognised text so search finds words inside pictures. Offline
-  via Tesseract.js (printed text, runs on the server or device); handwriting / Free Draw via
-  an AI vision model when the AI assistant is set up. Pen handwriting → typed text.
+- OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.
 - Family features: shared workspaces with per-person permissions, shared lists (groceries),
   family calendar view.

@@ -6,6 +6,7 @@
 //                 (null for notes created offline that haven't been uploaded yet).
 //   outbox      — changes waiting to be sent to the server, in order.
 //   calendar    — calendar events by month ("2026-11"), for offline viewing.
+//   ocr         — text read from pictures in notes (picture hash → text), so search finds it offline.
 import { openDB } from 'idb';
 
 let dbPromise = null;
@@ -15,7 +16,7 @@ export function openUserDb(userId) {
   if (currentUserId === userId && dbPromise) return dbPromise;
   currentUserId = userId;
   // One database per user so people sharing a browser never see each other's notes.
-  dbPromise = openDB(`synapse-${userId}`, 2, {
+  dbPromise = openDB(`synapse-${userId}`, 3, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore('workspaces', { keyPath: 'id' });
@@ -25,6 +26,8 @@ export function openUserDb(userId) {
       }
       // v2: calendar events, cached per month so the calendar works offline
       if (oldVersion < 2) db.createObjectStore('calendar');
+      // v3: words read from pictures (OCR), keyed by picture hash
+      if (oldVersion < 3) db.createObjectStore('ocr');
     },
   });
   return dbPromise;

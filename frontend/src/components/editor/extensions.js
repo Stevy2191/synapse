@@ -124,6 +124,15 @@ export const SLASH_ITEMS = [
     } },
   { id: 'file', group: 'Media', title: 'File from a folder or drive', desc: 'Network folders, OneDrive, Google Drive — attach a copy or link it', keywords: 'file attach attachment upload onedrive google drive nas share folder document pdf',
     run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:pickFile'); } },
+  { id: 'ocr', group: 'Media', title: 'Text from a picture or PDF', desc: 'Read the text in a photo, screenshot or scan and insert it', keywords: 'ocr scan read text recognise recognize photo screenshot pdf handwriting whiteboard document copy',
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).run();
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,application/pdf';
+      input.onchange = () => { const file = input.files?.[0]; if (file) e.emit('synapse:readText', { source: file, mode: 'print' }); };
+      input.click();
+    } },
   { id: 'table', group: 'Media', title: 'Table', desc: '3 × 3 table', keywords: 'grid spreadsheet', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { id: 'code', group: 'Media', title: 'Code block', desc: 'Code with syntax colors', keywords: '``` script snippet', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   // Math

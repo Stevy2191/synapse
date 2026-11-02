@@ -26,6 +26,8 @@ import { ownerRouter as publishRoutes, publicRouter } from './routes/publish.js'
 import { purgeOrphanChatFiles } from './chat.js';
 import backupRoutes from './routes/backups.js';
 import fileRoutes from './routes/files.js';
+import ocrRoutes from './routes/ocr.js';
+import { startOcrIndexing, closeOcr, LANG_DIR, CORE_DIR, WORKER_FILE } from './ocr.js';
 import { startBackups } from './backups.js';
 
 const app = express();
@@ -74,6 +76,7 @@ app.use('/api/attachments', attachmentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/backups', backupRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/ocr', ocrRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);
@@ -82,6 +85,12 @@ app.use('/api/publish', publishRoutes);
 app.use('/api/public', publicRouter);  // published notes: no sign-in
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Text recognition on devices (when offline) uses the same engine and language files as the
+// server; they're served from here so devices never need the internet for it.
+app.get('/ocr-assets/worker.min.js', (req, res) => res.sendFile(WORKER_FILE, { maxAge: '7d' }));
+app.use('/ocr-assets/core', express.static(CORE_DIR, { maxAge: '7d', index: false }));
+app.use('/ocr-assets/lang', express.static(LANG_DIR, { maxAge: '7d', index: false }));
 
 // Frontend (single-page app)
 // Vite puts content-hashed files in /assets, so they can be cached forever.
@@ -119,6 +128,7 @@ startCalendarSync();
 purgeTrash();
 setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
 startBackups();
+startOcrIndexing();
 purgeOrphanChatFiles();
 setInterval(purgeOrphanChatFiles, 6 * 60 * 60 * 1000).unref();
 
@@ -135,7 +145,7 @@ function shutdown(signal) {
   stopping = true;
   console.log(`Stopping (${signal})…`);
   server.close();
-  Promise.race([closeBrowser(), new Promise(r => setTimeout(r, 3000))]).finally(() => {
+  Promise.race([Promise.all([closeBrowser(), closeOcr()]), new Promise(r => setTimeout(r, 3000))]).finally(() => {
     try { db.close(); } catch { /* already closed */ }
     process.exit(0);
   });

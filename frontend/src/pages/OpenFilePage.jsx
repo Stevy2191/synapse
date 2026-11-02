@@ -2,7 +2,8 @@
 // in a note. Fetches the file with your sign-in, then shows it (pictures, PDFs, text, audio/video)
 // or downloads it.
 import { useEffect, useState } from 'react';
-import { Download, Loader2, AlertTriangle } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, ScanText } from 'lucide-react';
+import ReadTextDialog from '../components/ocr/ReadTextDialog';
 import Logo from '../components/Logo';
 import { fetchFile, saveBlob, errorText, bytes } from '../files/client';
 
@@ -12,6 +13,7 @@ export default function OpenFilePage() {
   const q = new URLSearchParams(location.search);
   const name = q.get('name') || 'File';
   const [state, setState] = useState({ step: 'loading' });
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     document.title = `${name} · Synapse`;
@@ -31,6 +33,9 @@ export default function OpenFilePage() {
       <header className="public-bar">
         <a href="/" className="public-brand" title="Synapse"><Logo size={22} /> <span>Synapse</span></a>
         <span className="public-title">{f?.name || name}{f ? <small> · {bytes(f.blob.size)}</small> : null}</span>
+        {state.step === 'ready' && /^(image\/(png|jpeg|webp|gif|bmp)|application\/pdf)/.test(f.type || '') && (
+          <button type="button" className="btn-ghost" onClick={() => setReading(true)} title="Read the text in this file"><ScanText size={15} /> Read text</button>
+        )}
         {state.step === 'ready' && <button type="button" className="btn-ghost" onClick={() => saveBlob(f.blob, f.name)}><Download size={15} /> Download</button>}
       </header>
       {state.step === 'loading' && <div className="public-center"><Loader2 size={20} className="spin" /></div>}
@@ -44,6 +49,7 @@ export default function OpenFilePage() {
             : f.type.startsWith('video/') ? <div className="openfile-view"><video src={state.url} controls /></div>
               : <iframe className="openfile-frame" title={f.name} src={state.url} sandbox={f.type === 'application/pdf' ? undefined : ''} />
       )}
+      {reading && <ReadTextDialog source={f.type === 'application/pdf' ? new File([f.blob], f.name, { type: 'application/pdf' }) : new Blob([f.blob], { type: f.type })} title={`Text in ${f.name}`} onClose={() => setReading(false)} />}
     </div>
   );
 }

@@ -133,6 +133,33 @@ router.post('/write', limiter, wrap(async (req, res) => {
   await runStream(req, res, { acct, task: b.action, system: WRITER, messages: [{ role: 'user', content: parts.join('\n\n') }] });
 }));
 
+// ───────────────────────── reading handwriting (vision models) ─────────────────────────
+
+const READER = 'You transcribe images. Reply with exactly the text written in the image — handwriting included — keeping its line breaks, lists and checkboxes (as "- [ ]"). No introduction, no comments, no quotes around it. If there is no readable text, reply with nothing.';
+
+router.post('/read-image', limiter, wrap(async (req, res) => {
+  const b = req.body || {};
+  checkWorkspace(b.workspace_id, req.user.id);
+  const acct = resolveAccount(req.user.id);
+  const m = /^data:(image\/(png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.image || ''));
+  if (!m) throw new AiError(400, 'Send a PNG, JPEG, WebP or GIF picture');
+  if (m[3].length > 7_000_000) throw new AiError(413, 'That picture is too big for the AI — try a smaller one');
+  const content = acct.protocol === 'anthropic'
+    ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[3] } }, { type: 'text', text: 'Transcribe the text in this image.' }]
+    : [{ type: 'image_url', image_url: { url: b.image } }, { type: 'text', text: 'Transcribe the text in this image.' }];
+  let text;
+  try {
+    text = await streamChat(acct, { system: READER, messages: [{ role: 'user', content }] });
+  } catch (err) {
+    if (err instanceof AiError && /image|vision|multimodal|support/i.test(err.message)) {
+      throw new AiError(400, `Your AI model (${acct.model}) can’t read pictures — pick a model with vision in Settings → AI assistant`);
+    }
+    throw err;
+  }
+  logUsage(req.user.id, acct, 'read-image', m[3].length, text.length);
+  res.json({ text: text.trim() });
+}));
+
 // ───────────────────────── action items ─────────────────────────
 
 router.post('/tasks', limiter, wrap(async (req, res) => {

@@ -42,8 +42,14 @@ export default defineConfig({
         globIgnores: ['excalidraw/**'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/ocr-assets\//],
         runtimeCaching: [
+          {
+            // Text recognition on this device (used when offline): engine + language files from Synapse.
+            urlPattern: ({ url }) => url.pathname.startsWith('/ocr-assets/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'ocr-assets', expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 90 } },
+          },
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/excalidraw/'),
             handler: 'CacheFirst',

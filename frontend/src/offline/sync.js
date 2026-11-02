@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { noteKind } from '../components/noteKinds';
 import api from '../api';
 import { useStore } from '../stores/useStore';
+import { ocrReady, ocrTextFor, refreshOcrIndex, resetOcrIndex } from '../ocr/client';
 import { openUserDb, db, deleteUserDb } from './db';
 import { forgetPushOnThisDevice } from '../chat/client';
 
@@ -76,6 +77,7 @@ const onVisible = () => { if (document.visibilityState === 'visible') syncNow();
 export async function startOffline(user) {
   if (userId === user.id) return;
   userId = user.id;
+  resetOcrIndex();
   await openUserDb(user.id);
   // Ask the browser not to evict our data when storage runs low.
   navigator.storage?.persist?.().catch(() => {});
@@ -263,14 +265,19 @@ export async function openNoteByTitle(workspaceId, title) {
 export async function searchNotes(workspaceId, query) {
   const terms = (query.toLowerCase().match(/[\p{L}\p{N}_]+/gu) || []).slice(0, 10);
   if (terms.length === 0) return [];
+  await ocrReady();
   const results = [];
   for (const note of await getWorkspaceNotes(workspaceId)) {
     const title = note.title.toLowerCase();
     const text = readable(plainText(note)).replace(/\s+/g, ' ').trim();
+    const pictures = ocrTextFor(note).replace(/\s+/g, ' ').trim(); // words inside its pictures
     const lower = text.toLowerCase();
-    if (!terms.every(t => title.includes(t) || lower.includes(t))) continue;
-    const score = terms.reduce((s, t) => s + (title.includes(t) ? 10 : 0) + (lower.split(t).length - 1), 0);
-    results.push({ id: note.id, title: note.title, note_type: note.note_type, kind: noteKind(note), excerpt: excerpt(text, terms), score });
+    const plower = pictures.toLowerCase();
+    if (!terms.every(t => title.includes(t) || lower.includes(t) || plower.includes(t))) continue;
+    const score = terms.reduce((s, t) => s + (title.includes(t) ? 10 : 0) + (lower.split(t).length - 1) + (plower.split(t).length - 1), 0);
+    const inText = terms.some(t => lower.includes(t));
+    const inPicture = !inText && terms.some(t => plower.includes(t));
+    results.push({ id: note.id, title: note.title, note_type: note.note_type, kind: noteKind(note), excerpt: inPicture ? `🖼 In a picture: ${excerpt(pictures, terms)}` : excerpt(text, terms), score });
   }
   return results.sort((a, b) => b.score - a.score).slice(0, 30);
 }
@@ -700,6 +707,8 @@ async function pull() {
 
     for (const ws of data.workspaces) await pullWorkspace(ws.id);
     await refreshTree();
+    // Words in pictures (read by the server) for search — in the background.
+    d.getAll('notes').then(refreshOcrIndex).catch(() => {});
     setStatus({ lastSyncAt: Date.now() });
   } catch (err) {
     if (isNetworkError(err)) markOffline();
