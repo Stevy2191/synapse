@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckSquare, Square, CalendarDays, FileText, Plus, ChevronRight, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
+import SidebarButton from '../sidebar/SidebarButton';
 import { listTasks, updateTask, isoDay } from '../../offline/tasks';
 import { addDailyTask } from '../../offline/dailyNotes';
 import { openNote, openNoteByTitle } from '../../offline/sync';
@@ -118,6 +119,7 @@ export default function TasksView() {
     <div className="tasks-view">
       <div className="tasks-inner">
         <div className="tasks-head">
+          <SidebarButton />
           <h1>Tasks</h1>
           <span>{tasks ? `${openCount} open` : ''}</span>
           <button className="btn-ghost" title="Refresh" onClick={load} style={{ marginLeft: 'auto' }}><RefreshCw size={14} /></button>

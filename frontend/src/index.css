@@ -1442,3 +1442,4 @@ body {
 .rec-btn.stop { background: #ef4444; color: #fff; padding: 0 12px; }
 /* Little icons inside sentences on settings pages sit in the line, not on their own line. */
 .settings-page-body p svg, .settings-page-body a svg, .settings-page-body label svg { display: inline-block; vertical-align: -2px; }
+.tasks-head .sidebar-show { align-self: center; margin-left: -6px; }

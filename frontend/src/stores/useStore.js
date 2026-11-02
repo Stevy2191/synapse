@@ -31,7 +31,8 @@ export const useStore = create(
       settingsPage: 'profile',
       activeChatId: null,         // the chat open on the Chats page
       tabs: {},
-      richToolbar: false,         // formatting bar fixed at the top of Write-mode notes (this device)                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
+      richToolbar: false,
+      filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones         // formatting bar fixed at the top of Write-mode notes (this device)                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
 
       // Offline sync status (see offline/sync.js)
       sync: { online: true, pending: 0, syncing: false, lastSyncAt: null },

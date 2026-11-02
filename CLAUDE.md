@@ -330,6 +330,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Settings look (AFFiNE-style, Nov 2026): the shared style objects in Settings.jsx (`section` = flat block
   with a bottom divider, no card) are passed to every page as `styles`; new pages should use them or the
   Row/Group components in components/meetings/MeetingSettings.jsx, not boxed cards.
+- Phones: the sidebar is unmounted when closed (narrow screens), so anything opened *from* it (like the
+  Files window — now `filesOpen` in the store, rendered in AppPage) must live outside it, and every
+  full-screen view needs a way back (components/sidebar/SidebarButton.jsx).
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

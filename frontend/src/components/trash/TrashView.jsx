@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Trash2, RotateCcw, FileText, GitFork, Pencil, CloudOff, RefreshCw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
+import SidebarButton from '../sidebar/SidebarButton';
 import { fetchTrash, restoreFromTrash, deleteForever, emptyTrash, pendingDeletes } from '../../offline/sync';
 
 const ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
@@ -69,6 +70,7 @@ export default function TrashView() {
     <div className="tasks-view">
       <div className="tasks-inner">
         <div className="tasks-head">
+          <SidebarButton />
           <h1>Trash</h1>
           <span>{data ? `${data.items.length} item${data.items.length === 1 ? '' : 's'}` : ''}</span>
           <button className="btn-ghost" title="Refresh" onClick={load} style={{ marginLeft: 'auto' }}><RefreshCw size={14} /></button>

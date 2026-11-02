@@ -4,6 +4,7 @@ import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
 import TabBar from '../tabs/TabBar';
 import { RecorderBar } from '../components/meetings/Recorder';
+import FilePicker from '../components/files/FilePicker';
 import { retryUnsent } from '../meetings/client';
 import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
@@ -38,6 +39,7 @@ export default function AppPage() {
   }));
   const setSearchOpen = useStore(s => s.setSearchOpen);
   const narrow = useIsNarrow();
+  const filesOpen = useStore(s => s.filesOpen);
 
   // Meeting recordings that didn't upload (offline / closed tab): try again now and when back online.
   useEffect(() => {
@@ -131,6 +133,7 @@ export default function AppPage() {
         {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <><TabBar /><Editor /></>}
       </main>
       <RecorderBar />
+      {filesOpen && <FilePicker mode="browse" onClose={() => useStore.setState({ filesOpen: false })} />}
       <SearchModal />
       <Settings />
     </div>

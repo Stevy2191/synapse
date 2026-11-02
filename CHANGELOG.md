@@ -4,6 +4,13 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.10.2 — November 2026
+
+### Fixed
+- **Phones:** tapping **Files** in the sidebar only closed the sidebar — the Files window now opens.
+- **Phones:** the **Tasks** and **Trash** pages had no way back to the sidebar; they now have the
+  “show sidebar” button like the other pages.
+
 ## v1.10.1 — November 2026
 
 ### Improved

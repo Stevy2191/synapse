@@ -17,7 +17,6 @@ import { kindInfo, datedName } from '../noteKinds';
 import { useChat, totalUnread } from '../../chat/client';
 import { useShares, openSharedNote, loadShares } from '../../shares/client';
 import { openInNewTab } from '../../tabs/tabs';
-import FilePicker from '../files/FilePicker';
 
 
 function countDescendants(id, notes) {
@@ -307,7 +306,6 @@ export default function Sidebar({ width, onNavigate }) {
     setSettingsOpen: s.setSettingsOpen, setSidebarOpen: s.setSidebarOpen, user: s.user,
   }));
   const [showNewNote, setShowNewNote] = useState(false);
-  const [filesOpen, setFilesOpen] = useState(false);
   const [pendingParent, setPendingParent] = useState(null);
   const [rootHint, setRootHint] = useState(false);
 
@@ -398,7 +396,7 @@ export default function Sidebar({ width, onNavigate }) {
           <MessageCircle size={14} /> Chats
           {chatUnread > 0 && <span className="nav-badge" title="Unread messages">{chatUnread > 99 ? '99+' : chatUnread}</span>}
         </button>
-        <button className="nav-item" onClick={() => { setFilesOpen(true); onNavigate?.(); }} title="Network folders, OneDrive and Google Drive">
+        <button className="nav-item" onClick={() => { useStore.setState({ filesOpen: true }); onNavigate?.(); }} title="Network folders, OneDrive and Google Drive">
           <FolderOpen size={14} /> Files
         </button>
       </div>
@@ -454,7 +452,6 @@ export default function Sidebar({ width, onNavigate }) {
         </button>
       </div>
 
-      {filesOpen && <FilePicker mode="browse" onClose={() => setFilesOpen(false)} />}
       {showNewNote && (
         <NewNoteModal
           onSelect={(type) => { setShowNewNote(false); createNote(type, pendingParent); }}
