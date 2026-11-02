@@ -440,6 +440,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   arrow, and the page scrolled). components/editor/indent.js (priority 50, after lists/tables/menus) always
   swallows Tab/Shift+Tab: paragraphs/headings get `data-indent` 1–8 (CSS in RichEditor + export/styles.js),
   code blocks get two spaces, list items that can't move just stay.
+- Suggestion menus ("/", "[[", "@") have priority 2000 so their Enter/arrow keys win over block keymaps
+  (the toggle title's Enter used to steal it). Slash heading items call setTextLevel() (works on toggle
+  titles); filterSlashItems(query, editor) limits the menu on a toggle title to TITLE_ITEMS.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

@@ -18,6 +18,7 @@ function people(query) {
 
 export const MentionSuggest = Extension.create({
   name: 'mentionSuggest',
+  priority: 2000,
   addOptions() { return { getUi: () => ({}) }; },
   addProseMirrorPlugins() {
     return [Suggestion({

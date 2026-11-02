@@ -11,6 +11,7 @@ import { openNoteByTitle, createNote } from '../../offline/sync';
 import { nextInNewTab } from '../../tabs/tabs';
 import { fitImage } from '../../utils/image';
 import { taskItemAt } from './recurring';
+import { setTextLevel } from './blocks';
 import toast from 'react-hot-toast';
 import { videoSource, MERMAID_SAMPLE } from './embeds';
 
@@ -62,10 +63,10 @@ export const SLASH_ITEMS = [
   { id: 'ai', group: 'AI', title: 'Ask AI', desc: 'Write, rewrite, translate or find action items', keywords: 'ai assistant write generate gpt claude chatgpt gemini grok summarise summarize translate tasks', when: aiAllowed,
     run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:ai', { fromSlash: true }); } },
   // Basic
-  { id: 'text', group: 'Basic', title: 'Text', desc: 'Plain paragraph', keywords: 'paragraph p', run: (e, r) => e.chain().focus().deleteRange(r).setParagraph().run() },
-  { id: 'h1', group: 'Basic', title: 'Heading 1', desc: 'Big section heading', keywords: 'title #', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
-  { id: 'h2', group: 'Basic', title: 'Heading 2', desc: 'Medium heading', keywords: 'subtitle ##', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 2 }).run() },
-  { id: 'h3', group: 'Basic', title: 'Heading 3', desc: 'Small heading', keywords: '###', run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 3 }).run() },
+  { id: 'text', group: 'Basic', title: 'Text', desc: 'Plain paragraph', keywords: 'paragraph p normal h0 body', run: (e, r) => { e.chain().focus().deleteRange(r).run(); setTextLevel(e, 0); } },
+  { id: 'h1', group: 'Basic', title: 'Heading 1', desc: 'Big section heading', keywords: 'h1 title header #', run: (e, r) => { e.chain().focus().deleteRange(r).run(); setTextLevel(e, 1); } },
+  { id: 'h2', group: 'Basic', title: 'Heading 2', desc: 'Medium heading', keywords: 'h2 subtitle header ##', run: (e, r) => { e.chain().focus().deleteRange(r).run(); setTextLevel(e, 2); } },
+  { id: 'h3', group: 'Basic', title: 'Heading 3', desc: 'Small heading', keywords: 'h3 header ###', run: (e, r) => { e.chain().focus().deleteRange(r).run(); setTextLevel(e, 3); } },
   { id: 'quote', group: 'Basic', title: 'Quote', desc: 'Highlight a quotation', keywords: 'blockquote >', run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
   { id: 'divider', group: 'Basic', title: 'Divider', desc: 'Horizontal line', keywords: 'hr rule --- separator line', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   // Lists
@@ -177,9 +178,13 @@ export const SLASH_ITEMS = [
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent(`${today()}, ${now()} `).run() },
 ];
 
-export function filterSlashItems(query) {
+// A toggle's title can only hold a line of text, so only these make sense there.
+const TITLE_ITEMS = new Set(['text', 'h1', 'h2', 'h3', 'date', 'time', 'datetime', 'link', 'ai']);
+
+export function filterSlashItems(query, editor) {
   const q = query.toLowerCase().trim();
-  const visible = SLASH_ITEMS.filter(i => !i.when || i.when());
+  const inTitle = editor?.state.selection.$from.parent.type.name === 'detailsSummary';
+  const visible = SLASH_ITEMS.filter(i => (!i.when || i.when()) && (!inTitle || TITLE_ITEMS.has(i.id)));
   // Best matches first: the name starts with what you typed, then the name contains it, then the rest.
   const rank = i => { const t = i.title.toLowerCase(); return t.startsWith(q) ? 0 : t.includes(q) ? 1 : 2; };
   const items = q ? visible.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q))
@@ -188,8 +193,10 @@ export function filterSlashItems(query) {
   return items.map(i => (i.id === 'date' ? { ...i, desc: today() } : i.id === 'time' ? { ...i, desc: now() } : i));
 }
 
+// The "/", "[[" and "@" menus get keys (Enter, arrows) before blocks like toggles do.
 export const SlashCommand = Extension.create({
   name: 'slashCommand',
+  priority: 2000,
   addOptions() { return { getUi: () => ({}) }; },
   addProseMirrorPlugins() {
     return [Suggestion({
@@ -198,7 +205,7 @@ export const SlashCommand = Extension.create({
       char: '/',
       allowSpaces: true, // so "/inline math" works
       allow: notInCode,
-      items: ({ query }) => filterSlashItems(query),
+      items: ({ query, editor }) => filterSlashItems(query, editor),
       command: ({ editor, range, props }) => props.run(editor, range),
       render: renderer('slash', this.options.getUi),
     })];
@@ -221,6 +228,7 @@ function wikiItems(query) {
 
 export const WikiLinkSuggest = Extension.create({
   name: 'wikiLinkSuggest',
+  priority: 2000,
   addOptions() { return { getUi: () => ({}) }; },
   addProseMirrorPlugins() {
     return [Suggestion({

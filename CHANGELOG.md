@@ -10,6 +10,11 @@ so you can go back to a known version if you ever need to.
 - **Tab in notes:** pressing Tab on a plain line (for example inside a toggle) or on a bullet that
   couldn't be indented any further jumped out of the note to the bottom of the page. Tab now always
   stays in the note.
+- **"/" menu:** typing `/h1`, `/h2` or `/h3` found nothing (only "heading 1/2/3" did), so Enter just
+  made a new line. These short names work now.
+- **"/" menu on a toggle's title:** choosing a heading now makes the title that size (like the H1–H3
+  buttons), and Enter picks the menu item instead of jumping into the toggle. On a toggle title the menu
+  only offers what fits there (text sizes, date/time, link, AI).
 
 ### New
 - **Indent plain lines and headings** with Tab (Shift+Tab to undo) — up to 8 steps, inside toggles too.
