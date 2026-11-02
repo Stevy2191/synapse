@@ -350,6 +350,7 @@ export default function Sidebar({ width, onNavigate }) {
 
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
+    if (type === 'template') { useStore.setState({ templatePicker: { parentId } }); onNavigate?.(); return; }
     // Flowcharts and Free Draw pages start with a dated name ("Drawing – Nov 4"); text notes are named as you write.
     const word = { diagram: 'Flowchart', draw: 'Drawing' }[type];
     const title = word ? datedName(word, notes.map(n => n.title)) : 'Untitled';

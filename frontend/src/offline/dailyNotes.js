@@ -7,6 +7,7 @@ import { useStore } from '../stores/useStore';
 import { createNote, saveNote, openNote, getWorkspaceNotes } from './sync';
 import { dayKey, timeRange } from './calendar';
 import { addTaskToNote, upsertListItem } from './tasks';
+import { templateNamed, renderTemplate, dateVars } from '../templates/templates';
 
 const FOLDER = 'Daily notes';
 
@@ -61,17 +62,17 @@ async function ensureDailyNote(workspaceId, date, dayEvents) {
   let day = await findByTitle(workspaceId, key);
   if (!day) {
     const f = await dailyFolder(workspaceId);
-    day = await createNote({ workspace_id: workspaceId, parent_id: f.id, title: key });
+    day = await createNote({ workspace_id: workspaceId, parent_id: f.id, title: key, editor_mode: 'rich' });
     const lines = [];
     for (const e of dayEvents) {
       // Meetings that already have a note are listed as links to it.
       const mn = await findByTitle(workspaceId, meetingTitle(e, date));
-      lines.push(`- ${timeRange(e)} — ${mn ? `[[${mn.title}]]` : cleanTitle(e.title)}`);
+      lines.push(`${timeRange(e)} — ${mn ? `[[${mn.title}]]` : cleanTitle(e.title)}`);
     }
-    await saveNote(day.id, {
-      content: `*${longDate(date)}*\n\n## Meetings\n${lines.join('\n') || '- (none)'}\n\n## To-do\n- [ ] \n\n## Notes\n\n`,
-      tags: ['daily'],
-    });
+    // The workspace's "Daily note" template (Templates folder), else the built-in one.
+    const tpl = await templateNamed(workspaceId, 'Daily note');
+    const r = renderTemplate(tpl, { ...dateVars(date), title: key, meetings: { list: lines.length ? lines : ['(none)'] } });
+    await saveNote(day.id, { ...r, tags: [...new Set(['daily', ...r.tags])] });
   }
   return day;
 }
@@ -96,19 +97,22 @@ export async function ensureMeetingNote(event, date, dayEvents = []) {
   if (note) return note;
   const meetings = await folder(workspaceId, 'Meetings', null, 'Notes from meetings, created from the calendar. One folder per month.');
   const month = await folder(workspaceId, monthName(date), meetings.id);
-  note = await createNote({ workspace_id: workspaceId, parent_id: month.id, title });
-  const lines = [
-    `**When:** ${longDate(date)}, ${timeRange(event)}`,
-    event.location && `**Where:** ${event.location}`,
-    event.join_url && `**Join:** [Join meeting](${event.join_url})`,
-    event.attendees?.length && `**Attendees:** ${event.attendees.map(a => a.name || a.email).join(', ')}`,
-    `**Calendar:** ${event.calendar_name}`,
-    `**Day:** [[${key}]]`,
-  ].filter(Boolean);
-  await saveNote(note.id, {
-    content: `${lines.join('  \n')}\n\n## Agenda\n\n\n## Notes\n\n\n## Action items\n- [ ] \n`,
-    tags: ['meeting'],
+  note = await createNote({ workspace_id: workspaceId, parent_id: month.id, title, editor_mode: 'rich' });
+  // The workspace's "Meeting" template (Templates folder), else the built-in one.
+  const tpl = await templateNamed(workspaceId, 'Meeting');
+  const safeJoin = /^https?:\/\//i.test(event.join_url || '') ? event.join_url : null;
+  const r = renderTemplate(tpl, {
+    ...dateVars(date, { time: timeRange(event) }),
+    title,
+    meeting: cleanTitle(event.title),
+    when: `${longDate(date)}, ${timeRange(event)}`,
+    location: event.location || '',
+    join: { html: safeJoin ? `<a href="${safeJoin.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Join meeting</a>` : '' },
+    attendees: { list: (event.attendees || []).map(a => a.name || a.email).filter(Boolean) },
+    calendar: event.calendar_name || '',
+    day: `[[${key}]]`,
   });
+  await saveNote(note.id, { ...r, tags: [...new Set(['meeting', ...r.tags])] });
   await listInDailyNote(workspaceId, event, date, dayEvents, title);
   return note;
 }

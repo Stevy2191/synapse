@@ -81,6 +81,11 @@ export default function NewNoteModal({ onSelect, onClose }) {
           ))}
         </div>
 
+        <button type="button" className="newnote-template" onClick={() => onSelect('template')}>
+          <span style={{ fontSize: 22 }}>📋</span>
+          <span><b>From a template</b><small>Meeting, project, weekly review, recipe — or your own</small></span>
+        </button>
+
         <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 20 }}>
           Press <kbd style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>Esc</kbd> to cancel
         </p>

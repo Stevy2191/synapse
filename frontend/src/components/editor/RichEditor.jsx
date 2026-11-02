@@ -38,6 +38,9 @@ import ColorPicker from '../ColorPicker';
 import TurnInto from './TurnInto';
 import { TaskWhen, applyWhen, taskItemText } from './recurring';
 import TaskWhenDialog from '../tasks/TaskWhenDialog';
+import TemplatePicker from '../templates/TemplatePicker';
+import { templateForInsert } from '../../templates/templates';
+import { useStore } from '../../stores/useStore';
 import { splitWhen } from '../../offline/taskWhen';
 
 // Is this toggle title the name of a task list (a toggle holding a checklist)?
@@ -176,6 +179,13 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
   // "/" → Due date & reminder, the toolbar bell, or clicking a 📅 / ⏰ / 🔁 chip.
   const [taskWhen, setTaskWhen] = useState(null);
+  const [templating, setTemplating] = useState(false);
+  useEffect(() => {
+    if (!editor) return undefined;
+    const open = () => setTemplating(true);
+    editor.on('synapse:template', open);
+    return () => editor.off('synapse:template', open);
+  }, [editor]);
   useEffect(() => {
     if (!editor) return undefined;
     const open = ({ pos }) => { const w = splitWhen(taskItemText(editor.state, pos)); setTaskWhen({ pos, initial: w, text: w.text }); };
@@ -416,6 +426,10 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       <EditorContent editor={editor} />
 
+      {templating && (
+        <TemplatePicker mode="insert" onClose={() => { setTemplating(false); editor.commands.focus(); }}
+          onPick={t => editor.chain().focus().insertContent(templateForInsert(t, useStore.getState().activeNote?.note?.title)).run()} />
+      )}
       {taskWhen && (
         <TaskWhenDialog initial={taskWhen.initial} task={taskWhen.text} onClose={() => { setTaskWhen(null); editor.commands.focus(); }}
           onSave={w => { const t = taskWhen; setTaskWhen(null); if (editor.state.doc.nodeAt(t.pos)?.type.name === 'taskItem') applyWhen(editor, t.pos, w); }} />

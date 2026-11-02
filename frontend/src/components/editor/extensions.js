@@ -153,6 +153,8 @@ export const SLASH_ITEMS = [
   { id: 'mermaid', group: 'Diagrams', title: 'Mermaid chart', desc: 'Flowcharts, sequences, Gantt & more, written as text', keywords: 'mermaid flowchart sequence gantt pie chart graph timeline mindmap text diagram',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: MERMAID_SAMPLE }] }).run() },
   // Notes & links
+  { id: 'template', group: 'Notes & links', title: 'Template', desc: 'Insert one of your templates here', keywords: 'template boilerplate snippet layout preset meeting project recipe review',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:template'); } },
   { id: 'link', group: 'Notes & links', title: 'Link to note', desc: 'Connect to another note', keywords: 'wiki [[ backlink', run: (e, r) => e.chain().focus().deleteRange(r).insertContent('[[').run() },
   { id: 'subnote', group: 'Notes & links', title: 'New sub-note', desc: 'Create a note inside this one and link it', keywords: 'page child subpage nested new',
     run: async (e, r) => {

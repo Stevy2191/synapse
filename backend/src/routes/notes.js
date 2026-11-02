@@ -4,6 +4,7 @@ import { db, indexNote, searchableText, removeUploadFiles } from '../db/index.js
 import { requireAuth } from '../middleware/auth.js';
 import { TRASH_DAYS } from '../config.js';
 import { noteAccess, currentLock, takeLock, afterNoteSaved } from '../shares.js';
+import { sendTo } from '../chat.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -402,6 +403,46 @@ router.get('/workspace/:wsId/trash', (req, res) => {
     excerpt: (n.editor_mode === 'rich' && n.rich_content ? n.rich_content.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') : (n.content || '')).replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`|[\]-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180),
   }));
   res.json({ items, trash_days: TRASH_DAYS });
+});
+
+// Send a copy of a template to someone else on this server: it lands in the "Templates" folder of
+// their first workspace (created if needed), named "<title> (from <sender>)" if they already have one.
+router.post('/:id/send-template', (req, res) => {
+  const note = getOwnedNote(req.params.id, req.user.id);
+  if (!note || note.deleted_at) return res.status(404).json({ error: 'Not found — if you just made this template, wait for it to sync and try again' });
+  const to = String(req.body?.user_id || '');
+  if (!to || to === req.user.id) return res.status(400).json({ error: 'Pick someone else' });
+  const person = db.prepare('SELECT id, COALESCE(display_name, username) AS name FROM users WHERE id=?').get(to);
+  if (!person) return res.status(404).json({ error: 'That person isn’t on this server' });
+  const ws = db.prepare('SELECT id FROM workspaces WHERE user_id=? ORDER BY created_at LIMIT 1').get(to);
+  if (!ws) return res.status(400).json({ error: `${person.name} has no workspace yet` });
+  const sender = db.prepare('SELECT COALESCE(display_name, username) AS name FROM users WHERE id=?').get(req.user.id).name;
+  const created = db.transaction(() => {
+    let folder = db.prepare("SELECT * FROM notes WHERE workspace_id=? AND parent_id IS NULL AND title='Templates' AND deleted_at IS NULL").get(ws.id);
+    const insert = (id, parent, title, content, rich, mode, tags) => {
+      const pos = (db.prepare('SELECT MAX(position) AS m FROM notes WHERE workspace_id=? AND parent_id IS ?').get(ws.id, parent).m ?? -1) + 1;
+      db.prepare(`INSERT INTO notes (id,workspace_id,parent_id,title,content,position,note_type,canvas_data,rich_content,editor_mode,tags)
+        VALUES (?,?,?,?,?,?,'note',NULL,?,?,?)`).run(id, ws.id, parent, title, content, pos, rich, mode, JSON.stringify(tags));
+      const row = db.prepare('SELECT * FROM notes WHERE id=?').get(id);
+      saveSideEffects(row);
+      return row;
+    };
+    if (!folder) {
+      folder = insert(uuid(), null, 'Templates',
+        'Templates for new notes. Each note in here is a template: write it like any note, and use fill-in fields like {{date}}, {{time}} or {{title}}. Use a template with + → From a template, or /template inside a note.',
+        null, 'markdown', []);
+    }
+    const taken = new Set(db.prepare('SELECT lower(title) AS t FROM notes WHERE workspace_id=? AND deleted_at IS NULL').all(ws.id).map(r => r.t));
+    let title = note.title;
+    if (taken.has(title.toLowerCase())) title = `${note.title} (from ${sender})`;
+    for (let i = 2; taken.has(title.toLowerCase()); i++) title = `${note.title} (from ${sender} ${i})`;
+    let tags = [];
+    try { tags = JSON.parse(note.tags || '[]'); } catch { /* none */ }
+    if (!tags.includes('template')) tags.unshift('template');
+    return insert(uuid(), folder.id, title, note.content || '', note.rich_content, note.editor_mode || 'rich', tags);
+  })();
+  sendTo([to], 'template:received', { title: created.title, from: sender });
+  res.json({ title: created.title, to: person.name });
 });
 
 router.post('/:id/restore', (req, res) => {

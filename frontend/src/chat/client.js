@@ -140,6 +140,9 @@ function handle(type, data) {
     case 'share:changed':
       handleShareEvent(type, data);
       break;
+    case 'template:received':
+      toast.success(`${data.from} sent you the template “${data.title}” — it’s in your Templates folder`, { duration: 8000 });
+      break;
     case 'reminder':
       window.dispatchEvent(new CustomEvent('synapse:reminder', { detail: data }));
       break;

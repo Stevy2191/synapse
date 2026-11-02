@@ -41,6 +41,8 @@ import { WorkspaceIcon, workspaceSettings } from '../Avatar';
 import AiPanel from '../ai/AiPanel';
 import ShareDialog from '../share/ShareDialog';
 import HistoryPanel from '../share/HistoryPanel';
+import TemplateHint from '../templates/TemplateHint';
+import { isTemplate } from '../../templates/templates';
 import PublishDialog from '../share/PublishDialog';
 import { listLinks, rememberLinks, noteSaved as publishNoteSaved } from '../../publish/client';
 import { useShares, getNoteShares, saveSharedNote, takeTurn, releaseTurn } from '../../shares/client';
@@ -893,6 +895,7 @@ export default function Editor() {
             style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-secondary)', font: '400 12.5px var(--font-sans)', width: 70 }}
           />
         </span>}
+        {isNote && !isShared && isTemplate(activeNote.note.id, notes) && <TemplateHint />}
         <span>· Edited {activeNote.note.updated_by && activeNote.note.updated_by !== myId && isShared ? `by ${personNameById(activeNote.note.updated_by)} ` : ''}{timeAgo(activeNote.note.updated_at)}</span>
       </div>
     </div>

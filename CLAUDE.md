@@ -91,7 +91,12 @@ frontend/src/
                       ticking a 🔁 task moves it to the next date (appendTransaction), applyWhen()
   components/tasks/TaskWhenDialog.jsx, ReminderSettings.jsx (Settings → Reminders); reminders/client.jsx
                       (tz report, ?open=tasks / ?note=<id> from notifications, in-app reminder toast)
-  offline/dailyNotes.js  daily notes, meeting notes (Meetings › Month), to-dos from meetings
+  offline/dailyNotes.js  daily notes, meeting notes (Meetings › Month), to-dos from meetings — rendered from the
+                      workspace's "Daily note" / "Meeting" template (templates/templates.js), else built-ins
+  templates/templates.js  templates = notes inside the top-level "Templates" folder: STARTERS (built-ins), FIELDS,
+                      fillTemplate (HTML; list fields on their own line → bullets, all-empty lines dropped),
+                      newNoteFromTemplate, copyTemplateToWorkspace, sendTemplateToPerson (POST /notes/:id/send-template)
+  components/templates/ TemplatePicker (new | insert; store templatePicker → AppPage; share panel), TemplateHint
   stores/useStore.js  zustand (persisted): user, workspaces, tree `notes`, activeNote, view …
   pages/AppPage.jsx   layout; `view` = editor | graph | tasks | trash
   components/editor/Editor.jsx      note page (title, tags, Write/Markdown modes, saving)
@@ -294,6 +299,12 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   browser). HTML is inline-styled tables (email apps ignore stylesheets) + a plain-text part.
   Testing: SMTP stand-in with the `smtp-server` + `mailparser` npm packages (scratchpad), ICS file
   served by `python3 -m http.server`.
+- **Templates** (built Nov 2026): Sean chose "a Templates folder of notes" and "per workspace, but can be
+  shared". Built-ins are usable without the folder (picker shows them with a "built-in" badge); the
+  calendar's meeting/daily notes use the workspace template of that name if present. Sharing = a copy
+  (to another own workspace locally, or to a person via the server into their first workspace's
+  Templates folder + SSE 'template:received' toast). New note title: template title with fields filled
+  if it has `{{…}}`, else "<Template> – Nov 2" (datedName, kept unique).
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -390,10 +401,10 @@ Other ideas:
 
 - Letting "Can edit" people add new notes inside a shared folder;
   showing embedded Free Draw drawings inside notes shared with you; offline copies of shared notes.
-- Note templates (meeting, project, recipe…); attachments other than images (PDF viewer
+- Attachments other than images (PDF viewer
   inline, files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.
-- Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
+- Outlook calendar two-way: push tasks with due dates (meeting notes from events are built).
 - Reminders via ntfy/Gotify; per-task email reminders (push reminders + the daily email are built).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.

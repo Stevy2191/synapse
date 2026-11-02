@@ -4,6 +4,22 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.14.0 — November 2026
+
+### New
+- **Templates.** Make a note from a template with **+ → From a template** (in the sidebar), or drop one
+  into an open note with **/template**. Built-in: Meeting, Daily note, Project, Weekly review, Recipe.
+  - Your own templates are ordinary notes in a **Templates** folder in each workspace — write them with
+    any blocks. **Add built-ins to my templates** puts editable copies there.
+  - **Fill-in fields** are replaced when a note is made: `{{date}}`, `{{date_short}}`, `{{today}}`,
+    `{{time}}`, `{{title}}`, `{{me}}` and more (a “Template · fill-in fields” button on template notes
+    lists them). Lines whose fields are all empty are left out.
+  - **Share a template:** copy it to another of your workspaces, or send a copy to someone else on the
+    server (it appears in their Templates folder, and they get a message).
+- **Meeting notes from the calendar use your “Meeting” template** (the + on an event → Meeting note):
+  meeting name, when, where, a Join link, the attendees and a link to the day — plus whatever you add.
+  **Daily notes use your “Daily note” template.** Both are now normal Write-mode notes.
+
 ## v1.13.0 — November 2026
 
 ### New
