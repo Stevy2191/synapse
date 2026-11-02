@@ -6,6 +6,8 @@ import TabBar from '../tabs/TabBar';
 import ClusterView from '../components/clusters/ClusterView';
 import TemplatePicker from '../components/templates/TemplatePicker';
 import { startTeam } from '../team/team';
+import InboxView, { refreshInboxCount } from '../components/team/InboxView';
+import ActivityView from '../components/team/ActivityView';
 import { RecorderBar } from '../components/meetings/Recorder';
 import FilePicker from '../components/files/FilePicker';
 import { retryUnsent } from '../meetings/client';
@@ -89,6 +91,7 @@ export default function AppPage() {
     openFromUrl();
     openFromReminderUrl(window.location.search);
     startTeam();
+    refreshInboxCount();
     reportTimeZone(user.id);
     const onSwMessage = e => {
       if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId);
@@ -143,7 +146,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : view === 'cluster' ? <ClusterView /> : <><TabBar /><Editor /></>}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : view === 'cluster' ? <ClusterView /> : view === 'inbox' ? <InboxView /> : view === 'activity' ? <ActivityView /> : <><TabBar /><Editor /></>}
       </main>
       <RecorderBar />
       {templatePicker && <TemplatePicker mode="new" parentId={templatePicker.parentId ?? null} onClose={() => useStore.setState({ templatePicker: null })} />}

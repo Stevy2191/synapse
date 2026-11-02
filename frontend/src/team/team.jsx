@@ -35,7 +35,7 @@ export async function removeMember(wsId, userId) { const { data } = await api.de
 
 /** Live events from the server (they arrive on the chat stream). Returns true if handled. */
 export function handleTeamEvent(type, data) {
-  if (type === 'ws:changed') { syncNow(); return true; }
+  if (type === 'ws:changed') { syncNow(); window.dispatchEvent(new CustomEvent('synapse:ws-changed', { detail: data })); return true; }
   if (type === 'workspaces:changed') {
     cache.delete(data.workspace_id);
     if (data.added) toast.success(`${data.by} added you to the workspace “${data.name}” — find it in the workspace menu`, { duration: 8000 });

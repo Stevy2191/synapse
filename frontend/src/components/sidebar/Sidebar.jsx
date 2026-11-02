@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
-  Search, Network, ListTodo, MessageCircle, Sparkles, Users, Eye, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
+  Search, Network, ListTodo, MessageCircle, Sparkles, Users, Bell, Activity, Eye, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
   FolderOpen,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
@@ -18,6 +18,7 @@ import { useChat, totalUnread } from '../../chat/client';
 import { useShares, openSharedNote, loadShares } from '../../shares/client';
 import { openInNewTab } from '../../tabs/tabs';
 import ClustersSection from '../clusters/ClustersSection';
+import { isTeamWorkspace } from '../../team/team';
 
 
 function countDescendants(id, notes) {
@@ -342,6 +343,7 @@ export default function Sidebar({ width, onNavigate }) {
   // Tasks due today or overdue, for the badge next to "Tasks"
   const [dueCount, setDueCount] = useState(0);
   const chatUnread = useChat(totalUnread);
+  const inboxUnread = useStore(s => s.inboxUnread);
   const aiAllowed = workspaceSettings(activeWorkspace).ai !== 'off';
   useEffect(() => {
     if (!activeWorkspace) return undefined;
@@ -388,6 +390,15 @@ export default function Sidebar({ width, onNavigate }) {
         <button className="nav-item" onClick={() => setSearchOpen(true)}>
           <Search size={14} /> Search <kbd>Ctrl K</kbd>
         </button>
+        <button className={`nav-item${view === 'inbox' ? ' on' : ''}`} onClick={() => { setView(view === 'inbox' ? 'editor' : 'inbox'); onNavigate?.(); }} title="Mentions, assigned to-dos, replies">
+          <Bell size={14} /> Inbox
+          {inboxUnread > 0 && <span className="nav-badge" title="New">{inboxUnread > 99 ? '99+' : inboxUnread}</span>}
+        </button>
+        {isTeamWorkspace(activeWorkspace) && (
+          <button className={`nav-item${view === 'activity' ? ' on' : ''}`} onClick={() => { setView(view === 'activity' ? 'editor' : 'activity'); onNavigate?.(); }} title="Who changed what in this workspace">
+            <Activity size={14} /> Activity
+          </button>
+        )}
         <button className={`nav-item${view === 'graph' ? ' on' : ''}`} onClick={() => { setView(view === 'graph' ? 'editor' : 'graph'); onNavigate?.(); }}>
           <Network size={14} /> Graph
         </button>

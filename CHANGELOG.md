@@ -4,6 +4,21 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.17.0 — November 2026
+
+### New — team features (part 2)
+- **Comments on highlighted text** (like Google Docs / Word): select words in a note → **Comment**. The
+  words get a yellow highlight and the thread opens in a **Comments** panel beside the note, where people
+  reply, edit or delete their comments, and **Resolve** the thread (the highlight goes away; **Reopen**
+  brings it back). There's also **Comment on the whole note**. Click highlighted text to jump to its
+  thread; the **Comments** button in the note's top bar shows how many are open. People who can only
+  view a workspace can still comment on the whole note. Comments need a connection.
+- **Inbox** (the bell in the sidebar, with a count): when someone @mentions you (in a note or a comment),
+  assigns you a to-do, replies to a thread you're in, resolves your comment, or adds you to a workspace.
+  Click an item to go straight to it (the right comment thread opens); **Mark all read**.
+- **Activity** (sidebar, in shared workspaces): who created, edited, deleted, restored or commented on
+  what, grouped by day, with a filter per person.
+
 ## v1.16.0 — November 2026
 
 ### New — team features (part 1)

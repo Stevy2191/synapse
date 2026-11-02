@@ -83,6 +83,11 @@ backend/src/
                       JSON control: hello{gen,role} / seed / external{html} / reset{gen} ← html{html,md}); note_ydocs
                       (state, gen); isCollabNote = rich note in a workspace with members; externalChange()
   mentions.js         "@username" / "👤 username" newly added to a note → SSE 'mention' or push to that person
+  activity.js         activity log (per workspace; 'edited' coalesced per person+note for 10 min) + inbox table,
+                      logActivity / addToInbox (SSE 'inbox' {unread}) / pruneActivity; routes/inbox.js =
+                      /api/team/inbox (+/count, /read) and /api/team/activity/:wsId
+  routes/comments.js  note_comments (thread root id = thread_id = the highlight mark id; anchored/quote; resolve);
+                      notifies thread people + @mentions (inbox, push), SSE 'comment:changed'
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -109,6 +114,9 @@ frontend/src/
   team/team.jsx       members cache (offline too), add/role/remove, live team events (ws:changed, workspaces:changed,
                       members:changed, mention), startTeam() prefetches members of the open workspace
   collab/session.js   CollabSession: Y.Doc + y-indexeddb (per user+note) + WebSocket provider + awareness; colorFor()
+  comments/client.js  API + CommentMark (<span data-comment="id" class="comment-mark">, click → 'synapse:comment-open'),
+                      markRanges/removeHighlight/scrollToThread; components/comments/CommentsPanel.jsx
+  components/team/InboxView.jsx (view 'inbox', refreshInboxCount), ActivityView.jsx (view 'activity')
   components/team/MembersSettings.jsx (Settings → Workspace → Members); components/editor/mentions.js ("@" menu);
                       components/tasks/Assignee.jsx
   stores/useStore.js  zustand (persisted): user, workspaces, tree `notes`, activeNote, view …
@@ -342,7 +350,10 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   Remote y-sync transactions are ignored by recurring.js and by saving (each person saves their own edits).
   Reminders: own workspaces = to-dos not assigned to someone else; shared = to-dos assigned to me.
   Testing: two/three Playwright contexts; context.setOffline + dispatch 'online' to test merging.
-  Part 2 (not built yet): comments on notes, activity view.
+  Part 2 (built): Sean chose "comments on highlighted text" and "a bell with an inbox". The highlight is a
+  mark in the note (syncs live, offline, history); whether it's coloured comes from a <style> the Editor
+  builds from the *open* threads, so resolving needs no edit to the note. The editor picks the thread id
+  (it's already in the text); cancelling a draft removes its mark. Comments/inbox/activity are online-only.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -447,8 +458,7 @@ Other ideas:
 - Database/table views (properties per note, Notion-style). (Kanban board is built.)
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.
-- Team features part 2: comments on notes, activity view ("who changed what"); later maybe groups/teams,
-  shared lists, a team calendar view.
+- Team follow-ups: groups/teams, shared lists, a team calendar view, comment reactions/emoji.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
 - Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
 - Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,

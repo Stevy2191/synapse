@@ -8,6 +8,7 @@ import { sendTo } from '../chat.js';
 import { workspaceFor, MY_WORKSPACES_SQL, workspacePeopleIds, isShared, notifyWorkspace } from '../members.js';
 import { isCollabNote, externalChange, setContentSaver } from '../collab.js';
 import { notifyMentions } from '../mentions.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -232,6 +233,7 @@ router.post('/', (req, res) => {
     saveSideEffects(created);
     return created;
   })();
+  logActivity({ workspace_id, note_id: note.id, user_id: req.user.id, kind: 'created', title: note.title });
   res.json({ note });
 });
 
@@ -430,6 +432,7 @@ router.delete('/:id', (req, res) => {
     // Links pointing at these notes no longer resolve
     relinkNotesMentioning(note.workspace_id, db.prepare(`SELECT title FROM notes WHERE id IN (${placeholders})`).all(...ids).map(r => r.title));
   })();
+  logActivity({ workspace_id: note.workspace_id, note_id: note.id, user_id: req.user.id, kind: 'deleted', title: note.title, detail: ids.length > 1 ? `${ids.length - 1} sub-note${ids.length === 2 ? '' : 's'} too` : null });
   res.json({ ok: true, deleted: ids, trash_days: TRASH_DAYS });
 });
 
@@ -492,6 +495,7 @@ router.post('/:id/restore', (req, res) => {
   if (!note) return res.status(404).json({ error: 'Not found' });
   if (!note.deleted_at) return res.json({ ok: true, restored: [] });
   const restored = restoreFromTrash(note.trash_root === note.id ? note.id : null, note.id);
+  logActivity({ workspace_id: note.workspace_id, note_id: note.id, user_id: req.user.id, kind: 'restored', title: note.title });
   res.json({ ok: true, restored });
 });
 

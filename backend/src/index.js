@@ -34,6 +34,9 @@ import { startBackups } from './backups.js';
 import { startReminders } from './reminders.js';
 import { attachCollab } from './collab.js';
 import reminderRoutes from './routes/reminders.js';
+import commentRoutes from './routes/comments.js';
+import inboxRoutes from './routes/inbox.js';
+import { pruneActivity } from './activity.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -86,6 +89,8 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/team', inboxRoutes); // /api/team/inbox, /api/team/activity/:wsId
 app.use('/api/ai', aiRoutes);
 app.use('/api/shares', shareRoutes);
 app.use('/api/publish', publishRoutes);
@@ -136,6 +141,8 @@ purgeTrash();
 setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
 startBackups();
 startReminders();
+pruneActivity();
+setInterval(pruneActivity, 24 * 60 * 60 * 1000).unref();
 startOcrIndexing();
 startMeetings();
 purgeOrphanChatFiles();

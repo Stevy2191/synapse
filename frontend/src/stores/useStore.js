@@ -33,7 +33,9 @@ export const useStore = create(
       tabs: {},                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
       richToolbar: false,         // formatting bar fixed at the top of Write-mode notes (this device)
       filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones
-      templatePicker: null,       // { parentId } while "New note from a template" is open (rendered in AppPage)
+      templatePicker: null,
+      pendingComment: null,       // { noteId, threadId } — open this comment thread when the note opens
+      inboxUnread: 0,             // the bell's count (team/inbox)       // { parentId } while "New note from a template" is open (rendered in AppPage)
       activeClusterId: null,      // the cluster shown when view === 'cluster' (components/clusters)
 
       // Offline sync status (see offline/sync.js)
@@ -94,7 +96,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, activeClusterId: s.activeClusterId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask'].includes(s.view) ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, activeClusterId: s.activeClusterId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask', 'inbox', 'activity'].includes(s.view) ? 'editor' : s.view })
     }
   )
 );

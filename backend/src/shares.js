@@ -3,6 +3,7 @@
 //   • the editing turn ("lock") — one person edits a shared note at a time; others watch live,
 //   • version history — who changed what and when, for every note.
 import { workspaceRole, workspacePeopleIds } from './members.js';
+import { logActivity } from './activity.js';
 import { db } from './db/index.js';
 import { sendTo, pushTo } from './chat.js';
 
@@ -153,6 +154,7 @@ export function recordVersion(note, userId) {
 /** Called after any change to a note's content: history, "last edited by", live updates. */
 export function afterNoteSaved(note, userId) {
   db.prepare('UPDATE notes SET updated_by=? WHERE id=?').run(userId, note.id);
+  logActivity({ workspace_id: note.workspace_id, note_id: note.id, user_id: userId, kind: 'edited', title: note.title });
   note.updated_by = userId;
   recordVersion(note, userId);
   const people = peopleWithAccess(note.id);

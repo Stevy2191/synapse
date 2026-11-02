@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { workspaceFor, workspacePeople, workspacePeopleIds, MY_WORKSPACES_SQL } from '../members.js';
 import { sendTo, pushTo } from '../chat.js';
+import { addToInbox } from '../activity.js';
 import { v4 as uuid } from 'uuid';
 import { db, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -97,6 +98,7 @@ router.post('/:id/members', (req, res) => {
   const byName = by.display_name || by.username;
   sendTo([person.id], 'workspaces:changed', { workspace_id: ws.id, added: true, name: ws.name, by: byName });
   sendTo(workspacePeopleIds(ws.id), 'members:changed', { workspace_id: ws.id });
+  addToInbox({ user_id: person.id, kind: 'added', workspace_id: ws.id, by_user: req.user.id, title: `${byName} added you to the workspace “${ws.name}”`, body: role === 'edit' ? 'You can edit its notes.' : 'You can view its notes.' });
   pushTo(person.id, { title: `${byName} added you to “${ws.name}”`, body: 'Open Synapse to see the shared workspace.', tag: `ws-${ws.id}`, url: '/' }).catch(() => {});
   res.json({ members: membersView(ws.id) });
 });

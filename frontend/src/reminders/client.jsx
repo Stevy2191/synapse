@@ -25,9 +25,11 @@ function openTaskNote(id) { openNote(id).then(() => useStore.getState().setView(
 
 export function openFromReminderUrl(search) {
   const q = new URLSearchParams(search || '');
-  const open = q.get('open'); const note = q.get('note');
+  const open = q.get('open'); const note = q.get('note'); const comment = q.get('comment');
   if (!open && !note) return;
   if (open === 'tasks') openTasks();
+  if (open === 'inbox') useStore.getState().setView('inbox');
+  if (note && comment) useStore.setState({ pendingComment: { noteId: note, threadId: comment } });
   if (note) openTaskNote(note);
   if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
 }

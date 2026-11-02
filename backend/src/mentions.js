@@ -4,6 +4,7 @@
 import { db } from './db/index.js';
 import { noteAccess } from './shares.js';
 import { sendTo, pushTo, isOnScreen } from './chat.js';
+import { addToInbox } from './activity.js';
 
 const MENTION = /(^|[\s(>])@([a-z0-9][\w.-]{0,39})/gi;
 const ASSIGN = /👤\s*@?([a-z0-9][\w.-]{0,39})/gi;
@@ -37,6 +38,7 @@ export function notifyMentions(note, prevMd, byUserId) {
         title: kind === 'assign' ? `${by} assigned you a to-do` : `${by} mentioned you in “${note.title}”`,
         body: line || note.title,
       };
+      addToInbox({ user_id: person.id, kind, note_id: note.id, workspace_id: note.workspace_id, by_user: byUserId, title: payload.title, body: payload.body });
       if (isOnScreen(person.id)) sendTo([person.id], 'mention', payload);
       else pushTo(person.id, { title: payload.title, body: payload.body, tag: `mention-${note.id}`, url: `/?note=${note.id}` }).catch(() => {});
     }

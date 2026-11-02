@@ -141,6 +141,12 @@ function handle(type, data) {
     case 'share:changed':
       handleShareEvent(type, data);
       break;
+    case 'comment:changed':
+      window.dispatchEvent(new CustomEvent('synapse:comments', { detail: data }));
+      break;
+    case 'inbox':
+      useStore.setState({ inboxUnread: data.unread || 0 });
+      break;
     case 'ws:changed':
     case 'workspaces:changed':
     case 'members:changed':

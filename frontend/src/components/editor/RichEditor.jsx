@@ -22,7 +22,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
   Type, ListChecks, ListTodo, Paperclip, ScanText, PenLine, Mic, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
-  Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock, AtSign,
+  Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock, AtSign, MessageSquarePlus,
 } from 'lucide-react';
 import { SlashCommand, WikiLinkSuggest, WikiLinkDecorations } from './extensions';
 import { kindInfo } from '../noteKinds';
@@ -40,6 +40,7 @@ import { TaskWhen, applyWhen, taskItemText } from './recurring';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 import { MentionSuggest } from './mentions';
+import { CommentMark } from '../../comments/client';
 import TaskWhenDialog from '../tasks/TaskWhenDialog';
 import TemplatePicker from '../templates/TemplatePicker';
 import { templateForInsert } from '../../templates/templates';
@@ -75,7 +76,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  */
 // `collab` = { session, seedHtml } for live editing together (collab/session.js): the shared Yjs
 // document is the content, and `content` is only used to fill it the very first time.
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile, onReadText, onRecord, collab }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile, onReadText, onRecord, collab, onComment }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -114,6 +115,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
         CollaborationCaret.configure({ provider: { awareness: collab.session.awareness }, user: collab.session.awareness.getLocalState()?.user || { name: 'Me', color: '#6366f1' } }),
       ] : []),
       MentionSuggest.configure({ getUi }),
+      CommentMark,
       Placeholder.configure({
         includeChildren: true,
         placeholder: ({ node, pos, editor: ed }) => (node.type.name === 'heading' ? 'Heading'
@@ -390,6 +392,13 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
             <>
               <button type="button" className="ai-bubble-btn" title="Ask AI about the selected text"
                 onMouseDown={e => { e.preventDefault(); onAi({}); }}><Sparkles size={14} /> AI</button>
+              <Sep />
+            </>
+          )}
+          {onComment && (
+            <>
+              <button type="button" className="ai-bubble-btn" title="Comment on the selected text"
+                onMouseDown={e => { e.preventDefault(); onComment(); }}><MessageSquarePlus size={14} /> Comment</button>
               <Sep />
             </>
           )}

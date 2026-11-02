@@ -17,7 +17,7 @@ import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
   PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock, Globe,
 } from 'lucide-react';
-import { PanelTop } from 'lucide-react';
+import { PanelTop, MessageSquareText } from 'lucide-react';
 import RichToolbar from './RichToolbar';
 import FilePicker from '../files/FilePicker';
 import ReadTextDialog from '../ocr/ReadTextDialog';
@@ -44,6 +44,8 @@ import HistoryPanel from '../share/HistoryPanel';
 import TemplateHint from '../templates/TemplateHint';
 import { CollabSession } from '../../collab/session';
 import { isTeamWorkspace, myRole } from '../../team/team';
+import CommentsPanel from '../comments/CommentsPanel';
+import { getThreads, newThreadId } from '../../comments/client';
 import { isTemplate } from '../../templates/templates';
 import PublishDialog from '../share/PublishDialog';
 import { listLinks, rememberLinks, noteSaved as publishNoteSaved } from '../../publish/client';
@@ -437,6 +439,52 @@ export default function Editor() {
     ? { session: collabSession, seedHtml: () => liveNoteRef.current?.rich_content || '' } : null), [live, liveMode, collabSession]);
   const liveRef = useRef(null);
   liveRef.current = collab;
+
+  // ── Comments ──
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [threads, setThreads] = useState(null);
+  const [canAnchor, setCanAnchor] = useState(false);
+  const [commentDraft, setCommentDraft] = useState(null); // { id, quote } — new comment on highlighted text
+  const [commentFocus, setCommentFocus] = useState(null);
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => { const on = () => setOnline(navigator.onLine); window.addEventListener('online', on); window.addEventListener('offline', on); return () => { window.removeEventListener('online', on); window.removeEventListener('offline', on); }; }, []);
+  const loadThreads = useCallback(() => {
+    if (!noteId || !navigator.onLine) return;
+    getThreads(noteId).then(d => { setThreads(d.threads); setCanAnchor(d.can_anchor); }).catch(() => {});
+  }, [noteId]);
+  useEffect(() => {
+    setThreads(null); setCommentDraft(null); setCommentFocus(null);
+    const pending = useStore.getState().pendingComment;
+    if (pending && pending.noteId === noteId) { setCommentsOpen(true); setCommentFocus(pending.threadId); useStore.setState({ pendingComment: null }); }
+    loadThreads();
+    const on = e => { if (e.detail?.note_id === noteId) loadThreads(); };
+    window.addEventListener('synapse:comments', on);
+    return () => window.removeEventListener('synapse:comments', on);
+  }, [noteId, loadThreads, online]);
+  // Clicking highlighted text opens its thread.
+  useEffect(() => {
+    if (!richEditor) return undefined;
+    const open = ({ id }) => { setCommentsOpen(true); setCommentFocus(id); };
+    richEditor.on('synapse:comment-open', open);
+    return () => richEditor.off('synapse:comment-open', open);
+  }, [richEditor]);
+  const newComment = () => {
+    const ed = richEditorRef.current;
+    if (!ed) return;
+    if (!navigator.onLine) { toast.error('Comments need a connection'); return; }
+    const { from, to } = ed.state.selection;
+    const quote = ed.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+    const id = newThreadId();
+    ed.chain().focus().setMark('comment', { id }).run();
+    setCommentDraft({ id, quote });
+    setCommentFocus(id);
+    setCommentsOpen(true);
+  };
+  const openThreads = (threads || []).filter(t => !t.resolved_at);
+  // Highlight the text of open threads (resolved ones fade back to normal text).
+  const commentCss = openThreads.filter(t => t.anchored).map(t => `.comment-mark[data-comment="${t.id.replace(/[^\w-]/g, '')}"]{background:var(--comment-bg);border-bottom:2px solid var(--comment-line);cursor:pointer}`).join('')
+    + (commentDraft ? `.comment-mark[data-comment="${commentDraft.id}"]{background:var(--comment-bg-strong);border-bottom:2px solid var(--comment-line)}` : '')
+    + (commentFocus && openThreads.some(t => t.id === commentFocus) ? `.comment-mark[data-comment="${String(commentFocus).replace(/[^\w-]/g, '')}"]{background:var(--comment-bg-strong)}` : '');
 
   const readOnly = role === 'view' || lockedByOther;
 
@@ -1076,7 +1124,13 @@ export default function Editor() {
             <Globe size={15} /><span className="hide-narrow">{published ? 'Published' : 'Publish'}</span>
           </button>
         )}
-        <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); }} title="History — who changed what, and when">
+        {isNote && (
+          <button className={`btn-ghost${commentsOpen ? ' on' : ''}`} onClick={() => { setCommentsOpen(o => !o); setHistoryOpen(false); setNoteChat(null); }} title="Comments — select text and click Comment, or comment on the whole note" style={{ position: 'relative' }}>
+            <MessageSquareText size={15} /><span className="hide-narrow">Comments</span>
+            {openThreads.length > 0 && <span className="cm-badge">{openThreads.length}</span>}
+          </button>
+        )}
+        <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); setCommentsOpen(false); }} title="History — who changed what, and when">
           <History size={15} /><span className="hide-narrow">History</span>
         </button>
         {isNote && aiAllowed && !guest && (
@@ -1160,7 +1214,7 @@ export default function Editor() {
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
                 {live && liveMode === 'wait'
                   ? <p className="live-wait">Opening the shared copy…</p>
-                  : <RichEditor key={`${activeNote.note.id}:${collab ? `live${liveNonce}` : 'plain'}`} collab={collab} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onRecord={!readOnly && !guest ? () => setRecordOpen(true) : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />}
+                  : <RichEditor key={`${activeNote.note.id}:${collab ? `live${liveNonce}` : 'plain'}`} collab={collab} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onRecord={!readOnly && !guest ? () => setRecordOpen(true) : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} onComment={!readOnly ? newComment : undefined} />}
               </div>
             </div>
           </div>
@@ -1187,7 +1241,14 @@ export default function Editor() {
           </>
         )}
 
-        {historyOpen ? <div className="note-chat-panel"><HistoryPanel noteId={noteId} canRestore={role !== 'view'} onRestore={restoreVersion} onClose={() => setHistoryOpen(false)} /></div> : noteChat ? <div className="note-chat-panel"><ChatRoom chatId={noteChat} compact onClose={() => setNoteChat(null)} /></div> : rightRailOpen && <RightRail activeNote={activeNote} />}
+        {commentCss && <style>{commentCss}</style>}
+        {commentsOpen && isNote ? (
+          <div className="note-chat-panel">
+            <CommentsPanel noteId={noteId} threads={threads} canAnchor={canAnchor && editorMode === 'rich'} editor={richEditor} draft={commentDraft}
+              onDraftDone={id => { setCommentDraft(null); if (id) setCommentFocus(id); }} focus={commentFocus} online={online} isOwner={role === 'owner' && !guest && myRole(activeWorkspace) === 'owner'}
+              onChanged={d => { if (d?.threads) setThreads(d.threads); }} onClose={() => { setCommentsOpen(false); if (commentDraft && richEditor) { import('../../comments/client').then(m => m.removeHighlight(richEditor, commentDraft.id)); setCommentDraft(null); } }} />
+          </div>
+        ) : historyOpen ? <div className="note-chat-panel"><HistoryPanel noteId={noteId} canRestore={role !== 'view'} onRestore={restoreVersion} onClose={() => setHistoryOpen(false)} /></div> : noteChat ? <div className="note-chat-panel"><ChatRoom chatId={noteChat} compact onClose={() => setNoteChat(null)} /></div> : rightRailOpen && <RightRail activeNote={activeNote} />}
       </div>
       {linkPopup}
     </div>
