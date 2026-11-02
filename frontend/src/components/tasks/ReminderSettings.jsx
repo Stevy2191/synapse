@@ -1,9 +1,9 @@
 // Settings → Reminders (each person's own): morning summary, exact-time reminders, this device's notifications.
 import { useEffect, useState } from 'react';
-import { Bell, Send, Info, Check } from 'lucide-react';
+import { Bell, Send, Info, Check, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Row, Group } from '../meetings/MeetingSettings';
-import { getReminderPrefs, saveReminderPrefs, sendTestReminder } from '../../reminders/client';
+import { getReminderPrefs, saveReminderPrefs, sendTestReminder, sendEmailNow } from '../../reminders/client';
 import { notificationState, enableNotifications } from '../../chat/client';
 
 const Switch = ({ on, onChange }) => (
@@ -55,6 +55,25 @@ export default function ReminderSettings({ styles }) {
           <Switch on={p.timed} onChange={v => save({ timed: v })} />
         </Row>
         <p className="srow-note"><Info size={13} /> Times are in your time zone{p.tz ? ` (${p.tz})` : ''}. Today: {p.today.due} due, {p.today.overdue} overdue{p.today.timed.length ? `; next reminder at ${p.today.timed[0].time} — “${p.today.timed[0].text}”` : ''}.</p>
+      </Group>
+
+      <Group title="Daily email">
+        {!p.email.configured && <p className="srow-note"><Info size={13} /> Email isn’t set up on this server yet — an admin can do it in Settings → Server → Email.</p>}
+        {p.email.configured && !p.email.address && <p className="srow-note"><Info size={13} /> Your account has no email address — add one in Settings → Profile.</p>}
+        <Row title="Daily email" desc={<>Every day at this time: today’s meetings from your connected calendars, what’s due today and what’s overdue{p.email.address ? <> — sent to <b>{p.email.address}</b></> : ''}.</>}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {p.email_daily && <input type="time" value={p.email_time} onChange={e => e.target.value && save({ email_time: e.target.value })} style={{ ...field, width: 120, flex: '0 0 auto' }} aria-label="Email time" />}
+            <Switch on={p.email_daily} onChange={v => save({ email_daily: v })} />
+          </div>
+        </Row>
+        {p.email_daily && (
+          <Row title="Skip quiet days" desc="Don’t send it on days with no meetings and nothing due.">
+            <Switch on={p.email_skip_empty} onChange={v => save({ email_skip_empty: v })} />
+          </Row>
+        )}
+        <Row title="Send today’s email now" desc="See what it looks like.">
+          <button type="button" className="btn-ghost" disabled={!p.email.configured || !p.email.address} onClick={async () => { try { const r = await sendEmailNow(); toast.success(`Sent to ${r.to}`); } catch (err) { toast.error(errText(err), { duration: 9000 }); } }}><Mail size={13} /> Send</button>
+        </Row>
       </Group>
 
       <Group title="Repeating to-dos">

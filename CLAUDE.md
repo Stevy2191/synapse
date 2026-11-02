@@ -73,6 +73,10 @@ backend/src/
                       browser), reminders_sent (dedupe keys); every minute reads open dated tasks from each person's
                       notes' Markdown copy (taskWhen.js) → morning summary / ⏰ exact-time; delivered via chat.js
                       (SSE 'reminder' if on screen, else pushTo). taskWhen.js = token parser (sync with frontend)
+  mailer.js           email via nodemailer: SMTP settings (smtp_host/port/security/user/from, smtp_pass_enc
+                      AES-GCM with a JWT_SECRET key, app_url for links) — admin Settings → Server → Email
+                      (/api/admin/email, /email/test); reminders.js dailyEmail() = meetings (calendar_events in the
+                      person's tz) + due/overdue tasks, sent at reminder_prefs.email_time
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -282,6 +286,14 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   to 20 min late. Delivery follows chat: live toast if an app is on screen, else push. Push test in the
   sandbox: web-push always uses https → a self-signed https stand-in + NODE_TLS_REJECT_UNAUTHORIZED=0,
   payload decrypted with http_ece.
+- **Daily email** (built Nov 2026): Sean chose "admin sets the mail account once" and "separate from the push
+  summary, both optional". Per person: email_daily / email_time / email_skip_empty in reminder_prefs; sent
+  to the account's email once per local day (key `mail:<user>:<date>`, up to 4 h late; on SMTP failure
+  retried every 15 min). Meetings = the person's enabled calendars' events overlapping their local day
+  (all-day events: end date is exclusive). Links use the `app_url` setting (prefilled from the admin's
+  browser). HTML is inline-styled tables (email apps ignore stylesheets) + a plain-text part.
+  Testing: SMTP stand-in with the `smtp-server` + `mailparser` npm packages (scratchpad), ICS file
+  served by `python3 -m http.server`.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -382,7 +394,7 @@ Other ideas:
   inline, files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.
 - Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
-- Reminders by email or ntfy/Gotify (push reminders are built).
+- Reminders via ntfy/Gotify; per-task email reminders (push reminders + the daily email are built).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.

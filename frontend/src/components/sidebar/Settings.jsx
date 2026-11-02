@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   X, Sparkles, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
   CalendarDays, RefreshCw, Plus, HardDriveDownload, Cloud, FolderOpen, ScanText, Mic,
-  BellRing,
+  BellRing, Mail,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
@@ -16,6 +16,7 @@ import BackupsPage from './BackupsPage';
 import OcrSettings from '../ocr/OcrSettings';
 import { MeetingPrefsPage, MeetingAdminPage } from '../meetings/MeetingSettings';
 import ReminderSettings from '../tasks/ReminderSettings';
+import EmailSettings from './EmailSettings';
 import { ServerFilesPage, ConnectedDrivesPage } from '../files/FileSettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
@@ -68,6 +69,7 @@ export default function Settings() {
       ['server-files', <FolderOpen size={15} />, 'Files'],
       ['server-ocr', <ScanText size={15} />, 'Text recognition'],
       ['server-meetings', <Mic size={15} />, 'Meetings'],
+      ['server-email', <Mail size={15} />, 'Email'],
       ['server-backups', <HardDriveDownload size={15} />, 'Backups'],
     ] }] : []),
   ];
@@ -123,6 +125,7 @@ export default function Settings() {
             {page === 'server-files' && isAdmin && <ServerFilesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'reminders' && <ReminderSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'meetings' && <MeetingPrefsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'server-email' && isAdmin && <EmailSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-meetings' && isAdmin && <MeetingAdminPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-ocr' && isAdmin && <OcrSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}

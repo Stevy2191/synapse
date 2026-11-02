@@ -4,6 +4,18 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.13.0 — November 2026
+
+### New
+- **Daily email:** every day at the time you choose, an email with **today's meetings** (from your
+  connected calendars — time, place and a Join link for online meetings), **what's due today** and
+  **what's overdue**, each linking straight to its note in Synapse. Turn it on in
+  **Settings → Reminders → Daily email**; "Skip quiet days" leaves out days with nothing on, and
+  "Send today's email now" shows you what it looks like. Works alongside the push reminders.
+- **Settings → Server → Email** (admins): the mail account Synapse sends from — any provider with SMTP
+  (Gmail / iCloud / Outlook with an app password, Proton on paid plans, or your own mail server), with
+  a **Send a test email** button. The password is stored encrypted.
+
 ## v1.12.0 — November 2026
 
 ### New

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db , NETWORK_STORAGE } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { mailView, updateMail, sendMail } from '../mailer.js';
 import { createUser, setPassword, deleteUser, adminCount, PUBLIC_USER_FIELDS } from '../users.js';
 import { resetMfa, mfaMethods } from '../mfa.js';
 import { getSetting, setSetting } from '../settings.js';
@@ -10,6 +11,21 @@ import { DATA_DIR } from '../config.js';
 
 const router = Router();
 router.use(requireAdmin);
+
+// Email (Settings → Server → Email): the mail account the server sends from.
+router.get('/email', (req, res) => res.json(mailView()));
+router.patch('/email', (req, res) => {
+  try { res.json(updateMail(req.body || {})); } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+router.post('/email/test', async (req, res) => {
+  const to = String(req.body?.to || db.prepare('SELECT email FROM users WHERE id=?').get(req.user.id)?.email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Enter an email address to send the test to' });
+  try {
+    await sendMail({ to, subject: 'Synapse email works', text: 'This is a test from your Synapse server. Email is set up correctly.',
+      html: '<p style="font-family:sans-serif">This is a test from your Synapse server. <b>Email is set up correctly.</b></p>' });
+    res.json({ to });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
 
 const ROLES = ['admin', 'user'];
 

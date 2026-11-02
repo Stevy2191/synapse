@@ -8,6 +8,7 @@ import { openNote } from '../offline/sync';
 export const getReminderPrefs = () => api.get('/reminders').then(r => r.data);
 export const saveReminderPrefs = body => api.patch('/reminders', body).then(r => r.data);
 export const sendTestReminder = () => api.post('/reminders/test').then(r => r.data);
+export const sendEmailNow = () => api.post('/reminders/email-now').then(r => r.data);
 
 export function reportTimeZone(userId) {
   try {

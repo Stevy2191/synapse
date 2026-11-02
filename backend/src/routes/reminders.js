@@ -2,7 +2,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { db } from '../db/index.js';
-import { getPrefs, savePrefs, sendTest, datedTasks, localNow, summaryFor } from '../reminders.js';
+import { getPrefs, savePrefs, sendTest, datedTasks, localNow, summaryFor, sendDailyEmail } from '../reminders.js';
+import { mailConfigured } from '../mailer.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -17,6 +18,7 @@ function view(userId) {
     devices: db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id=?').get(userId).n,
     today: { due: today.length, overdue: tasks.filter(t => t.due < now.date).length, timed: today.filter(t => t.time && t.time > now.hm).map(t => ({ text: t.text, time: t.time })).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 10) },
     preview: summaryFor(tasks, now.date),
+    email: { configured: mailConfigured(), address: db.prepare('SELECT email FROM users WHERE id=?').get(userId)?.email || null },
   };
 }
 
@@ -30,6 +32,12 @@ router.patch('/', (req, res) => {
 
 router.post('/test', async (req, res, next) => {
   try { res.json(await sendTest(req.user.id)); } catch (err) { next(err); }
+});
+
+router.post('/email-now', async (req, res) => {
+  try { res.json(await sendDailyEmail(req.user.id)); } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 export default router;
