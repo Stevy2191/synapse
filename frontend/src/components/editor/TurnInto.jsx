@@ -3,7 +3,7 @@
 // Renders inline (not in a portal) so clicking it doesn't close the floating toolbar.
 import { useEffect, useRef, useState } from 'react';
 import {
-  Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse, Quote, Info, Lightbulb, TriangleAlert,
+  Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse, ListTodo, Quote, Info, Lightbulb, TriangleAlert,
   OctagonAlert, Code2, Sigma, Radical, FileText, ChevronDown, Check,
 } from 'lucide-react';
 
@@ -55,6 +55,16 @@ const ITEMS = [
         schema.nodes.detailsContent.create(null, body),
       ]);
     }) },
+  { id: 'tasklist', group: 'Lists', title: 'Task list', hint: 'First line is the name, the rest become tasks', icon: ListTodo,
+    run: e => replaceBlocks(e, (texts, schema) => {
+      const t = s => (s ? [schema.text(s)] : []);
+      const [title = '', ...rest] = texts;
+      const items = (rest.length ? rest : ['']).map(s => schema.nodes.taskItem.create({ checked: false }, [schema.nodes.paragraph.create(null, t(s))]));
+      return schema.nodes.details.create({ open: true }, [
+        schema.nodes.detailsSummary.create(null, t(title)),
+        schema.nodes.detailsContent.create(null, [schema.nodes.taskList.create(null, items)]),
+      ]);
+    }) },
   ...[['info', 'Note', Info], ['tip', 'Tip', Lightbulb], ['warning', 'Warning', TriangleAlert], ['danger', 'Danger', OctagonAlert]].map(([type, title, icon]) => ({
     id: `callout-${type}`, group: 'Callouts', title, icon,
     active: e => e.isActive('callout', { type }),
@@ -84,7 +94,7 @@ function currentId(editor) {
       case 'taskList': return 'todo';
       case 'bulletList': return 'ul';
       case 'orderedList': return 'ol';
-      case 'details': return 'toggle';
+      case 'details': { let t = false; n.descendants(c => { if (c.type.name === 'taskList') t = true; return !t; }); return t ? 'tasklist' : 'toggle'; }
       case 'callout': return `callout-${n.attrs.type}`;
       case 'blockquote': return 'quote';
       default: break;

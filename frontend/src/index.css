@@ -1258,3 +1258,8 @@ body {
 .tab-menu button { display: block; width: 100%; padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--text-primary); font: 13px var(--font-sans); text-align: left; cursor: pointer; }
 .tab-menu button:hover:not(:disabled) { background: var(--bg-hover); }
 .tab-menu button:disabled { color: var(--text-muted); cursor: default; }
+
+/* Task lists: "3 of 5 remaining" after a toggle's title */
+.rich-editor-content .task-count { display: inline-block; margin-left: 10px; padding: 1px 9px; border-radius: 999px; font: 500 12px var(--font-sans); vertical-align: 2px; color: var(--accent); background: var(--accent-subtle); user-select: none; white-space: nowrap; }
+.rich-editor-content .task-count.all-done { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.rich-editor-content .task-count.all-done::before { content: '✓ '; }

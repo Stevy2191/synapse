@@ -190,7 +190,11 @@ async function renderBody(note, ctx) {
   for (const det of [...body.querySelectorAll('details')].reverse()) {
     const box = make('div', 'x-toggle');
     const summary = det.querySelector(':scope > summary');
-    box.append(make('div', 'x-toggle-summary', summary ? summary.innerHTML : ''));
+    // Task lists (a toggle holding a checklist): "3 of 5 remaining", like in the editor.
+    const items = [...det.querySelectorAll('li[data-checked]')].filter(li => li.closest('details') === det && li.textContent.trim());
+    const left = items.filter(li => li.getAttribute('data-checked') !== 'true').length;
+    const count = items.length ? ` <span class="x-task-count">${left ? `${left} of ${items.length} remaining` : `All ${items.length} done`}</span>` : '';
+    box.append(make('div', 'x-toggle-summary', (summary ? summary.innerHTML : '') + count));
     const content = make('div', 'x-toggle-body');
     for (const child of [...det.childNodes]) {
       if (child === summary) continue;

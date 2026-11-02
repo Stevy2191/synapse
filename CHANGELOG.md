@@ -4,6 +4,18 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.6.0 — November 2026
+
+### New
+- **Task list** block — type `/task list`: a collapsible checklist with a name, and a count next to
+  the name: “5 of 5 remaining”, then “3 of 5 remaining” as you tick things off, and “✓ All 5 done”.
+  Type the name, press Enter, and list the tasks. The count shows while it's collapsed, in exports,
+  and on any toggle section that holds a checklist. Also in **Turn into** (first line = the name).
+
+### Fixed
+- A toggle section at the very top of a note could get stuck (wouldn't open again, or forgot whether
+  it was open).
+
 ## v1.5.0 — November 2026
 
 ### New

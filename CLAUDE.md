@@ -251,6 +251,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   dist/build.json → `/api/config.build`); `src/appUpdate.js` compares on start/visible/online and,
   if different, unregisters the worker, drops the precache and reloads (once per build per tab).
   sw.js/index.html/manifest are sent `no-store` so browsers and proxies don't cache them.
+- @tiptap/extension-details ignores clicks on a toggle at doc position 0 (`if (!pos) return false`),
+  so its open state never saved and it got stuck; blocks.jsx TaskCounter saves it in a click handler.
+- Task lists = a toggle (details) holding a checklist; the "N of M remaining" badge is a widget
+  decoration (TaskCounter in blocks.jsx), nothing stored — so Markdown/export formats are unchanged
+  (export/render.js adds the same badge).
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

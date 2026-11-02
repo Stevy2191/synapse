@@ -85,6 +85,21 @@ export const SLASH_ITEMS = [
         }
         return true;
       }).run() },
+  { id: 'tasklist', group: 'Lists', title: 'Task list', desc: 'A named, collapsible checklist that counts what’s left', keywords: 'tasks todo checklist project progress remaining count toggle group',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: 'details', attrs: { open: true }, content: [
+      { type: 'detailsSummary' },
+      { type: 'detailsContent', content: [{ type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }] }] }] })
+      // Cursor in the name, ready to type it.
+      .command(({ tr, state }) => {
+        const $from = tr.selection.$from;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'details') {
+            tr.setSelection(state.selection.constructor.near(tr.doc.resolve($from.start(d) + 1)));
+            return true;
+          }
+        }
+        return true;
+      }).run() },
   // Callouts
   { id: 'callout-info', group: 'Callouts', title: 'Note', desc: 'Blue box for useful information', keywords: 'callout info information admonition box', run: callout('info') },
   { id: 'callout-tip', group: 'Callouts', title: 'Tip', desc: 'Green box for advice', keywords: 'callout success hint idea box', run: callout('tip') },

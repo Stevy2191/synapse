@@ -2,8 +2,11 @@
 //   Callout          — a coloured box (Note / Tip / Warning / Danger). Markdown: GitHub alerts, "> [!NOTE]"
 //   TableOfContents  — a live list of the note's headings; click one to jump to it. Markdown: "[TOC]"
 //   Toggle           — a collapsible section (from @tiptap/extension-details). Markdown: <details>
+//   Task list        — a toggle holding a checklist; its title shows “3 of 5 remaining” (TaskCounter)
 import { useEffect, useRef, useState } from 'react';
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, Extension, mergeAttributes } from '@tiptap/core';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react';
 import { Details, DetailsSummary, DetailsContent } from '@tiptap/extension-details';
 import { Info, Lightbulb, TriangleAlert, OctagonAlert, ListTree, Trash2 } from 'lucide-react';
@@ -135,8 +138,104 @@ export const TableOfContents = Node.create({
   addNodeView() { return ReactNodeViewRenderer(TocView); },
 });
 
+/** Checklist items directly in a toggle (not in a toggle nested inside it): { done, total }. */
+export function countTasks(details) {
+  let done = 0;
+  let total = 0;
+  details.descendants(node => {
+    if (node.type.name === 'details') return false; // a nested toggle counts its own
+    if (node.type.name === 'taskItem') {
+      if (node.textContent.trim()) { total++; if (node.attrs.checked) done++; }
+    }
+    return true;
+  });
+  return { done, total };
+}
+
+export const taskCountLabel = ({ done, total }) => (done === total ? `All ${total} done` : `${total - done} of ${total} remaining`);
+
+// Toggles that hold a checklist show how many tasks are left, after their title. Nothing is stored:
+// the count is drawn from the checkboxes every time the note changes.
+const TaskCounter = Extension.create({
+  name: 'taskCounter',
+  priority: 1000, // before the toggle's own Enter key
+  addKeyboardShortcuts() {
+    return {
+      // Enter in a task list's name goes to its first task (a new one if the first isn't empty).
+      Enter: ({ editor }) => {
+        const { state } = editor;
+        const { $from, empty } = state.selection;
+        if (!empty || $from.parent.type.name !== 'detailsSummary') return false;
+        const details = $from.node($from.depth - 1);
+        const content = details.childCount > 1 ? details.child(1) : null;
+        const list = content?.firstChild;
+        if (list?.type.name !== 'taskList') return false;
+        const detailsPos = $from.before($from.depth - 1);
+        const contentPos = detailsPos + 1 + details.child(0).nodeSize;
+        const { tr, schema } = state;
+        if (!details.attrs.open) tr.setNodeMarkup(detailsPos, null, { ...details.attrs, open: true });
+        const firstItem = list.firstChild;
+        if (!firstItem || firstItem.textContent) {
+          tr.insert(contentPos + 2, schema.nodes.taskItem.create({ checked: false }, schema.nodes.paragraph.create()));
+        }
+        tr.setSelection(TextSelection.create(tr.doc, contentPos + 4)).scrollIntoView();
+        editor.view.dispatch(tr);
+        return true;
+      },
+    };
+  },
+  addProseMirrorPlugins() {
+    const build = doc => {
+      const decos = [];
+      doc.descendants((node, pos) => {
+        if (node.type.name !== 'details') return true;
+        const summary = node.firstChild;
+        const counts = countTasks(node);
+        if (summary?.type.name === 'detailsSummary' && counts.total) {
+          const at = pos + 1 + summary.nodeSize - 1; // end of the title
+          const label = taskCountLabel(counts);
+          decos.push(Decoration.widget(at, () => {
+            const el = document.createElement('span');
+            el.className = `task-count${counts.done === counts.total ? ' all-done' : ''}`;
+            el.contentEditable = 'false';
+            el.textContent = label;
+            return el;
+          }, { side: 1, key: `tc-${pos}-${label}`, ignoreSelection: true }));
+        }
+        return true;
+      });
+      return DecorationSet.create(doc, decos);
+    };
+    return [new Plugin({
+      key: new PluginKey('taskCounter'),
+      state: {
+        init: (_, state) => build(state.doc),
+        apply: (tr, old) => (tr.docChanged ? build(tr.doc) : old),
+      },
+      props: {
+        decorations(state) { return this.getState(state); },
+        handleDOMEvents: {
+          // Work around @tiptap/extension-details: for a toggle that is the very first block of the
+          // note (position 0) its click handler gives up ("if (!pos)"), so open/closed was never
+          // saved and the toggle got stuck. Its own listener has already flipped the display; we
+          // save the matching state.
+          click(view, event) {
+            const btn = event.target?.closest?.('[data-type="details"] > button');
+            if (!btn || !view.editable || btn.parentElement !== view.nodeDOM(0)) return false;
+            const node = view.state.doc.firstChild;
+            if (node?.type.name !== 'details') return false;
+            view.dispatch(view.state.tr.setNodeMarkup(0, undefined, { ...node.attrs, open: !node.attrs.open }));
+            return false;
+          },
+        },
+      },
+    })];
+  },
+});
+
 export const ToggleBlocks = [
   Details.configure({ persist: true, HTMLAttributes: { class: 'toggle-block' } }),
   DetailsSummary,
   DetailsContent,
+  TaskCounter,
 ];

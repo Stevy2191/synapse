@@ -20,7 +20,7 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Link as LinkExt } from '@tiptap/extension-link';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
-  Type, ListChecks, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
+  Type, ListChecks, ListTodo, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
   Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
@@ -35,10 +35,20 @@ import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
 import TurnInto from './TurnInto';
 
+// Is this toggle title the name of a task list (a toggle holding a checklist)?
+function isTaskListTitle(ed, pos) {
+  try {
+    const details = ed.state.doc.resolve(pos).parent;
+    let found = false;
+    details.descendants(n => { if (n.type.name === 'taskList') found = true; return !found; });
+    return found;
+  } catch { return false; }
+}
+
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
-  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, upload: ImageUp, subnote: FilePlus, toc: ListTree,
+  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   ai: Sparkles, 'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
@@ -88,8 +98,8 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       StarterKit.configure({ codeBlock: false, link: false, underline: false }),
       Placeholder.configure({
         includeChildren: true,
-        placeholder: ({ node }) => (node.type.name === 'heading' ? 'Heading'
-          : node.type.name === 'detailsSummary' ? 'Toggle title'
+        placeholder: ({ node, pos, editor: ed }) => (node.type.name === 'heading' ? 'Heading'
+          : node.type.name === 'detailsSummary' ? (isTaskListTitle(ed, pos) ? 'Task list name' : 'Toggle title')
           : 'Type / for blocks, [[ to link a note…'),
       }),
       TaskList,
