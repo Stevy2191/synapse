@@ -1,6 +1,6 @@
 {
   "name": "synapse-backend",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -23,6 +23,7 @@
     "multer": "^1.4.5-lts.1",
     "otpauth": "^9.5.2",
     "puppeteer-core": "^25.16.0",
+    "sherpa-onnx": "^2.0.1",
     "tar": "^7.5.22",
     "tesseract.js": "^7.0.0",
     "uuid": "^9.0.1",

@@ -90,6 +90,10 @@ body { margin: 0; background: #fff; color: #1f2330; font: 400 11pt/1.6 "Inter", 
 .x-callout > :last-child { margin-bottom: 0; }
 .x-toggle { margin: 0.8em 0; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 14px; }
 .x-toggle-summary { font-weight: 600; }
+.x-meeting { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.x-meeting-title { font-weight: 700; margin-bottom: 6px; }
+.x-meeting-line { margin: 4px 0; }
+.x-meeting-time { color: #9ca3af; font-size: 0.85em; margin-right: 4px; }
 .x-toggle-summary.x-level-1 { font-size: 1.75em; font-weight: 700; }
 .x-toggle-summary.x-level-2 { font-size: 1.4em; font-weight: 700; }
 .x-toggle-summary.x-level-3 { font-size: 1.17em; font-weight: 700; }

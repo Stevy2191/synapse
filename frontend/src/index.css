@@ -1362,3 +1362,73 @@ body {
 .ocr-lang { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-primary); }
 .ocr-lang label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .ocr-builtin { font-size: 11px; color: var(--text-muted); }
+
+/* ───────── Settings rows (AFFiNE-style): title + explanation left, control right ───────── */
+.spage code { font-size: 0.92em; }
+.sbadge { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; padding: 2px 8px; border-radius: 6px; font: 600 11px var(--font-sans); background: var(--accent); color: #fff; vertical-align: 3px; }
+.sbadge.ok { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); vertical-align: 1px; }
+.sgroup { border-top: 1px solid var(--border-subtle); padding: 14px 0 6px; margin-top: 6px; }
+.sgroup-title { font: 600 13px var(--font-sans); color: var(--text-muted); margin: 0 0 6px; }
+.srow { display: flex; align-items: center; gap: 20px; padding: 12px 0; }
+.srow + .srow { border-top: 1px dashed var(--border-subtle); }
+.srow-text { flex: 1; min-width: 0; }
+.srow-title { font: 600 14px var(--font-sans); color: var(--text-primary); display: flex; align-items: center; flex-wrap: wrap; }
+.srow-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-top: 3px; }
+.srow-desc a { color: var(--accent); }
+.srow-desc svg, .srow-note svg { display: inline-block; vertical-align: -2px; }
+.srow-ctrl { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.srow-note { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin: 6px 0 10px; }
+.srow-note.error { color: var(--danger); }
+.srow-progress { padding: 8px 0 4px; }
+@media (max-width: 640px) { .srow { flex-direction: column; align-items: stretch; gap: 8px; } .srow-ctrl { justify-content: flex-start; } }
+
+/* ───────── Meetings: block in notes, recorder ───────── */
+.mtg { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); padding: 12px 14px; margin: 0.8em 0; user-select: none; }
+.mtg.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+.mtg-head { display: flex; align-items: center; gap: 8px; }
+.mtg-icon { color: var(--accent); flex-shrink: 0; }
+.mtg-title { font: 700 15px var(--font-sans); color: var(--text-primary); }
+.mtg-meta { font-size: 12px; color: var(--text-muted); }
+.mtg-status { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--text-secondary); flex-wrap: wrap; }
+.mtg-status.error { color: var(--danger); }
+.mtg-status .btn-ghost { display: inline-flex; align-items: center; gap: 5px; }
+.mtg-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.mtg-dot.live { background: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); animation: mtg-pulse 1.4s infinite; }
+@keyframes mtg-pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .55); } 70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+.mtg-stop { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border: none; border-radius: 8px; background: #ef4444; color: #fff; font: 600 12.5px var(--font-sans); cursor: pointer; }
+.mtg-bar { height: 6px; border-radius: 4px; background: var(--bg-hover); overflow: hidden; margin-top: 8px; }
+.mtg-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
+.mtg-hint { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; }
+.mtg-audio { width: 100%; margin-top: 10px; height: 36px; }
+.mtg-speakers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.mtg-speaker { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-base); color: var(--text-primary); font: 500 12.5px var(--font-sans); cursor: pointer; }
+.mtg-speaker span { width: 9px; height: 9px; border-radius: 50%; }
+.mtg-speaker:hover { border-color: var(--accent); }
+.mtg-transcript { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; user-select: text; }
+.mtg-turn { padding: 6px 8px; border-radius: 8px; }
+.mtg-turn.on { background: var(--accent-subtle); }
+.mtg-who { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.mtg-time { border: none; background: none; padding: 0; color: var(--text-muted); font: 12px var(--font-mono, monospace); cursor: pointer; }
+.mtg-time:hover { color: var(--accent); text-decoration: underline; }
+.mtg-turn p { margin: 2px 0 0; font-size: 14px; line-height: 1.55; color: var(--text-primary); }
+.mtg-more { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; }
+.mtg-menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 200px; padding: 4px; border-radius: 10px; background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.mtg-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--text-primary); font: 13px var(--font-sans); text-align: left; cursor: pointer; }
+.mtg-menu button:hover { background: var(--bg-hover); }
+.mtg-menu button.danger { color: var(--danger); }
+.rec-choices { display: flex; flex-direction: column; gap: 8px; }
+.rec-choice { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); text-align: left; cursor: pointer; font: 13px var(--font-sans); }
+.rec-choice:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-subtle); }
+.rec-choice:disabled { opacity: .5; cursor: default; }
+.rec-choice svg { flex-shrink: 0; color: var(--accent); margin-top: 2px; }
+.rec-choice span { display: flex; flex-direction: column; gap: 3px; }
+.rec-choice small { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.rec-label { display: block; font: 600 12.5px var(--font-sans); color: var(--text-primary); margin: 12px 0 6px; }
+.rec-label small { font-weight: 400; color: var(--text-muted); }
+.rec-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1500; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 13px; color: var(--text-primary); max-width: calc(100vw - 24px); }
+.rec-title { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-time { font: 600 13px var(--font-mono, monospace); color: var(--text-secondary); }
+.rec-level { display: inline-flex; align-items: center; gap: 2px; height: 18px; }
+.rec-level i { width: 3px; border-radius: 2px; background: var(--accent); transition: height .1s; }
+.rec-btn { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; justify-content: center; padding: 0 8px; border: none; border-radius: 999px; background: var(--bg-hover); color: var(--text-primary); font: 600 12.5px var(--font-sans); cursor: pointer; }
+.rec-btn.stop { background: #ef4444; color: #fff; padding: 0 12px; }

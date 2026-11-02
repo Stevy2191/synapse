@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Sparkles, User, Palette, Lock, LogOut, Settings2, SlidersHorizontal, Users, Server, Upload, Trash2, Camera, ChevronLeft,
-  CalendarDays, RefreshCw, Plus, HardDriveDownload, Cloud, FolderOpen, ScanText,
+  CalendarDays, RefreshCw, Plus, HardDriveDownload, Cloud, FolderOpen, ScanText, Mic,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SecuritySettings from './SecuritySettings';
@@ -13,6 +13,7 @@ import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Av
 import AiSettings from '../ai/AiSettings';
 import BackupsPage from './BackupsPage';
 import OcrSettings from '../ocr/OcrSettings';
+import { MeetingPrefsPage, MeetingAdminPage } from '../meetings/MeetingSettings';
 import { ServerFilesPage, ConnectedDrivesPage } from '../files/FileSettings';
 import { useStore } from '../../stores/useStore';
 import { THEMES } from '../../themes';
@@ -52,6 +53,7 @@ export default function Settings() {
       ['calendars', <CalendarDays size={15} />, 'Calendars'],
       ['ai', <Sparkles size={15} />, 'AI assistant'],
       ['drives', <Cloud size={15} />, 'Connected drives'],
+      ['meetings', <Mic size={15} />, 'Meetings'],
     ] },
     { label: activeWorkspace ? `Workspace · ${activeWorkspace.name}` : 'Workspace', workspace: true, items: [
       ['ws-general', <Settings2 size={15} />, 'General'],
@@ -62,6 +64,7 @@ export default function Settings() {
       ['server-general', <Server size={15} />, 'Sign-ups & about'],
       ['server-files', <FolderOpen size={15} />, 'Files'],
       ['server-ocr', <ScanText size={15} />, 'Text recognition'],
+      ['server-meetings', <Mic size={15} />, 'Meetings'],
       ['server-backups', <HardDriveDownload size={15} />, 'Backups'],
     ] }] : []),
   ];
@@ -114,6 +117,8 @@ export default function Settings() {
             {page === 'server-general' && isAdmin && <ServerGeneralPage />}
             {page === 'drives' && <ConnectedDrivesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-files' && isAdmin && <ServerFilesPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'meetings' && <MeetingPrefsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'server-meetings' && isAdmin && <MeetingAdminPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-ocr' && isAdmin && <OcrSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
           </div>

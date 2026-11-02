@@ -179,6 +179,18 @@ async function renderBody(note, ctx) {
     const url = el.getAttribute('data-video') || '';
     el.replaceWith(make('p', 'x-video', `▶ Video: <a href="${esc(url)}">${esc(url)}</a>`));
   }
+  // Meeting recordings: the transcript, as text
+  for (const el of [...body.querySelectorAll('div[data-meeting], div[data-local-id]')]) {
+    let segs = [], speakers = {};
+    try { segs = JSON.parse(el.getAttribute('data-segments') || '[]'); } catch { /* none */ }
+    try { speakers = JSON.parse(el.getAttribute('data-speakers') || '{}'); } catch { /* none */ }
+    const clockT = t => { const x = Math.floor(t || 0); const h = Math.floor(x / 3600); const m = Math.floor((x % 3600) / 60); const ss = String(x % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; };
+    const who = i => (i === null || i === undefined ? 'Someone' : speakers[i] || `Speaker ${i + 1}`);
+    const box = make('div', 'x-meeting', `<div class="x-meeting-title">🎙 ${esc(el.getAttribute('data-title') || 'Meeting')}${Number(el.getAttribute('data-duration')) ? ` · ${clockT(Number(el.getAttribute('data-duration')))}` : ''}</div>`);
+    for (const s of segs) box.append(make('p', 'x-meeting-line', `<b>${esc(who(s.speaker))}</b> <span class="x-meeting-time">${clockT(s.start)}</span> ${esc(s.text)}`));
+    if (!segs.length) box.append(make('p', 'x-meeting-line', '<i>Transcript not ready yet.</i>'));
+    el.replaceWith(box);
+  }
   // Callouts
   for (const el of [...body.querySelectorAll('[data-callout]')]) {
     const type = CALLOUTS[el.getAttribute('data-callout')] ? el.getAttribute('data-callout') : 'info';

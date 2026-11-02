@@ -14,7 +14,9 @@ FROM node:20-alpine AS production
 RUN apk add --no-cache python3 make g++ sqlite-dev
 
 # Chromium prints notes to PDF (Export → PDF). Noto fonts cover most languages and emoji.
-RUN apk add --no-cache chromium font-noto font-noto-emoji
+# ffmpeg reads meeting recordings (any format → 16 kHz audio for transcription); tar + bzip2 unpack
+# the speech models the admin downloads.
+RUN apk add --no-cache chromium font-noto font-noto-emoji ffmpeg tar bzip2
 ENV CHROMIUM_PATH=/usr/bin/chromium-browser
 
 WORKDIR /app

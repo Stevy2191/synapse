@@ -140,6 +140,9 @@ function handle(type, data) {
     case 'share:changed':
       handleShareEvent(type, data);
       break;
+    case 'meeting:update':
+      window.dispatchEvent(new CustomEvent('synapse:meeting-update', { detail: data }));
+      break;
     case 'presence':
       set(s => (s.users[data.user_id] ? { users: { ...s.users, [data.user_id]: { ...s.users[data.user_id], online: data.online } } } : {}));
       break;

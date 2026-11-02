@@ -21,6 +21,8 @@ import { PanelTop } from 'lucide-react';
 import RichToolbar from './RichToolbar';
 import FilePicker from '../files/FilePicker';
 import ReadTextDialog from '../ocr/ReadTextDialog';
+import { RecordDialog, beginMeeting } from '../meetings/Recorder';
+import { useRecorder } from '../../meetings/client';
 import { attachCopy, fetchFile, fileHref } from '../../files/client';
 import { fitImage } from '../../utils/image';
 import { Paperclip, ScanText } from 'lucide-react';
@@ -340,6 +342,9 @@ export default function Editor() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [filePicker, setFilePicker] = useState(false);
   const [readTextFor, setReadTextFor] = useState(null); // { source, mode, after, at }
+  const [recordOpen, setRecordOpen] = useState(false);
+  // The recorder attaches finished uploads to the open note's meeting block itself.
+  useEffect(() => { useRecorder.setState({ openNoteId: activeNote?.note?.id || null }); }, [activeNote?.note?.id]);
   const [published, setPublished] = useState(0); // number of live links for my note
   const [ownerShare, setOwnerShare] = useState(null); // { count } for my own notes
   const sharedByMe = useShares(s => s.sharedByMe);
@@ -692,6 +697,25 @@ export default function Editor() {
     }
   };
 
+  // Meetings: insert a meeting block where the cursor is, then record / upload (Recorder.jsx).
+  const startMeeting = ({ mode, file, title }) => beginMeeting({
+    mode, file, title, noteId: activeNote.note.id, workspaceId: activeNote.note.workspace_id,
+    insert: (localId, t) => {
+      richEditorRef.current?.chain().focus().insertContent([
+        { type: 'meeting', attrs: { localId, title: t, status: mode === 'file' ? 'uploading' : 'recording', createdAt: Date.now() } },
+        { type: 'paragraph' },
+      ]).run();
+    },
+    remove: localId => {
+      const ed = richEditorRef.current;
+      if (!ed) return;
+      ed.state.doc.descendants((n, pos) => {
+        if (n.type.name === 'meeting' && n.attrs.localId === localId) { ed.chain().deleteRange({ from: pos, to: pos + n.nodeSize }).run(); return false; }
+        return true;
+      });
+    },
+  });
+
   // Text read from a picture / PDF goes into the note (Write: paragraphs; Markdown: as typed).
   const insertReadText = text => {
     const clean = String(text || '').trim();
@@ -984,6 +1008,7 @@ export default function Editor() {
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {recordOpen && <RecordDialog defaultTitle={/meeting|sync|standup|call/i.test(title) ? title : 'Meeting'} onBegin={startMeeting} onClose={() => setRecordOpen(false)} />}
       {readTextFor && <ReadTextDialog source={readTextFor.source} defaultMode={readTextFor.mode} onInsert={insertReadText} onClose={() => setReadTextFor(null)} />}
       {filePicker && <FilePicker mode="insert" onClose={() => setFilePicker(false)} onInsert={insertFile} />}
       {publishOpen && <PublishDialog note={{ ...activeNote.note, title }} onClose={() => setPublishOpen(false)} onLinksChanged={l => setPublished(l.filter(x => !x.expired).length)} />}
@@ -1034,7 +1059,7 @@ export default function Editor() {
             <div className="doc-column">
               {titleBlock}
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
-                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onReadText={!readOnly ? setReadTextFor : undefined} onRecord={!readOnly && !guest ? () => setRecordOpen(true) : undefined} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
               </div>
             </div>
           </div>

@@ -19,6 +19,31 @@ export function markdownToHtml(md) {
   const html = restoreMath(DOMPurify.sanitize(marked.parse(math.md, { gfm: true, breaks: true })), math.items, mathNodeHtml);
   // GFM checklists come out as <li><input type=checkbox> …</li>; the rich editor wants task lists.
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  for (const code of doc.querySelectorAll('pre > code.language-synapse-meeting')) {
+    try {
+      const [first, ...rest] = code.textContent.split('\n');
+      const meta = JSON.parse(first);
+      const byName = Object.fromEntries(Object.entries(meta.speakers || {}).map(([k, v]) => [v, Number(k)]));
+      const secs = c => c.split(':').map(Number).reduce((a, b) => a * 60 + b, 0);
+      const segments = rest.map(l => /^\[([\d:]+)\] ([^:]+): (.*)$/.exec(l)).filter(Boolean).map(m => {
+        const who = m[2].trim();
+        const sp = who in byName ? byName[who] : /^Speaker (\d+)$/.test(who) ? Number(who.slice(8)) - 1 : null;
+        return { start: secs(m[1]), end: secs(m[1]), speaker: sp, text: m[3] };
+      });
+      segments.forEach((s, i) => { s.end = segments[i + 1]?.start ?? meta.duration ?? s.start; });
+      const div = doc.createElement('div');
+      if (meta.id) div.setAttribute('data-meeting', meta.id);
+      if (meta.localId) div.setAttribute('data-local-id', meta.localId);
+      div.setAttribute('data-title', meta.title || 'Meeting');
+      div.setAttribute('data-status', meta.status || 'processing');
+      div.setAttribute('data-duration', String(meta.duration || 0));
+      if (meta.createdAt) div.setAttribute('data-created', String(meta.createdAt));
+      div.setAttribute('data-summary-inserted', meta.summaryInserted ? 'true' : 'false');
+      div.setAttribute('data-segments', JSON.stringify(segments));
+      div.setAttribute('data-speakers', JSON.stringify(meta.speakers || {}));
+      code.parentElement.replaceWith(div);
+    } catch { /* leave it as code */ }
+  }
   for (const code of doc.querySelectorAll('pre > code.language-synapse-diagram')) {
     try {
       const d = JSON.parse(code.textContent);
@@ -173,6 +198,25 @@ turndown.addRule('special', {
 turndown.addRule('fileLink', {
   filter: node => node.nodeName === 'A' && node.hasAttribute('data-file'),
   replacement: (content, node) => `[📎 ${(node.getAttribute('data-name') || 'File').replace(/[[\]]/g, '')}](${node.getAttribute('href') || ''})`,
+});
+// Meeting blocks: ```synapse-meeting fence — a line of settings, then the transcript, readable.
+const mClock = t => { const x = Math.max(0, Math.floor(t || 0)); const h = Math.floor(x / 3600); const m = Math.floor((x % 3600) / 60); const s = String(x % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`; };
+turndown.addRule('meeting', {
+  filter: node => node.nodeName === 'DIV' && (node.hasAttribute('data-meeting') || node.hasAttribute('data-local-id')),
+  replacement: (content, node) => {
+    let segments = [], speakers = {};
+    try { segments = JSON.parse(node.getAttribute('data-segments') || '[]'); } catch { /* none */ }
+    try { speakers = JSON.parse(node.getAttribute('data-speakers') || '{}'); } catch { /* none */ }
+    const meta = {
+      id: node.getAttribute('data-meeting') || null, localId: node.getAttribute('data-local-id') || null,
+      title: node.getAttribute('data-title') || 'Meeting', status: node.getAttribute('data-status') || 'processing',
+      duration: Number(node.getAttribute('data-duration')) || 0, createdAt: Number(node.getAttribute('data-created')) || null,
+      summaryInserted: node.getAttribute('data-summary-inserted') === 'true', speakers,
+    };
+    const name = i => (i === null || i === undefined ? 'Someone' : speakers[i] || `Speaker ${i + 1}`);
+    const lines = segments.map(s => `[${mClock(s.start)}] ${name(s.speaker)}: ${String(s.text).replace(/\n/g, ' ')}`);
+    return `\n\n\`\`\`synapse-meeting\n${JSON.stringify(meta)}\n${lines.join('\n')}\n\`\`\`\n\n`;
+  },
 });
 turndown.addRule('details', {
   filter: 'details',

@@ -62,6 +62,12 @@ backend/src/
                       downloaded by the admin); background job reads pictures in notes → ocr_cache
                       (picture hash → text) → FTS; /api/ocr/lookup for devices; /ocr-assets serves the
                       engine + languages for offline reading on devices. imagehash.js = picture hash
+  meetings.js + routes/meetings.js   meeting recordings: upload → queue (one at a time, resumed after a
+                      restart) → ffmpeg to 16 kHz f32 → engine (server: speech/worker.js in worker_threads —
+                      VAD → parallel Whisper ASR + diarization, merged by overlap; or AssemblyAI / Deepgram
+                      with the person's key) → optional AI summary/to-dos → live 'meeting:update' events +
+                      push. Audio in UPLOADS_DIR/meetings (backed up), signed audio links. speech/models.js =
+                      admin downloads sherpa-onnx models (GitHub releases) into DATA_DIR/speech-models
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -84,6 +90,10 @@ frontend/src/
   ocr/client.js, ocr/hash.js        readText (server, else tesseract.js on the device; handwriting → /api/ai/read-image),
                                     readPdf (pdf.js text, OCR for scanned pages), search index (IndexedDB store `ocr`)
   components/ocr/                   ReadTextDialog (Printed / Handwriting, Copy / Insert / New note), OcrSettings (admin)
+  meetings/client.js                recorder (zustand useRecorder: mic or getDisplayMedia + mic mixed, MediaRecorder,
+                                    chunks kept in IndexedDB `recordings` until uploaded, retryUnsent), API
+  components/meetings/              MeetingBlock (Tiptap node `meeting`), Recorder (RecordDialog, RecorderBar,
+                                    beginMeeting), MeetingSettings (Settings → Meetings / Server → Meetings, Row/Group)
   components/editor/extensions.js   "/" menu (SLASH_ITEMS, grouped), [[ suggest, wiki decorations
   components/editor/convert.js      Markdown ⇄ HTML (marked + turndown) incl. all custom blocks
   components/editor/blocks.jsx      callouts, table of contents, toggles (details)
@@ -217,6 +227,15 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   service worker; prepareOffline() warms it after the first server read). Handwriting = the person's
   AI (vision; Anthropic image block / OpenAI image_url) — online only. Changing languages clears the
   cache so pictures are re-read.
+- **Meetings** (built Nov 2026): Sean chose "server + optional cloud" and "keep audio with the note".
+  Server engine = sherpa-onnx **WebAssembly** npm package (works on Alpine/musl; the native one is
+  glibc-only), Whisper int8 (base.en default) + Silero VAD + pyannote segmentation (windowShiftRatio
+  0.5) + NeMo TitaNet-small embeddings — ~2× faster than real time on 4 cores with 2 ASR workers.
+  Recording: the block is inserted first with a localId; the upload result is announced by a window
+  event (open editor) or patched into the saved note's rich_content (attachToSavedNote). The block
+  copies segments/speakers into its attrs when done (offline-readable, searchable via the Markdown
+  fence) and inserts "### Summary" / "### Action items" (`- [ ] task (who) 📅 date`) below once.
+  Online calls need getDisplayMedia (Chrome/Edge desktop; no iPad/phone). Needs https (secure context).
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -264,6 +283,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   only → a "scanned" PDF). The AI stand-in answers "transcribe images" system prompts. Simulate the
   device fallback with `page.route('**/api/ocr/image', r => r.abort())`. OCR_LANG_URL overrides where
   languages are downloaded from (serve a copy of eng as another code to test adding one).
+- Meetings: Chromium flags `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream
+  --use-file-for-fake-audio-capture=<wav>` feed a WAV as the microphone. A two-voice test file can be
+  made from the sherpa Whisper test_wavs (0.wav + 1.wav + 0.wav with silences, via ffmpeg). Serve the
+  model files locally and set SPEECH_MODELS_BASE (same paths as GitHub releases); ASSEMBLYAI_BASE /
+  DEEPGRAM_BASE point the cloud engines at stand-ins. The AI stand-in answers "meeting notes" prompts.
 - Backups: restore makes the server exit (Docker restarts it); in the sandbox start it again by
   hand. Test a "new server" with a second DATA_DIR + different JWT_SECRET on another port.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -329,5 +353,7 @@ Other ideas:
   family calendar view.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
 - Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
+- Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,
+  auto-recording prompts from calendar events, restyling the rest of Settings in the new row layout.
 - Mobile polish; installable PWA "share to Synapse"; quick-capture widget.
 - Public REST API + API tokens / webhooks (for Home Assistant, scripts, n8n).

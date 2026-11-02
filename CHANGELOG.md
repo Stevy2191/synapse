@@ -4,6 +4,28 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.10.0 — November 2026
+
+### New
+- **Record and transcribe meetings** — type `/meeting` in a note (or the microphone button in the
+  formatting bar):
+  - **In the room** — records with the device’s microphone (computer, tablet or phone).
+  - **Online meeting on this computer** — Teams, Zoom, Meet…: share the screen with “Share system
+    audio” (or a tab with “Share tab audio”) in Chrome/Edge, and your microphone is recorded too.
+  - **Upload a recording** you already have (voice memo, Teams/Zoom recording, any audio/video file).
+  - A recording bar stays on screen while you work (pause, stop, throw away). Recordings are kept
+    on the device until they’re uploaded — safe if the tab closes or you’re offline.
+  - **Transcript with speakers** — who said what (“Speaker 1, Speaker 2…” — click a name to rename
+    it), an audio player, and click a time to jump there. Optionally say how many people spoke.
+  - **AI summary and to-do list** (if your AI assistant is set up — Gemini’s free tier works),
+    added below the transcript; to-dos show up in Tasks. Turn them on/off in Settings → Meetings.
+  - Transcribed **free and privately on your server** (Whisper + speaker detection; the admin
+    downloads the speech models once in Settings → Server → Meetings), or with your own
+    **AssemblyAI** or **Deepgram** key (faster, better at telling voices apart).
+  - You get a notification when a transcript is ready. The audio is kept with the note (and in
+    backups) until you delete it.
+- Settings pages for Meetings use a new, cleaner row layout.
+
 ## v1.9.0 — November 2026
 
 ### New

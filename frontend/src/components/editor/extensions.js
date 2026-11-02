@@ -124,6 +124,8 @@ export const SLASH_ITEMS = [
     } },
   { id: 'file', group: 'Media', title: 'File from a folder or drive', desc: 'Network folders, OneDrive, Google Drive — attach a copy or link it', keywords: 'file attach attachment upload onedrive google drive nas share folder document pdf',
     run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:pickFile'); } },
+  { id: 'meeting', group: 'Media', title: 'Record a meeting', desc: 'Record, then get a transcript with who said what (and a summary)', keywords: 'meeting record recording audio transcribe transcript voice call teams zoom minutes dictate speakers',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:record'); } },
   { id: 'ocr', group: 'Media', title: 'Text from a picture or PDF', desc: 'Read the text in a photo, screenshot or scan and insert it', keywords: 'ocr scan read text recognise recognize photo screenshot pdf handwriting whiteboard document copy',
     run: (e, r) => {
       e.chain().focus().deleteRange(r).run();

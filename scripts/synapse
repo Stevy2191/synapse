@@ -223,7 +223,7 @@ make_backup() {
   is_running && was_running=1
   if [ "$was_running" = 1 ]; then echo "Pausing Synapse for a moment to take a consistent copy…"; compose stop synapse >/dev/null; fi
   mkdir -p "$tmp/data"
-  if ! with_data 'cd /data && tar cf - --exclude=./backups --exclude=./restore-pending --exclude=./restore-staging .' | tar xf - -C "$tmp/data"; then
+  if ! with_data 'cd /data && tar cf - --exclude=./backups --exclude=./restore-pending --exclude=./restore-staging --exclude=./speech-models --exclude=./.meeting-tmp --exclude=./.meeting-uploads .' | tar xf - -C "$tmp/data"; then
     [ "$was_running" = 1 ] && compose start synapse >/dev/null
     rm -rf "$tmp"; die "Couldn't read the notes."
   fi

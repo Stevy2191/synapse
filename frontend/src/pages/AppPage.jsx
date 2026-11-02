@@ -3,6 +3,8 @@ import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
 import TabBar from '../tabs/TabBar';
+import { RecorderBar } from '../components/meetings/Recorder';
+import { retryUnsent } from '../meetings/client';
 import GraphView from '../components/graph/GraphView';
 import TasksView from '../components/tasks/TasksView';
 import TrashView from '../components/trash/TrashView';
@@ -36,6 +38,13 @@ export default function AppPage() {
   }));
   const setSearchOpen = useStore(s => s.setSearchOpen);
   const narrow = useIsNarrow();
+
+  // Meeting recordings that didn't upload (offline / closed tab): try again now and when back online.
+  useEffect(() => {
+    const t = setTimeout(retryUnsent, 4000);
+    window.addEventListener('online', retryUnsent);
+    return () => { clearTimeout(t); window.removeEventListener('online', retryUnsent); };
+  }, []);
 
   // Start closed on phones; the menu button opens it.
   useEffect(() => { if (narrow) setSidebarOpen(false); }, [narrow]);
@@ -121,6 +130,7 @@ export default function AppPage() {
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : <><TabBar /><Editor /></>}
       </main>
+      <RecorderBar />
       <SearchModal />
       <Settings />
     </div>

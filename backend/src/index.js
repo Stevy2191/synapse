@@ -27,6 +27,8 @@ import { purgeOrphanChatFiles } from './chat.js';
 import backupRoutes from './routes/backups.js';
 import fileRoutes from './routes/files.js';
 import ocrRoutes from './routes/ocr.js';
+import meetingRoutes from './routes/meetings.js';
+import { startMeetings } from './meetings.js';
 import { startOcrIndexing, closeOcr, LANG_DIR, CORE_DIR, WORKER_FILE } from './ocr.js';
 import { startBackups } from './backups.js';
 
@@ -77,6 +79,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/backups', backupRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/ocr', ocrRoutes);
+app.use('/api/meetings', meetingRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);
@@ -129,6 +132,7 @@ purgeTrash();
 setInterval(purgeTrash, 6 * 60 * 60 * 1000).unref();
 startBackups();
 startOcrIndexing();
+startMeetings();
 purgeOrphanChatFiles();
 setInterval(purgeOrphanChatFiles, 6 * 60 * 60 * 1000).unref();
 
