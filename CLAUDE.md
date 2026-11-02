@@ -69,6 +69,10 @@ backend/src/
                       push. Audio in UPLOADS_DIR/meetings (backed up), signed audio links. speech/models.js =
                       admin downloads sherpa-onnx models (GitHub releases) into DATA_DIR/speech-models
   (clusters)          stored in workspace settings `clusters` — validated by validClusters in routes/workspaces.js
+  reminders.js + routes/reminders.js   task reminders: reminder_prefs (summary on/time, timed on, tz from the
+                      browser), reminders_sent (dedupe keys); every minute reads open dated tasks from each person's
+                      notes' Markdown copy (taskWhen.js) → morning summary / ⏰ exact-time; delivered via chat.js
+                      (SSE 'reminder' if on screen, else pushTo). taskWhen.js = token parser (sync with frontend)
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -77,6 +81,12 @@ frontend/src/
   offline/sync.js     THE data layer: local-first reads/writes, outbox push, pull, search,
                       graph, links, trash helpers, undoDelete
   offline/tasks.js    Tasks: parse/edit checklist items in notes (rich via DOM, markdown by line)
+  offline/taskWhen.js 📅 due / ⏰ time / 🔁 repeat tokens: splitWhen, setWhen, parseRepeat, nextDue (keep the
+                      regexes in sync with backend/src/taskWhen.js)
+  components/editor/recurring.js   TaskWhen extension: token chips (click → synapse:taskWhen → TaskWhenDialog),
+                      ticking a 🔁 task moves it to the next date (appendTransaction), applyWhen()
+  components/tasks/TaskWhenDialog.jsx, ReminderSettings.jsx (Settings → Reminders); reminders/client.jsx
+                      (tz report, ?open=tasks / ?note=<id> from notifications, in-app reminder toast)
   offline/dailyNotes.js  daily notes, meeting notes (Meetings › Month), to-dos from meetings
   stores/useStore.js  zustand (persisted): user, workspaces, tree `notes`, activeNote, view …
   pages/AppPage.jsx   layout; `view` = editor | graph | tasks | trash
@@ -262,6 +272,16 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   queries filter `deleted_at IS NULL`; purge after `TRASH_DAYS` at startup + every 6 h. Clients
   just see trashed notes disappear on pull; the Trash page is online-only. Editing a trashed
   note (offline device) restores it.
+- **Reminders & repeating tasks** (built Nov 2026): Sean chose "morning summary + exact times" and "push
+  only" (no email/ntfy). Tokens in the task text: `📅 2026-11-20 ⏰ 09:00 🔁 every month` (⏰ needs a date).
+  Repeating = Todoist-style: ticking moves the date to the next occurrence (skipping past today if
+  overdue) and leaves it unticked — no done copies kept. Done in the editor (recurring.js, undoable)
+  and in updateTask (Tasks page); Markdown-mode typing of `[x]` doesn't trigger it. Server reads the
+  Markdown copy (`content`) of the person's own notes (not shared ones), skips #no-tasks. Summary is
+  sent once per day at/after the chosen time (up to 4 h late if the server was down); ⏰ reminders up
+  to 20 min late. Delivery follows chat: live toast if an app is on screen, else push. Push test in the
+  sandbox: web-push always uses https → a self-signed https stand-in + NODE_TLS_REJECT_UNAUTHORIZED=0,
+  payload decrypted with http_ece.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
@@ -362,7 +382,7 @@ Other ideas:
   inline, files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.
 - Outlook calendar two-way: create a meeting note from an event, push tasks with due dates.
-- Reminders / notifications for due tasks (web push, email, or ntfy/Gotify for self-hosters).
+- Reminders by email or ntfy/Gotify (push reminders are built).
 - Kanban board view of tasks; database/table views (properties per note, Notion-style).
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - PDF annotation with the pen.

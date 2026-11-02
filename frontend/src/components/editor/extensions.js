@@ -10,6 +10,7 @@ import { useStore } from '../../stores/useStore';
 import { openNoteByTitle, createNote } from '../../offline/sync';
 import { nextInNewTab } from '../../tabs/tabs';
 import { fitImage } from '../../utils/image';
+import { taskItemAt } from './recurring';
 import toast from 'react-hot-toast';
 import { videoSource, MERMAID_SAMPLE } from './embeds';
 
@@ -166,6 +167,8 @@ export const SLASH_ITEMS = [
   { id: 'toc', group: 'Notes & links', title: 'Table of contents', desc: 'List of this note’s headings', keywords: 'toc contents outline index headings summary',
     run: (e, r) => e.chain().focus().deleteRange(r).insertContent([{ type: 'tableOfContents' }, { type: 'paragraph' }]).run() },
   // Date & time
+  { id: 'due', group: 'Date & time', title: 'Due date & reminder', desc: 'Give a to-do a date, a reminder time, or make it repeat', keywords: 'due deadline reminder remind alarm notify notification repeat recurring every weekly daily monthly task todo schedule',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); openTaskWhen(e); } },
   { id: 'date', group: 'Date & time', title: 'Today’s date', desc: today(), keywords: 'date today day calendar', run: (e, r) => e.chain().focus().deleteRange(r).insertContent(today() + ' ').run() },
   { id: 'time', group: 'Date & time', title: 'Current time', desc: now(), keywords: 'time clock now', run: (e, r) => e.chain().focus().deleteRange(r).insertContent(now() + ' ').run() },
   { id: 'datetime', group: 'Date & time', title: 'Date and time', desc: 'Today’s date with the time', keywords: 'timestamp now date time',
@@ -245,6 +248,13 @@ export const WikiLinkSuggest = Extension.create({
     })];
   },
 });
+
+/** Open "Due date & reminder" for the checklist item at the cursor (turning the line into one if needed). */
+export function openTaskWhen(e) {
+  if (taskItemAt(e.state, e.state.selection.from) == null) e.chain().focus().toggleTaskList().run();
+  const pos = taskItemAt(e.state, e.state.selection.from);
+  if (pos != null) e.emit('synapse:taskWhen', { pos });
+}
 
 const WIKI = /\[\[([^\[\]\n]+)\]\]/g;
 

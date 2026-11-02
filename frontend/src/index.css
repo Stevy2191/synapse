@@ -1495,3 +1495,20 @@ body {
   .cl-head h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .cl-head .tasks-count { display: none; }
 }
+
+/* ── Task dates, reminders, repeats ───────────────────────────────── */
+.task-when { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 0 5px; font-size: .86em; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.task-when:hover { border-color: var(--accent); color: var(--text-primary); }
+.task-when.today { color: var(--accent); border-color: var(--accent); }
+.task-when.overdue { color: var(--danger, #d33); border-color: color-mix(in srgb, var(--danger, #d33) 50%, transparent); }
+li[data-checked="true"] .task-when { opacity: .6; }
+.tw-quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.tw-quick .btn-ghost.on { background: var(--accent-subtle); color: var(--text-primary); }
+.tw-quick input[type="date"], .tw-quick input[type="time"] { width: auto; flex: 0 0 auto; }
+.tw-custom { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--text-secondary); font-size: 13.5px; }
+.tw-custom input { flex: 1; min-width: 0; }
+.rec-label svg { display: inline-block; vertical-align: -2px; margin-right: 4px; }
+.task-due button svg + svg, .task-due button span svg { margin-left: 4px; }
+.reminder-toast { display: flex; flex-direction: column; gap: 4px; min-width: 220px; max-width: 320px; }
+.reminder-toast span { white-space: pre-line; font-size: 13px; color: var(--text-secondary); }
+.reminder-toast div { display: flex; gap: 6px; margin-top: 6px; }

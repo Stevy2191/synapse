@@ -4,6 +4,23 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.12.0 — November 2026
+
+### New
+- **Reminders** for to-dos with a due date.
+  - **Morning summary:** one notification a day (08:00 by default) listing what's due today and
+    what's overdue. Nothing is sent on days with nothing due.
+  - **At the task's time:** give a to-do a time (⏰) and you get a reminder right then.
+  - Arrives as a phone/computer notification when Synapse isn't open (turn notifications on in
+    **Settings → Reminders**, needs the https address), or as a pop-up while it is. Tapping it opens
+    the note or Tasks. Times follow your own time zone. There's a **Test** button.
+- **Repeating to-dos:** `🔁 every week` (day, weekday, 2 weeks, month, year, "monday and thursday"…).
+  Ticking one moves it to its next date instead of finishing it — in the note or on the Tasks page.
+- **Due date & reminder window:** type **/due** in a note, use the new 🔔 button in the formatting bar,
+  or click a date in a to-do — pick the day (Today / Tomorrow / Next week), a reminder time and how it
+  repeats. Dates, times and repeats show as small chips in notes (overdue ones in red), and on the
+  Tasks page. Still plain text underneath: `Pay the water bill 📅 2026-11-20 ⏰ 09:00 🔁 every month`.
+
 ## v1.11.0 — November 2026
 
 ### New

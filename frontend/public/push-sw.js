@@ -1,4 +1,4 @@
-// Chat notifications. Loaded into the app's service worker (see vite.config.js → importScripts).
+// Chat and reminder notifications. Loaded into the app's service worker (see vite.config.js → importScripts).
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
@@ -22,6 +22,7 @@ self.addEventListener('notificationclick', (event) => {
     if (win) {
       await win.focus();
       if (chatId) win.postMessage({ type: 'open-chat', chatId });
+      else if (url && url !== '/') win.postMessage({ type: 'open-url', url });
       return;
     }
     await self.clients.openWindow(url || '/');

@@ -1,7 +1,9 @@
 // Every checklist item from every note in the workspace, by when it's due.
 // Ticking a box or changing a date here changes the note it lives in.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckSquare, Square, CalendarDays, FileText, Plus, ChevronRight, RefreshCw } from 'lucide-react';
+import { CheckSquare, Square, CalendarDays, FileText, Plus, ChevronRight, RefreshCw, Bell, Repeat } from 'lucide-react';
+import TaskWhenDialog from './TaskWhenDialog';
+import { fmtDue } from '../../offline/taskWhen';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
 import SidebarButton from '../sidebar/SidebarButton';
@@ -24,16 +26,17 @@ function TaskText({ text, workspaceId }) {
 }
 
 function DueButton({ task, today, onChange }) {
-  const input = useRef(null);
+  const [open, setOpen] = useState(false);
   const cls = !task.due ? 'none' : task.done ? '' : task.due < today ? 'overdue' : task.due === today ? 'today' : '';
   const label = !task.due ? 'Add date' : task.due === today ? 'Today' : task.due === addDays(today, 1) ? 'Tomorrow' : fmtDay(task.due);
   return (
     <span className={`task-due ${cls}`}>
-      <button type="button" title="Change the due date" onClick={() => input.current?.showPicker ? input.current.showPicker() : input.current?.click()}>
+      <button type="button" title="Due date, reminder or repeat" onClick={() => setOpen(true)}>
         <CalendarDays size={12} /> {label}
+        {task.time && <><Bell size={11} /> {task.time}</>}
+        {task.repeat && <span title={task.repeat}><Repeat size={11} /></span>}
       </button>
-      <input ref={input} type="date" value={task.due || ''} aria-label="Due date" tabIndex={-1}
-        onChange={e => onChange(e.target.value || null)} />
+      {open && <TaskWhenDialog initial={task} task={task.text} onClose={() => setOpen(false)} onSave={w => { setOpen(false); onChange(w); }} />}
     </span>
   );
 }
@@ -64,7 +67,10 @@ export default function TasksView() {
 
   const change = async (task, ch) => {
     setTasks(ts => ts.map(t => (t === task ? { ...t, ...ch } : t)));   // show it straight away
-    try { await updateTask(ws.id, task, ch); } catch (err) { toast.error(err.message); }
+    try {
+      const r = await updateTask(ws.id, task, ch);
+      if (r?.next) toast.success(`Done — it repeats, next on ${fmtDue(r.next)}`);
+    } catch (err) { toast.error(err.message); }
     load();
   };
 
@@ -105,11 +111,11 @@ export default function TasksView() {
       <div className="task-main">
         <div className="task-text"><TaskText text={t.text} workspaceId={ws.id} /></div>
         <div className="task-meta">
-          {!t.done && t.due && <DueButton task={t} today={today} onChange={d => change(t, { due: d })} />}
+          {!t.done && t.due && <DueButton task={t} today={today} onChange={w => change(t, w)} />}
           <button type="button" className="task-source" title="Open the note" onClick={() => { openNote(t.noteId); useStore.getState().setView('editor'); }}>
             <FileText size={12} /> {t.noteTitle}
           </button>
-          {!t.done && !t.due && <DueButton task={t} today={today} onChange={d => change(t, { due: d })} />}
+          {!t.done && !t.due && <DueButton task={t} today={today} onChange={w => change(t, w)} />}
         </div>
       </div>
     </div>
@@ -126,7 +132,7 @@ export default function TasksView() {
         </div>
         <p className="tasks-lead">
           {showAll ? <>Every checklist item in <b>{ws?.name}</b>.</> : <>To-dos with a due date, plus everything from meeting and daily notes.</>}
-          {' '}Give any checklist item a date by typing <code>📅 2026-11-20</code> after it. Tag a note <code>#no-tasks</code> to keep it out of here.
+          {' '}Give a checklist item a date, a reminder time or make it repeat with <b>/due</b> in a note, or type <code>📅 2026-11-20 ⏰ 09:00 🔁 every week</code> after it. Tag a note <code>#no-tasks</code> to keep it out of here.
         </p>
         <div className="seg tasks-filter">
           <button className={!showAll ? 'on' : ''} onClick={() => setShowAll(false)}>To-dos</button>

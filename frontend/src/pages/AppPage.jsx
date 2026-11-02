@@ -16,6 +16,7 @@ import { startChat, stopChat, useChat, totalUnread } from '../chat/client';
 import SearchModal from '../components/editor/SearchModal';
 import Settings from '../components/sidebar/Settings';
 import api from '../api';
+import { reportTimeZone, openFromReminderUrl, showReminder } from '../reminders/client';
 import { startOffline, getWorkspaces, syncNow } from '../offline/sync';
 
 function useIsNarrow() {
@@ -84,9 +85,16 @@ export default function AppPage() {
       }
     };
     openFromUrl();
-    const onSwMessage = e => { if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId); };
+    openFromReminderUrl(window.location.search);
+    reportTimeZone(user.id);
+    const onSwMessage = e => {
+      if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId);
+      if (e.data?.type === 'open-url') openFromReminderUrl(new URL(e.data.url, window.location.origin).search);
+    };
+    const onReminder = e => showReminder(e.detail);
+    window.addEventListener('synapse:reminder', onReminder);
     navigator.serviceWorker?.addEventListener('message', onSwMessage);
-    return () => { stopChat(); navigator.serviceWorker?.removeEventListener('message', onSwMessage); };
+    return () => { stopChat(); navigator.serviceWorker?.removeEventListener('message', onSwMessage); window.removeEventListener('synapse:reminder', onReminder); };
   }, [user?.id]);
   const unread = useChat(totalUnread);
   useEffect(() => {

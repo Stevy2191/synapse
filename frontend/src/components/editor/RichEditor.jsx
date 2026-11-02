@@ -36,6 +36,9 @@ import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
 import ColorPicker from '../ColorPicker';
 import TurnInto from './TurnInto';
+import { TaskWhen, applyWhen, taskItemText } from './recurring';
+import TaskWhenDialog from '../tasks/TaskWhenDialog';
+import { splitWhen } from '../../offline/taskWhen';
 
 // Is this toggle title the name of a task list (a toggle holding a checklist)?
 function isTaskListTitle(ed, pos) {
@@ -123,6 +126,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       SlashCommand.configure({ getUi }),
       WikiLinkSuggest.configure({ getUi }),
       WikiLinkDecorations,
+      TaskWhen,
       DiagramNode,
       Callout,
       TableOfContents,
@@ -168,6 +172,15 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     editor.on('synapse:readText', read);
     editor.on('synapse:record', record);
     return () => { editor.off('synapse:pickFile', open); editor.off('synapse:readText', read); editor.off('synapse:record', record); };
+  }, [editor]);
+
+  // "/" → Due date & reminder, the toolbar bell, or clicking a 📅 / ⏰ / 🔁 chip.
+  const [taskWhen, setTaskWhen] = useState(null);
+  useEffect(() => {
+    if (!editor) return undefined;
+    const open = ({ pos }) => { const w = splitWhen(taskItemText(editor.state, pos)); setTaskWhen({ pos, initial: w, text: w.text }); };
+    editor.on('synapse:taskWhen', open);
+    return () => editor.off('synapse:taskWhen', open);
   }, [editor]);
 
   // "/" → Math opens the equation dialog
@@ -403,6 +416,10 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
 
       <EditorContent editor={editor} />
 
+      {taskWhen && (
+        <TaskWhenDialog initial={taskWhen.initial} task={taskWhen.text} onClose={() => { setTaskWhen(null); editor.commands.focus(); }}
+          onSave={w => { const t = taskWhen; setTaskWhen(null); if (editor.state.doc.nodeAt(t.pos)?.type.name === 'taskItem') applyWhen(editor, t.pos, w); }} />
+      )}
       {drawingPicker && <DrawingPicker onClose={() => { setDrawingPicker(false); editor.commands.focus(); }}
         onPick={title => { setDrawingPicker(false); editor.chain().focus().insertContent([{ type: 'drawingEmbed', attrs: { title } }, { type: 'paragraph' }]).run(); }} />}
       {math && <MathDialog initial={math.latex} inline={math.inline} editing={math.editing}

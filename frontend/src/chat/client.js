@@ -140,6 +140,9 @@ function handle(type, data) {
     case 'share:changed':
       handleShareEvent(type, data);
       break;
+    case 'reminder':
+      window.dispatchEvent(new CustomEvent('synapse:reminder', { detail: data }));
+      break;
     case 'meeting:update':
       window.dispatchEvent(new CustomEvent('synapse:meeting-update', { detail: data }));
       break;

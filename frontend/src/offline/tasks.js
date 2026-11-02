@@ -6,8 +6,9 @@
 import { getWorkspaceNotes, saveNote, openNote } from './sync';
 import { useStore } from '../stores/useStore';
 import { htmlToMarkdown, markdownToHtml } from '../components/editor/convert';
+import { DUE, TIME, REPEAT, splitWhen, whenTokens, setWhen, nextDue } from './taskWhen';
 
-export const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/u;
+export { DUE };
 const MD_TASK = /^(\s*[-*+]\s+\[)([ xX])(\]\s?)(.*)$/;
 
 const hasText = html => !!(html || '').replace(/<[^>]+>/g, '').trim();
@@ -16,10 +17,8 @@ const isRich = note => note.editor_mode === 'rich';
 const richHtml = note => (hasText(note.rich_content) || !(note.content || '').trim() ? (note.rich_content || '') : markdownToHtml(note.content));
 const parse = html => new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
 
-function splitDue(text) {
-  const m = text.match(DUE);
-  return { text: text.replace(DUE, '').replace(/\s+/g, ' ').trim(), due: m ? m[1] : null };
-}
+// { text, due, time, repeat } — see taskWhen.js for the 📅 / ⏰ / 🔁 tokens.
+const splitDue = splitWhen;
 
 /** The task's own line of text (without any list nested under it). */
 function itemText(li) {
@@ -65,9 +64,9 @@ export async function listTasks(workspaceId) {
       found = mdLines(note.content).tasks.map(t => ({ raw: t.text, done: t.done }));
     }
     found.forEach((t, index) => {
-      const { text, due } = splitDue(t.raw);
+      const { text, due, time, repeat } = splitDue(t.raw);
       if (!text) return; // empty placeholder items
-      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, kind, updatedAt: note.updated_at });
+      out.push({ noteId: note.id, noteTitle: note.title, index, text, done: t.done, due, time, repeat, kind, updatedAt: note.updated_at });
     });
   }
   return out;
@@ -88,48 +87,67 @@ async function writeBack(note, { html, md }) {
 }
 
 function setDueInText(raw, due) {
-  const base = raw.replace(DUE, '').replace(/\s+$/, '');
-  return due ? `${base} 📅 ${due}` : base;
+  return setWhen(raw, { ...splitWhen(raw), due });
 }
 
-/** Change one task: { done?: boolean, due?: 'YYYY-MM-DD' | null }. `expectText` guards against edits made meanwhile. */
+const WHEN_KEYS = ['due', 'time', 'repeat'];
+
+/**
+ * Change one task: { done?, due?: 'YYYY-MM-DD' | null, time?: 'HH:MM' | null, repeat?: 'every …' | null }.
+ * Ticking a repeating task moves it to its next date instead (it stays unticked); returns { next } then.
+ * The task's text guards against edits made meanwhile.
+ */
 export async function updateTask(workspaceId, task, change) {
   const note = await getNote(workspaceId, task.noteId);
   if (!note) throw new Error('That note no longer exists');
-  if (isRich(note)) {
-    const doc = parse(richHtml(note));
-    const li = richItems(doc)[task.index];
-    if (!li || splitDue(itemText(li)).text !== task.text) throw new Error('The note changed — refresh and try again');
+  change = { ...change };
+  let result = {};
+  const rich = isRich(note);
+  const doc = rich ? parse(richHtml(note)) : null;
+  const md = rich ? null : mdLines(note.content);
+  const li = rich ? richItems(doc)[task.index] : null;
+  const mdt = rich ? null : md.tasks[task.index];
+  const raw = rich ? (li ? itemText(li) : null) : (mdt ? mdt.text : null);
+  if (raw == null || splitDue(raw).text !== task.text) throw new Error('The note changed — refresh and try again');
+  const cur = splitDue(raw);
+  if (change.done && cur.repeat) {
+    const next = nextDue(cur.due, cur.repeat);
+    if (next) { delete change.done; change.due = next; result = { next }; }
+  }
+  const when = WHEN_KEYS.some(k => k in change) ? { due: cur.due, time: cur.time, repeat: cur.repeat, ...Object.fromEntries(WHEN_KEYS.filter(k => k in change).map(k => [k, change[k] || null])) } : null;
+  if (rich) {
     if ('done' in change) {
       li.setAttribute('data-checked', change.done ? 'true' : 'false');
       const box = li.querySelector(':scope > label input[type="checkbox"]');
       if (box) { if (change.done) box.setAttribute('checked', 'checked'); else box.removeAttribute('checked'); }
     }
-    if ('due' in change) {
+    if (when) {
       const p = li.querySelector(':scope > div > p, :scope > p');
       if (p) {
-        // Remove any old date from the text nodes, then add the new one at the end.
+        // Remove the old date / time / repeat from the text nodes, then add the new ones at the end.
         const walker = doc.createTreeWalker(p, NodeFilter.SHOW_TEXT);
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);
-        for (const n of nodes) n.textContent = n.textContent.replace(new RegExp(DUE.source, 'gu'), '');
+        for (const n of nodes) {
+          n.textContent = n.textContent.replace(new RegExp(DUE.source, 'gu'), '').replace(new RegExp(TIME.source, 'gu'), '').replace(new RegExp(REPEAT.source, 'giu'), '');
+        }
         const last = nodes[nodes.length - 1];
         if (last) last.textContent = last.textContent.replace(/\s+$/, '');
-        if (change.due) p.appendChild(doc.createTextNode(` 📅 ${change.due}`));
+        const tokens = whenTokens(when);
+        if (tokens) p.appendChild(doc.createTextNode(tokens));
       }
     }
     await writeBack(note, { html: doc.body.innerHTML });
   } else {
-    const { lines, tasks } = mdLines(note.content);
-    const t = tasks[task.index];
-    if (!t || splitDue(t.text).text !== task.text) throw new Error('The note changed — refresh and try again');
-    const m = lines[t.line].match(MD_TASK);
+    const { lines } = md;
+    const m = lines[mdt.line].match(MD_TASK);
     let text = m[4];
-    if ('due' in change) text = setDueInText(text, change.due);
+    if (when) text = setWhen(text, when);
     const mark = 'done' in change ? (change.done ? 'x' : ' ') : m[2];
-    lines[t.line] = `${m[1]}${mark}${m[3]}${text}`;
+    lines[mdt.line] = `${m[1]}${mark}${m[3]}${text}`;
     await writeBack(note, { md: lines.join('\n') });
   }
+  return result;
 }
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

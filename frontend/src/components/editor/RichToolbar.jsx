@@ -3,10 +3,10 @@
 import { useEffect, useReducer } from 'react';
 import {
   Undo2, Redo2, Bold, Italic, Underline, Strikethrough, Code, Highlighter, List, ListOrdered, ListChecks, ListTodo, Quote, Code2,
-  Link as LinkIcon, Paperclip, ScanText, Mic, Image as ImageIcon, Table as TableIcon, Minus, AlignLeft, AlignCenter, AlignRight, ListCollapse,
+  Link as LinkIcon, Paperclip, ScanText, Mic, Image as ImageIcon, Table as TableIcon, Minus, AlignLeft, AlignCenter, AlignRight, ListCollapse, BellPlus,
 } from 'lucide-react';
 import TurnInto from './TurnInto';
-import { SLASH_ITEMS } from './extensions';
+import { SLASH_ITEMS, openTaskWhen } from './extensions';
 import { textLevel, setTextLevel } from './blocks';
 
 const slash = (editor, id) => {
@@ -63,6 +63,7 @@ export default function RichToolbar({ editor }) {
       {btn('ol', <ListOrdered size={15} />, 'Numbered list', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'))}
       {btn('todo', <ListChecks size={15} />, 'Checklist', () => editor.chain().focus().toggleTaskList().run(), editor.isActive('taskList'))}
       {btn('tasklist', <ListTodo size={15} />, 'Task list (named checklist that counts what’s left)', () => slash(editor, 'tasklist'))}
+      {btn('due', <BellPlus size={15} />, 'Due date, reminder or repeat for this to-do', () => openTaskWhen(editor))}
       {btn('toggle', <ListCollapse size={15} />, 'Toggle section', () => slash(editor, 'toggle'))}
       {sep('s4')}
       {btn('quote', <Quote size={15} />, 'Quote', () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'))}
