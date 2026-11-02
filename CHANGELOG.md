@@ -4,6 +4,19 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.18.0 — November 2026
+
+### Changed
+- **New "New" window** (the + next to Notes, or New note). Four clear choices, each one click (or keys 1–4):
+  - **Note** — text, checklists, tables, tasks, meetings, pictures…
+  - **Drawing** — a full page for handwriting and sketching with a pen or finger.
+  - **Diagram** — a note with a draw.io diagram, which opens straight away.
+  - **Whiteboard** — a note with an Excalidraw sketch, which opens straight away.
+- **Your templates are right there** as one-click buttons (Meeting, Project, Weekly review…), plus
+  **All templates**, and a **Today's daily note** button.
+- The old standalone flowchart canvas is no longer offered for new notes (draw.io diagrams replace it);
+  existing flowchart notes still open and work as before.
+
 ## v1.17.1 — November 2026
 
 ### Fixed

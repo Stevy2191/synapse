@@ -354,6 +354,11 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   mark in the note (syncs live, offline, history); whether it's coloured comes from a <style> the Editor
   builds from the *open* threads, so resolving needs no edit to the note. The editor picks the thread id
   (it's already in the text); cancelling a draft removes its mark. Comments/inbox/activity are online-only.
+- **New window** (v1.18.0, components/editor/NewNoteModal.jsx; Sidebar createNote handles the choices):
+  note / draw (Free Draw) / drawio / excalidraw (= a rich note holding an empty `figure[data-diagram]`,
+  whose block view opens its editor on mount), template chips (workspace templates + built-ins, not
+  "Daily note"), 'template' (full picker), 'daily' (openDailyNote with today's events). The legacy
+  'diagram' note type (custom flowchart canvas) is no longer offered but still opens.
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.

@@ -11,7 +11,7 @@ import NewNoteModal from '../editor/NewNoteModal';
 import Logo from '../Logo';
 import { UserAvatar, WorkspaceIcon, displayName, workspaceSettings } from '../Avatar';
 import { EmojiButton } from '../EmojiPicker';
-import { openNote, createNote as createLocalNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
+import { openNote, createNote as createLocalNote, saveNote, deleteNote, moveNote, syncNow, undoDelete, fetchTrash } from '../../offline/sync';
 import { listTasks, isoDay } from '../../offline/tasks';
 import { kindInfo, datedName } from '../noteKinds';
 import { useChat, totalUnread } from '../../chat/client';
@@ -19,6 +19,10 @@ import { useShares, openSharedNote, loadShares } from '../../shares/client';
 import { openInNewTab } from '../../tabs/tabs';
 import ClustersSection from '../clusters/ClustersSection';
 import { isTeamWorkspace } from '../../team/team';
+import { newNoteFromTemplate } from '../../templates/templates';
+import { openDailyNote } from '../../offline/dailyNotes';
+import { monthEvents, eventDays, dayKey } from '../../offline/calendar';
+import { htmlToMarkdown } from '../editor/convert';
 
 
 function countDescendants(id, notes) {
@@ -359,10 +363,33 @@ export default function Sidebar({ width, onNavigate }) {
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
     if (type === 'template') { useStore.setState({ templatePicker: { parentId } }); onNavigate?.(); return; }
-    // Flowcharts and Free Draw pages start with a dated name ("Drawing – Nov 4"); text notes are named as you write.
-    const word = { diagram: 'Flowchart', draw: 'Drawing' }[type];
-    const title = word ? datedName(word, notes.map(n => n.title)) : 'Untitled';
+    if (type?.template) {
+      try { await newNoteFromTemplate(type.template, { parentId }); onNavigate?.(); } catch (err) { toast.error(err.message || 'Couldn’t create the note'); }
+      return;
+    }
+    if (type === 'daily') {
+      try {
+        const today = new Date();
+        const { events } = await monthEvents(today).catch(() => ({ events: [] }));
+        const key = dayKey(today);
+        await openDailyNote(today, (events || []).filter(e => eventDays(e).includes(key)));
+        useStore.getState().setView('editor'); onNavigate?.();
+      } catch { toast.error('Couldn’t open today’s daily note'); }
+      return;
+    }
     try {
+      const titles = notes.map(n => n.title);
+      // Diagrams and whiteboards are Write-mode notes holding one diagram block, which opens its editor straight away.
+      if (type === 'drawio' || type === 'excalidraw') {
+        const note = await createLocalNote({ workspace_id: activeWorkspace.id, parent_id: parentId, title: datedName(type === 'drawio' ? 'Diagram' : 'Whiteboard', titles), note_type: 'note', editor_mode: 'rich' });
+        const html = `<figure data-diagram="${type}" data-scene=""><img src="" alt=""></figure><p></p>`;
+        await saveNote(note.id, { rich_content: html, content: htmlToMarkdown(html) });
+        selectNote(note.id);
+        return;
+      }
+      // Free Draw pages start with a dated name ("Drawing – Nov 4"); text notes are named as you write.
+      const word = { diagram: 'Flowchart', draw: 'Drawing' }[type];
+      const title = word ? datedName(word, titles) : 'Untitled';
       const note = await createLocalNote({ workspace_id: activeWorkspace.id, parent_id: parentId, title, note_type: type });
       selectNote(note.id);
     } catch { toast.error('Failed to create note'); }

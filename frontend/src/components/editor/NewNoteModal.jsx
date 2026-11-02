@@ -1,95 +1,75 @@
-import { useEffect } from 'react';
-import { FileText, GitFork, Pencil, X } from 'lucide-react';
+// "New": what kind of note to make — a note, a pen drawing, a diagram (draw.io) or a whiteboard
+// (Excalidraw) — or start from one of the workspace's templates, or open today's daily note.
+import { useEffect, useState } from 'react';
+import { FileText, PenLine, Workflow, PenTool, CalendarDays, LayoutTemplate, ChevronRight } from 'lucide-react';
+import { Modal } from '../chat/ChatDialogs';
+import { useStore } from '../../stores/useStore';
+import { STARTERS, listTemplates } from '../../templates/templates';
 
-const NOTE_TYPES = [
-  {
-    type: 'note',
-    icon: <FileText size={32} />,
-    emoji: '📄',
-    label: 'Note',
-    desc: 'Rich text or markdown. Full formatting toolbar, wiki links, tags.',
-  },
-  {
-    type: 'diagram',
-    icon: <GitFork size={32} />,
-    emoji: '📊',
-    label: 'Diagram',
-    desc: 'Flowchart canvas with shapes, connectors and arrows. Great for system diagrams.',
-  },
-  {
-    type: 'draw',
-    icon: <Pencil size={32} />,
-    emoji: '✏️',
-    label: 'Free Draw',
-    desc: 'Handwriting and sketching with a pen, finger or mouse: pressure ink, highlighter, shapes, text and pictures.',
-  },
+export const NEW_KINDS = [
+  { type: 'note', icon: FileText, label: 'Note', desc: 'Text, checklists, tables, tasks, meetings, pictures…', key: '1' },
+  { type: 'draw', icon: PenLine, label: 'Drawing', desc: 'A full page for handwriting and sketching with a pen or finger', key: '2' },
+  { type: 'drawio', icon: Workflow, label: 'Diagram', desc: 'Flowcharts, network and org charts (draw.io)', key: '3' },
+  { type: 'excalidraw', icon: PenTool, label: 'Whiteboard', desc: 'Hand-drawn style sketches and brainstorming (Excalidraw)', key: '4' },
 ];
+const iconFor = title => STARTERS.find(s => s.title.toLowerCase() === title.toLowerCase())?.icon || '📄';
 
+/** onSelect(type) for the kinds above, 'daily', 'template' (the full picker) or { template } (one of them). */
 export default function NewNoteModal({ onSelect, onClose }) {
+  const ws = useStore(s => s.activeWorkspace);
+  const [templates, setTemplates] = useState(null);
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+    if (!ws) return;
+    listTemplates(ws.id).then(mine => {
+      const have = new Set(mine.map(t => t.title.toLowerCase()));
+      const builtins = STARTERS.filter(s => !have.has(s.title.toLowerCase()) && !['Daily note'].includes(s.title))
+        .map(s => ({ id: `builtin:${s.title}`, title: s.title, rich_content: s.html, editor_mode: 'rich', tags: '[]', builtin: true }));
+      setTemplates([...mine.filter(t => t.title !== 'Daily note'), ...builtins].slice(0, 7));
+    });
+  }, [ws?.id]);
+  // Number keys 1–4 pick a kind.
+  useEffect(() => {
+    const onKey = e => {
+      if (e.target.closest?.('input, textarea')) return;
+      const k = NEW_KINDS.find(x => x.key === e.key);
+      if (k) { e.preventDefault(); onSelect(k.type); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onSelect]);
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      backdropFilter: 'blur(4px)'
-    }} onClick={onClose}>
-      <div style={{
-        background: 'var(--bg-surface)', borderRadius: 16, border: '1px solid var(--border)',
-        padding: 32, width: 560, boxShadow: '0 32px 80px rgba(0,0,0,0.6)'
-      }} onClick={e => e.stopPropagation()} className="fade-in">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>New Note</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Choose a note type to get started</p>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
-            <X size={18} />
-          </button>
-        </div>
+    <Modal title="New" onClose={onClose} width={620}>
+      <div className="nn-kinds">
+        {NEW_KINDS.map(k => {
+          const Icon = k.icon;
+          return (
+            <button key={k.type} type="button" className={`nn-kind nn-${k.type}`} onClick={() => onSelect(k.type)}>
+              <span className="nn-icon"><Icon size={20} /></span>
+              <span className="nn-text"><b>{k.label}</b><small>{k.desc}</small></span>
+              <kbd className="nn-key">{k.key}</kbd>
+            </button>
+          );
+        })}
+      </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          {NOTE_TYPES.map(nt => (
-            <button
-              key={nt.type}
-              onClick={() => onSelect(nt.type)}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-                padding: '24px 16px', borderRadius: 12, border: '1px solid var(--border)',
-                background: 'var(--bg-elevated)', cursor: 'pointer', transition: 'all 0.2s',
-                fontFamily: 'var(--font-sans)', textAlign: 'center',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.border = '1px solid var(--accent)';
-                e.currentTarget.style.background = 'var(--accent-subtle)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.border = '1px solid var(--border)';
-                e.currentTarget.style.background = 'var(--bg-elevated)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              <span style={{ fontSize: 40 }}>{nt.emoji}</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{nt.label}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>{nt.desc}</span>
+      <div className="nn-section">
+        <span className="nn-label"><LayoutTemplate size={13} /> Start from a template</span>
+        <div className="nn-chips">
+          {(templates || []).map(t => (
+            <button key={t.id} type="button" className="nn-chip" onClick={() => onSelect({ template: t })} title={t.builtin ? 'Built-in template' : 'Your template'}>
+              <span>{iconFor(t.title)}</span> {t.title}
             </button>
           ))}
+          <button type="button" className="nn-chip more" onClick={() => onSelect('template')}>All templates <ChevronRight size={13} /></button>
         </div>
-
-        <button type="button" className="newnote-template" onClick={() => onSelect('template')}>
-          <span style={{ fontSize: 22 }}>📋</span>
-          <span><b>From a template</b><small>Meeting, project, weekly review, recipe — or your own</small></span>
-        </button>
-
-        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 20 }}>
-          Press <kbd style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>Esc</kbd> to cancel
-        </p>
       </div>
-    </div>
+
+      <div className="nn-section">
+        <button type="button" className="nn-daily" onClick={() => onSelect('daily')}>
+          <CalendarDays size={16} /> <span><b>Today’s daily note</b><small>Opens it, or makes it with today’s meetings</small></span>
+        </button>
+      </div>
+    </Modal>
   );
 }
