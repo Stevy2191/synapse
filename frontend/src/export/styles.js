@@ -66,6 +66,8 @@ body { margin: 0; background: #fff; color: #1f2330; font: 400 11pt/1.6 "Inter", 
 .x-body ul, .x-body ol { padding-left: 1.6em; margin: 0.5em 0; }
 .x-body ul { list-style: disc; } .x-body ol { list-style: decimal; }
 .x-body li > p { margin: 0.15em 0; }
+.x-body [data-indent="1"] { margin-left: 1.6em; } .x-body [data-indent="2"] { margin-left: 3.2em; } .x-body [data-indent="3"] { margin-left: 4.8em; } .x-body [data-indent="4"] { margin-left: 6.4em; }
+.x-body [data-indent="5"] { margin-left: 8em; } .x-body [data-indent="6"] { margin-left: 9.6em; } .x-body [data-indent="7"] { margin-left: 11.2em; } .x-body [data-indent="8"] { margin-left: 12.8em; }
 .x-body blockquote { margin: 0.8em 0; padding: 2px 0 2px 14px; border-left: 3px solid #d1d5db; color: #4b5563; }
 .x-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.6em 0; }
 .x-body img { max-width: 100%; height: auto; }

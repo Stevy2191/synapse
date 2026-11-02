@@ -41,6 +41,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 import { MentionSuggest } from './mentions';
 import { CommentMark } from '../../comments/client';
+import { Indent } from './indent';
 import TaskWhenDialog from '../tasks/TaskWhenDialog';
 import TemplatePicker from '../templates/TemplatePicker';
 import { templateForInsert } from '../../templates/templates';
@@ -116,6 +117,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       ] : []),
       MentionSuggest.configure({ getUi }),
       CommentMark,
+      Indent,
       Placeholder.configure({
         includeChildren: true,
         placeholder: ({ node, pos, editor: ed }) => (node.type.name === 'heading' ? 'Heading'
@@ -295,6 +297,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
           .rich-editor-content h3 { font-size: 1.2em; font-weight: 600; margin: 0.8em 0 0.3em; }
           .rich-editor-content h4 { font-size: 1.05em; font-weight: 600; margin: 0.7em 0 0.2em; }
           .rich-editor-content p { margin: 0.3em 0; min-height: 1.6em; }
+          ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `.rich-editor-content [data-indent="${n}"] { margin-left: ${n * 1.6}em; }`).join('\n')}
           .rich-editor-content p.is-editor-empty:first-child::before,
           .rich-editor-content summary.is-empty::before,
           .rich-editor-content .callout p.is-empty::before,

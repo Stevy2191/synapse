@@ -436,6 +436,10 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Phones: the sidebar is unmounted when closed (narrow screens), so anything opened *from* it (like the
   Files window — now `filesOpen` in the store, rendered in AppPage) must live outside it, and every
   full-screen view needs a way back (components/sidebar/SidebarButton.jsx).
+- Tab in Write mode used to fall through to the browser (focus jumped to the next button, e.g. a toggle's
+  arrow, and the page scrolled). components/editor/indent.js (priority 50, after lists/tables/menus) always
+  swallows Tab/Shift+Tab: paragraphs/headings get `data-indent` 1–8 (CSS in RichEditor + export/styles.js),
+  code blocks get two spaces, list items that can't move just stay.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

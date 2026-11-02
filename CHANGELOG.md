@@ -4,6 +4,17 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.17.1 — November 2026
+
+### Fixed
+- **Tab in notes:** pressing Tab on a plain line (for example inside a toggle) or on a bullet that
+  couldn't be indented any further jumped out of the note to the bottom of the page. Tab now always
+  stays in the note.
+
+### New
+- **Indent plain lines and headings** with Tab (Shift+Tab to undo) — up to 8 steps, inside toggles too.
+  Bullets and checklists indent as before; in a code block Tab adds two spaces.
+
 ## v1.17.0 — November 2026
 
 ### New — team features (part 2)
