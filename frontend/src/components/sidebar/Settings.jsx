@@ -74,7 +74,8 @@ export default function Settings() {
       <div className={`settings-window fade-in ${narrowMenu ? 'show-menu' : 'show-page'}`} onClick={e => e.stopPropagation()}>
         {/* Menu */}
         <nav className="settings-menu">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px' }}>
+          <div className="settings-menu-title">Settings</div>
+          <div className="settings-user">
             <UserAvatar user={user} size={40} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(user)}</div>
@@ -83,7 +84,7 @@ export default function Settings() {
           </div>
           {groups.map(g => (
             <div key={g.label} style={{ marginBottom: 10 }}>
-              <div className="section-label" style={{ padding: '8px 10px 6px', display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              <div className="settings-group-label">
                 {g.workspace && <WorkspaceIcon workspace={activeWorkspace} size={14} />}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</span>
               </div>
@@ -761,11 +762,12 @@ function uptime(s) {
 }
 
 // ─────────────────────────── styles ───────────────────────────
-const heading = { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' };
-const lead = { fontSize: 13, color: 'var(--text-muted)', marginBottom: 18 };
-const section = { background: 'var(--bg-elevated)', borderRadius: 12, padding: 16, border: '1px solid var(--border)', marginBottom: 12 };
-const labelStyle = { display: 'block', fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 };
-const hint = { fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 6 };
+const heading = { fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, marginBottom: 6, color: 'var(--text-primary)', letterSpacing: '-0.01em' };
+const lead = { fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 6px', paddingBottom: 18, borderBottom: '1px solid var(--border-subtle)' };
+// Flat rows separated by thin lines (no boxes), like AFFiNE's settings.
+const section = { padding: '18px 0', borderBottom: '1px solid var(--border-subtle)' };
+const labelStyle = { display: 'block', fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 6 };
+const hint = { fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.55, marginTop: 6 };
 const field = { flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font-sans)', outline: 'none', minWidth: 0 };
 const primary = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' };
 const secondary = { ...primary, background: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' };

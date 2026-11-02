@@ -213,11 +213,11 @@ function ConfirmPassword({ title, button, run, onClose }) {
   );
 }
 
-const heading = { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)' };
+const heading = { fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)', letterSpacing: '-0.01em' };
 const banner = { display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, border: '1px solid', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 };
-const section = { background: 'var(--bg-elevated)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', marginBottom: 12 };
+const section = { padding: '18px 0', borderBottom: '1px solid var(--border-subtle)' };
 const sectionHead = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 };
-const sectionTitle = { fontWeight: 700, fontSize: 13.5, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' };
+const sectionTitle = { fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' };
 const help = { fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 };
 const pill = { fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 99, background: 'var(--accent-subtle)', color: 'var(--accent-hover)' };
 const row = { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', marginBottom: 6 };

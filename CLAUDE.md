@@ -327,6 +327,9 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Toggle titles (detailsSummary) can only hold text, so "headings" there are a `level` attribute
   (`<summary data-level="2">`, kept by Turndown/markdownToHtml/export). Use `setTextLevel()` /
   `textLevel()` from blocks.jsx for anything that sets heading levels, not setHeading directly.
+- Settings look (AFFiNE-style, Nov 2026): the shared style objects in Settings.jsx (`section` = flat block
+  with a bottom divider, no card) are passed to every page as `styles`; new pages should use them or the
+  Row/Group components in components/meetings/MeetingSettings.jsx, not boxed cards.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 
@@ -354,6 +357,7 @@ Other ideas:
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
 - Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
 - Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,
-  auto-recording prompts from calendar events, restyling the rest of Settings in the new row layout.
+  auto-recording prompts from calendar events; in Firefox/Safari hide "Online meeting" (no getDisplayMedia
+  audio — Mozilla bug 1541425) and add a microphone picker (for Stereo Mix / virtual cables).
 - Mobile polish; installable PWA "share to Synapse"; quick-capture widget.
 - Public REST API + API tokens / webhooks (for Home Assistant, scripts, n8n).

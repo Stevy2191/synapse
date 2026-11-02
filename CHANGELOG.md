@@ -4,6 +4,13 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.10.1 — November 2026
+
+### Improved
+- **Settings redesigned** in the style of AFFiNE: a larger window with a “Settings” title and your
+  profile at the top of the menu, quieter section names, and pages laid out as clean rows separated
+  by thin lines instead of boxes. Works in light and dark themes and on phones.
+
 ## v1.10.0 — November 2026
 
 ### New
