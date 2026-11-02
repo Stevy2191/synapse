@@ -1,7 +1,9 @@
 // "Export" window: save a note (or a note with everything inside it, or a whole workspace) as
 // PDF, Word, Markdown or a web page.
-import { useEffect, useState } from 'react';
-import { X, FileText, FileType2, FileCode2, Globe, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, FileText, FileType2, FileCode2, Globe, Loader2, FolderUp } from 'lucide-react';
+import FilePicker from '../files/FilePicker';
+import { listSources, uploadTo } from '../../files/client';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
 
@@ -28,9 +30,14 @@ export default function ExportDialog({ note, onClose }) {
   const [pageSize, setPageSize] = useState(prefs.pageSize || defaultPageSize());
   const [pageBreaks, setPageBreaks] = useState(prefs.pageBreaks ?? true);
   const [busy, setBusy] = useState('');
+  const [canSave, setCanSave] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const saveOpenRef = useRef(false);
+  saveOpenRef.current = saveOpen;
+  useEffect(() => { listSources().then(l => setCanSave(l.some(x => x.can_write && (x.kind === 'folder' || x.connected)))).catch(() => {}); }, []);
 
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape' && !busy) onClose(); };
+    const onKey = e => { if (e.key === 'Escape' && !busy && !saveOpenRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, busy]);
@@ -59,6 +66,21 @@ export default function ExportDialog({ note, onClose }) {
     }
   };
 
+  // "Save to…": export straight into a network folder / OneDrive / Google Drive.
+  const baseName = (scope === 'workspace' ? workspace?.name || 'Workspace' : note.title || 'Untitled').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 100) || 'Export';
+  const ext = { pdf: '.pdf', docx: '.docx', html: '.html', markdown: count > 1 ? '.zip' : '.md' }[format];
+  const saveTo = async ({ source, parent, name, setProgress }) => {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ format, pageSize, pageBreaks })); } catch { /* private mode */ }
+    const { runExport } = await import('../../export');
+    const fileName = /\.[a-z0-9]{2,5}$/i.test(name) ? name : `${name}${ext}`;
+    await runExport({
+      format, scope, noteId: note.id, workspace, pageSize, pageBreaks, fileName, onProgress: m => setProgress?.(m),
+      deliver: (blob, n) => uploadTo(source.id, parent, blob, n, p => setProgress?.(p)),
+    });
+    toast.success(`Saved “${fileName}” to ${source.name}`);
+    onClose();
+  };
+
   const option = (on) => ({
     display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 12px', borderRadius: 10, textAlign: 'left', cursor: 'pointer',
     border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-subtle)' : 'var(--bg-elevated)',
@@ -67,6 +89,7 @@ export default function ExportDialog({ note, onClose }) {
   const label = { font: '600 11px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', margin: '18px 0 8px' };
 
   return (
+    <>
     <div className="export-backdrop" onClick={() => !busy && onClose()}>
       <div className="export-dialog fade-in" role="dialog" aria-label="Export" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -121,11 +144,14 @@ export default function ExportDialog({ note, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
           {busy && <span style={{ fontSize: 12.5, color: 'var(--text-muted)', marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Loader2 size={14} className="spin" /> {busy}</span>}
           <button type="button" className="btn-ghost" onClick={onClose} disabled={!!busy}>Cancel</button>
+          {canSave && <button type="button" className="btn-ghost" onClick={() => setSaveOpen(true)} disabled={!!busy} title="Save it straight into a network folder, OneDrive or Google Drive"><FolderUp size={14} /> Save to…</button>}
           <button type="button" className="export-go" onClick={go} disabled={!!busy}>
             {busy ? 'Exporting…' : `Export ${count > 1 ? `${count} notes` : ''}`.trim()}
           </button>
         </div>
       </div>
     </div>
+    {saveOpen && <FilePicker mode="save" title="Save the export to…" defaultName={`${baseName}${ext}`} onClose={() => setSaveOpen(false)} onSave={saveTo} />}
+    </>
   );
 }

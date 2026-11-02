@@ -60,6 +60,13 @@ export function markdownToHtml(md) {
     }
   }
   // <details>: the editor wants <summary> then a content wrapper
+  // [📎 Name](href) links are file chips
+  for (const a of doc.querySelectorAll('a[href]')) {
+    const text = a.textContent.trim();
+    if (!text.startsWith('📎')) continue;
+    a.setAttribute('data-file', /[?&]att=/.test(a.getAttribute('href')) ? 'copy' : 'link');
+    a.setAttribute('data-name', text.replace(/^📎\s*/, ''));
+  }
   for (const det of doc.querySelectorAll('details')) {
     let summary = det.querySelector(':scope > summary');
     if (!summary) { summary = doc.createElement('summary'); det.prepend(summary); }
@@ -161,6 +168,11 @@ turndown.addRule('callout', {
 turndown.addRule('special', {
   filter: node => special(node) !== null,
   replacement: (content, node) => special(node),
+});
+// File chips (FileLink): [📎 Name](href)
+turndown.addRule('fileLink', {
+  filter: node => node.nodeName === 'A' && node.hasAttribute('data-file'),
+  replacement: (content, node) => `[📎 ${(node.getAttribute('data-name') || 'File').replace(/[[\]]/g, '')}](${node.getAttribute('href') || ''})`,
 });
 turndown.addRule('details', {
   filter: 'details',

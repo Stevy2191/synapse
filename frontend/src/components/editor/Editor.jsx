@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import { PanelTop } from 'lucide-react';
 import RichToolbar from './RichToolbar';
+import FilePicker from '../files/FilePicker';
+import { attachCopy, fetchFile, fileHref } from '../../files/client';
+import { fitImage } from '../../utils/image';
+import { Paperclip } from 'lucide-react';
 import ExportDialog from './ExportDialog';
 import ChatRoom from '../chat/ChatRoom';
 import { NewChatDialog } from '../chat/ChatDialogs';
@@ -203,6 +207,7 @@ function MarkdownToolbar({ onFormat }) {
     ['quote', <Quote size={14} />, 'Quote'], ['inlinecode', <Code size={14} />, 'Inline code'], ['codeblock', <Code2 size={14} />, 'Code block'],
     '|',
     ['hr', <Minus size={14} />, 'Divider'], ['link', <Link size={14} />, 'Link'], ['image', <ImageIcon size={14} />, 'Image'],
+    ['file', <Paperclip size={14} />, 'File from a folder or drive'],
   ];
   return (
     <div style={toolbarRow}>
@@ -331,6 +336,7 @@ export default function Editor() {
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [filePicker, setFilePicker] = useState(false);
   const [published, setPublished] = useState(0); // number of live links for my note
   const [ownerShare, setOwnerShare] = useState(null); // { count } for my own notes
   const sharedByMe = useShares(s => s.sharedByMe);
@@ -646,7 +652,45 @@ export default function Editor() {
   };
 
   // Insert markdown formatting at cursor or wrap selection
+  // Put a picked file into the note (Write mode: a file chip; Markdown: [📎 Name](link)).
+  const insertFile = async ({ item, source, how }) => {
+    const noteId = activeNote.note.id;
+    let attrs;
+    if (how === 'copy' && editorMode === 'rich' && /^image\/(png|jpeg|gif|webp|bmp|avif)$/.test(item.mime || '') && (item.size || 0) < 25 * 1024 * 1024) {
+      // Pictures are stored inside the note (resized), like pasted ones, so they work offline.
+      const f = await fetchFile({ source: source.id, id: item.id });
+      const src = await fitImage(new File([f.blob], f.name, { type: f.type }));
+      richEditorRef.current?.chain().focus().setImage({ src, alt: f.name.replace(/\.[^.]+$/, '') }).run();
+      setTimeout(() => richEditorRef.current?.commands.focus(), 60);
+      return;
+    }
+    if (how === 'copy') {
+      flushSave();
+      let att;
+      try { att = await attachCopy(source.id, item.id, noteId); } catch (err) {
+        if (err?.response?.status === 404 && /Note not found/.test(err.response.data?.error || '')) throw new Error('This note hasn’t reached the server yet — try again in a moment');
+        throw err;
+      }
+      attrs = { href: fileHref({ att: att.id, name: att.name }), name: att.name, size: att.size, kind: 'copy' };
+    } else {
+      attrs = { href: fileHref({ source: source.id, id: item.id, web_url: item.web_url, name: item.name }), name: item.name, size: item.size, kind: 'link' };
+    }
+    if (editorMode === 'rich') {
+      richEditorRef.current?.chain().focus().insertContent([{ type: 'fileLink', attrs }, { type: 'text', text: ' ' }]).run();
+      setTimeout(() => richEditorRef.current?.commands.focus(), 60); // back to typing once the picker has closed
+    } else {
+      const md = `[📎 ${attrs.name.replace(/[[\]]/g, '')}](${attrs.href})`;
+      const cm = cmRef.current?.view;
+      if (cm) {
+        const sel = cm.state.selection.main;
+        cm.dispatch({ changes: { from: sel.from, to: sel.to, insert: md }, selection: { anchor: sel.from + md.length } });
+        handleContentChange(cm.state.doc.toString());
+      } else handleContentChange(`${content}\n${md}`);
+    }
+  };
+
   const handleMarkdownFormat = useCallback((action) => {
+    if (action === 'file') { setFilePicker(true); return; }
     const cm = cmRef.current?.view;
     if (!cm) {
       // Fallback: append to content
@@ -906,6 +950,7 @@ export default function Editor() {
         {railButton}
       </div>
       {exportOpen && <ExportDialog note={activeNote.note} onClose={() => setExportOpen(false)} />}
+      {filePicker && <FilePicker mode="insert" onClose={() => setFilePicker(false)} onInsert={insertFile} />}
       {publishOpen && <PublishDialog note={{ ...activeNote.note, title }} onClose={() => setPublishOpen(false)} onLinksChanged={l => setPublished(l.filter(x => !x.expired).length)} />}
       {shareOpen && <ShareDialog note={{ ...activeNote.note, title }} onClose={() => { setShareOpen(false); getNoteShares(noteId).then(d => setOwnerShare({ count: d.shares.length + d.inherited.length })).catch(() => {}); }} />}
       {aiTarget && <AiPanel key={`${aiTarget.scope}-${aiTarget.from}-${aiTarget.to}`} target={aiTarget} note={{ ...activeNote.note, title }} onApply={applyAi} onClose={() => setAiTarget(null)} />}
@@ -954,7 +999,7 @@ export default function Editor() {
             <div className="doc-column">
               {titleBlock}
               <div onFocusCapture={onEditAreaFocus} onKeyDownCapture={markInput} onPasteCapture={markInput} onDropCapture={markInput}>
-                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
+                <RichEditor key={activeNote.note.id} content={richContent} onChange={handleRichContentChange} editorRef={richEditorRef} onEditor={setRichEditor} onPickFile={() => setFilePicker(true)} onAi={aiAllowed && !guest && !readOnly ? openAi : undefined} editable={!readOnly} />
               </div>
             </div>
           </div>

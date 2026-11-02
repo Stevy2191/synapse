@@ -53,6 +53,10 @@ backend/src/
   backups.js + routes/backups.js   automatic backups (admin, Settings → Server → Backups): tar.gz of
                       db.backup() snapshot + uploads/ + manifest; optional AES-256-GCM (.enc) with a
                       scrypt key; schedule/keep/password in settings (backup_*); signed download links
+  files.js + routes/files.js   File integrations: network folders under /files/<slug> (FILES_DIR in dev;
+                      access per folder in file_folders), OneDrive (Graph) + Google Drive (v3) via OAuth —
+                      admin client id/secret in settings (secret encrypted), per-user tokens in
+                      file_accounts (encrypted, refreshed); list/download/upload/attach-copy
   restore.js          finishes a restore at startup (before the DB opens) from DATA_DIR/restore-pending
   exporter.js + routes/export.js   headless Chromium (puppeteer-core): PDF printing + PNGs of
                       equations/charts for Word. Network blocked inside the page (data: URLs only)
@@ -69,6 +73,9 @@ frontend/src/
   components/editor/RichToolbar.jsx optional fixed formatting bar for Write mode (store `richToolbar`, per device)
   components/editor/TurnInto.jsx    "Turn into" dropdown in the selection toolbar (block conversions)
   tabs/tabs.js + TabBar.jsx         tabs of open notes (per workspace, persisted per device in store `tabs`)
+  components/editor/FileLink.jsx    📎 file chip node (copy → /open-file?att=…, link → /open-file?src=… or drive web URL)
+  files/client.js, components/files/ FilePicker (insert | save | browse), FileSettings (Server → Files, Connected drives)
+  pages/OpenFilePage.jsx            /open-file — fetches a file with the sign-in header, shows or downloads it
   components/editor/extensions.js   "/" menu (SLASH_ITEMS, grouped), [[ suggest, wiki decorations
   components/editor/convert.js      Markdown ⇄ HTML (marked + turndown) incl. all custom blocks
   components/editor/blocks.jsx      callouts, table of contents, toggles (details)
@@ -182,6 +189,16 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   its tab if already open). `openInNewTab()` / `nextInNewTab()` (Ctrl/⌘/middle-click in the sidebar,
   Ctrl-click on [[links]]) and "+" (blank `new:` tab, filled by the next pick) add tabs. Tabs whose
   notes vanish from the tree are pruned; shared-with-me tabs reopen via openSharedNote.
+- **Files** (built Nov 2026): Sean chose "choose each time" (Attach a copy / Link to it) and "admin adds
+  folders, picks who" (everyone and/or people, read | write; admins get no automatic access). Folders are
+  bind mounts `"<host>:/files/<slug>[:ro]"` added by `synapse files-add` (after the /backups line);
+  paths are resolved with realpath and must stay inside the folder (symlinks out are refused). Clouds:
+  each person connects their own account (popup → `/api/files/oauth/<p>/callback`, state kept in memory
+  10 min; redirect URI = the browser's origin, shown on the admin page). helmet COOP is
+  `same-origin-allow-popups` and the callback sends `unsafe-none`, otherwise the popup loses its
+  opener. Copies go to the attachments table (50 MB cap; pictures are embedded as data URLs instead);
+  downloads are served as attachments except safe inline types. Online-only. Nothing install-specific
+  in code: all names/paths/keys come from settings or the CLI.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -221,6 +238,10 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   The Anthropic SDK sends the key as `Authorization: Bearer` (not only `x-api-key`).
 - draw.io can't load in the sandbox (no internet): serve a stand-in page that speaks the embed
   protocol and set `DRAWIO_URL=http://localhost:8098`.
+- Files: `FILES_DIR=<tmp folder with subfolders>`; a stand-in for Microsoft login + Graph and Google
+  OAuth + Drive (scratchpad mock/mock_cloud.py, port 8097) via MS_LOGIN_BASE, MS_GRAPH_BASE,
+  GOOGLE_AUTH_URL, GOOGLE_TOKEN_URL, GOOGLE_API_BASE, GOOGLE_UPLOAD_BASE (client secret "SECRET").
+  After a rebuild the open app reloads itself once (appUpdate.js) — wait for it in scripts.
 - Backups: restore makes the server exit (Docker restarts it); in the sandbox start it again by
   hand. Test a "new server" with a second DATA_DIR + different JWT_SECRET on another port.
 - Installer/CLI: ShellCheck (`-S warning`), `SYNAPSE_DRY_RUN=1`, fake `docker` on PATH.
@@ -267,12 +288,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 
 Sean's priorities first (asked for Nov 2026):
 
-- **File integrations** — browse, open and save files directly to:
-  - OneDrive (Microsoft Graph; needs an Azure app registration Sean creates),
-  - Google Drive (Drive API; needs a Google Cloud OAuth client),
-  - a network share (SMB/NFS mounted into the container, like the install-time SMB option).
-  Online-only feature; tokens stored server-side per user, encrypted. Uses: attach/link files
-  in notes, save exports there, scheduled backups there.
+- (File integrations are built — see Files above. Still open: scheduled backups straight to a
+  connected cloud drive, search inside files, offline copies of attachments.)
 
 Other ideas:
 

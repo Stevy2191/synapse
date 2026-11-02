@@ -11,6 +11,7 @@ import { startAppUpdateCheck } from './appUpdate';
 
 // Published notes (/p/<link>): open to anyone, no sign-in; loaded only when visited.
 const PublicNotePage = React.lazy(() => import('./pages/PublicNotePage'));
+const OpenFilePage = React.lazy(() => import('./pages/OpenFilePage'));
 
 function ProtectedRoute({ children }) {
   const token = useStore(s => s.token);
@@ -29,6 +30,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<AuthPage />} />
         <Route path="/p/:id" element={<React.Suspense fallback={null}><PublicNotePage /></React.Suspense>} />
+        <Route path="/open-file" element={<ProtectedRoute><React.Suspense fallback={null}><OpenFilePage /></React.Suspense></ProtectedRoute>} />
         <Route path="/*" element={<ProtectedRoute><AppPage /></ProtectedRoute>} />
       </Routes>
       <Toaster

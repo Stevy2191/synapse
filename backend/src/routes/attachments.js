@@ -5,6 +5,7 @@ import fs from 'fs';
 import { v4 as uuid } from 'uuid';
 import { db, UPLOADS_DIR, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { noteAccess } from '../shares.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -59,8 +60,14 @@ router.post('/note/:noteId',
   }
 );
 
+// Files attached to a note can be opened by anyone the note is shared with, too.
+function readableAttachment(attId, userId) {
+  const att = db.prepare('SELECT * FROM attachments WHERE id=?').get(attId);
+  return att && noteAccess(att.note_id, userId) ? att : null;
+}
+
 router.get('/:id', (req, res) => {
-  const att = ownedAttachment(req.params.id, req.user.id);
+  const att = readableAttachment(req.params.id, req.user.id);
   if (!att) return res.status(404).json({ error: 'Not found' });
 
   const filePath = path.join(UPLOADS_DIR, path.basename(att.filename));

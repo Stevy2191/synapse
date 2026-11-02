@@ -20,7 +20,7 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Link as LinkExt } from '@tiptap/extension-link';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
-  Type, ListChecks, ListTodo, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
+  Type, ListChecks, ListTodo, Paperclip, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
   Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ import { kindInfo } from '../noteKinds';
 import { Callout, TableOfContents, ToggleBlocks } from './blocks';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import { VideoEmbed, MathDialog } from './embeds';
+import { FileLink } from './FileLink';
 import { DrawingEmbed, DrawingPicker } from '../freedraw/DrawingEmbed';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
@@ -48,7 +49,7 @@ function isTaskListTitle(ed, pos) {
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
-  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, upload: ImageUp, subnote: FilePlus, toc: ListTree,
+  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, file: Paperclip, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   ai: Sparkles, 'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
@@ -62,7 +63,7 @@ const HIGHLIGHTS = ['#fef08a', '#fde68a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd
  *  - Selecting text shows a formatting toolbar; inside a table, table controls appear
  * Content is HTML; the page also keeps a Markdown copy for search, links and the Markdown view.
  */
-export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor }) {
+export default function RichEditor({ content, onChange, editorRef: editorRefProp, onAi, editable = true, onEditor, onPickFile }) {
   const lastHtmlRef = useRef(content);
   const isFirstLoad = useRef(true);
   const [menu, setMenu] = useState(null); // { kind, items, index, rect, command }
@@ -126,6 +127,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       TableOfContents,
       ...ToggleBlocks,
       VideoEmbed,
+      FileLink,
       DrawingEmbed,
       Mathematics.configure({
         katexOptions: { throwOnError: false },
@@ -147,6 +149,16 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     if (editorRefProp) editorRefProp.current = editor;
     onEditor?.(editor);
   }, [editor, editorRefProp]);
+
+  // "/" → File, or the formatting bar's paperclip: open the file picker (Editor.jsx owns it).
+  const pickFileRef = useRef(onPickFile);
+  pickFileRef.current = onPickFile;
+  useEffect(() => {
+    if (!editor) return undefined;
+    const open = () => pickFileRef.current?.();
+    editor.on('synapse:pickFile', open);
+    return () => editor.off('synapse:pickFile', open);
+  }, [editor]);
 
   // "/" → Math opens the equation dialog
   useEffect(() => {

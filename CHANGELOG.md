@@ -4,6 +4,31 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.8.0 — November 2026
+
+### New
+- **Files: network folders, OneDrive and Google Drive** — browse, open and save files without leaving
+  Synapse.
+  - **Network folders** — the admin lets Synapse use a folder on the server (for example a NAS share
+    mounted there) with `synapse files-add "/path/to/folder" "Name"`, then chooses in
+    Settings → Server → **Files** who can use it: everyone and/or chosen people, each *can read* or
+    *can read & write*. `synapse files-remove` and `synapse files-list` manage them.
+  - **OneDrive and Google Drive** — the admin registers Synapse once with Microsoft / Google (the
+    Files page walks through it and shows the address to paste), then **each person connects their
+    own account** in Settings → **Connected drives**. Synapse never sees passwords; sign-in tokens are
+    stored encrypted on the server.
+  - **In notes** — type `/file` (or the paperclip in the formatting bar / Markdown toolbar), pick a
+    file and choose **Attach a copy** (kept in Synapse, works if the original moves) or **Link to it**
+    (opens the original, always the latest). Files show as a 📎 chip; click to open. Pictures copied
+    in go straight into the note.
+  - **Save exports there** — Export → **Save to…** puts the PDF / Word / Markdown / web page straight
+    into a folder or drive.
+  - **Files** in the sidebar to look around, open, download and upload.
+- People a note is shared with can now open files attached to it.
+
+### Improved
+- The `/` menu lists the best match first (items whose name starts with what you typed).
+
 ## v1.7.0 — November 2026
 
 ### New

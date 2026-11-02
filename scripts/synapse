@@ -28,6 +28,9 @@ ${B}synapse${R} — manage your Synapse server  ${D}($SYNAPSE_DIR)${R}
   ${B}backup${R} [folder]             Save all notes, uploads and settings to a .tar.gz
   ${B}restore${R} <file>              Restore from a backup (a safety backup is made first)
   ${B}backups-to${R} <folder>         Save the automatic backups there (e.g. your NAS), or "default"
+  ${B}files-add${R} <folder> [name]     Let Synapse use a server folder (Settings → Server → Files picks who)
+  ${B}files-remove${R} <name>          Stop using a folder added with files-add
+  ${B}files-list${R}                   Show the folders Synapse can use
 
   ${B}setup-code${R}                  Show the code for creating the admin account
   ${B}users${R}                       List accounts
@@ -386,6 +389,58 @@ case "$cmd" in
       echo "    sudo mv \"$old\"/synapse-backup-* \"$shown/\""
     fi
     echo "  Check it any time in Synapse: Settings → Server → Backups."
+    ;;
+
+  files-add)
+    need_docker "$cmd" "$@"
+    src="${1:-}"; label="${2:-}"; ro=""
+    for a in "$@"; do [ "$a" = "--read-only" ] && ro=":ro"; done
+    [ "$label" = "--read-only" ] && label=""
+    [ -n "$src" ] || die 'Usage: synapse files-add "/path/to/folder" "Name people see"  [--read-only]'
+    src="${src%\"}"; src="${src#\"}"; src="${src%\'}"; src="${src#\'}"; src="${src//\\ / }"; src="${src%/}"
+    case "$src" in /*) ;; *) die "Use the full path, starting with / (for example /mnt/nas/documents)." ;; esac
+    case "$src" in *\"*|*\\*) die "That path contains quote or backslash characters, which can't be used." ;; esac
+    [ -d "$src" ] || die "There's no folder at $src. If it's a network share, check that it's mounted (findmnt -T \"$(dirname "$src")\")."
+    case "$(realpath -m "$src")" in
+      /|/root|/home|/etc|/usr|/var|/opt|/srv|/mnt|/media|/tmp|/bin|/sbin|/boot|/proc|/sys|/dev|"$(realpath -m "$SYNAPSE_DIR")"*) die "Pick a folder of its own, not $src." ;;
+    esac
+    [ -n "$label" ] || label="$(basename "$src")"
+    slug="$(printf '%s' "$label" | tr -cd 'A-Za-z0-9._ -' | sed -e 's/^[ ._-]*//' -e 's/[ ]*$//' | cut -c1-80)"
+    [ -n "$slug" ] || die "Choose a name with letters or numbers, e.g.: synapse files-add \"$src\" \"Shared documents\""
+    if grep -qE ":/files/${slug}(:ro)?\"$" docker-compose.yml; then die "There's already a folder called \"$slug\". Remove it first: synapse files-remove \"$slug\""; fi
+    ensure_backups_mount || die "Couldn't update docker-compose.yml."
+    line="      - \"$src:/files/$slug$ro\""
+    tmp=$(mktemp)
+    LINE="$line" awk 'BEGIN { l = ENVIRON["LINE"] } { print } /:\/backups"$/ && !done { print l; done = 1 }' docker-compose.yml >"$tmp" && cat "$tmp" >docker-compose.yml
+    rm -f "$tmp"
+    grep -qF "$line" docker-compose.yml || die "Couldn't add the folder to docker-compose.yml."
+    compose up -d >/dev/null
+    ok "Synapse can now see \"$slug\" ($src${ro:+, read-only})."
+    echo "  Next, choose who can use it: Synapse → Settings → Server → Files."
+    ;;
+
+  files-remove)
+    need_docker "$cmd" "$@"
+    label="${1:-}"
+    [ -n "$label" ] || die 'Usage: synapse files-remove "Name"   (see: synapse files-list)'
+    slug="$(printf '%s' "$label" | tr -cd 'A-Za-z0-9._ -' | sed -e 's/^[ ._-]*//' -e 's/[ ]*$//' | cut -c1-80)"
+    grep -qE ":/files/${slug}(:ro)?\"$" docker-compose.yml || die "No folder called \"$slug\". See: synapse files-list"
+    tmp=$(mktemp)
+    SLUG="$slug" awk 'BEGIN { a = ":/files/" ENVIRON["SLUG"] "\""; b = ":/files/" ENVIRON["SLUG"] ":ro\"" } { if (index($0, a) && substr($0, length($0) - length(a) + 1) == a) next; if (index($0, b) && substr($0, length($0) - length(b) + 1) == b) next; print }' docker-compose.yml >"$tmp" && cat "$tmp" >docker-compose.yml
+    rm -f "$tmp"
+    compose up -d >/dev/null
+    ok "Removed \"$slug\". Its files weren't touched; links to them in notes stop working."
+    ;;
+
+  files-list)
+    found_any=0
+    while IFS= read -r l; do
+      found_any=1
+      l="${l#*- \"}"; l="${l%\"}"
+      host="${l%%:/files/*}"; rest="${l#*:/files/}"
+      case "$rest" in *:ro) printf '  %s  %s(%s, read-only)%s\n' "${rest%:ro}" "$D" "$host" "$R" ;; *) printf '  %s  %s(%s)%s\n' "$rest" "$D" "$host" "$R" ;; esac
+    done < <(grep -E ':/files/[^"]+"$' docker-compose.yml || true)
+    [ "$found_any" = 1 ] || echo 'No folders yet. Add one with: synapse files-add "/path/to/folder" "Name"'
     ;;
 
   setup-code)

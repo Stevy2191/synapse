@@ -122,6 +122,8 @@ export const SLASH_ITEMS = [
       if (!videoSource(url)) { toast.error('That link isn’t a YouTube, Vimeo or Loom video, or a video file.'); return; }
       e.chain().focus().insertContent([{ type: 'video', attrs: { url } }, { type: 'paragraph' }]).run();
     } },
+  { id: 'file', group: 'Media', title: 'File from a folder or drive', desc: 'Network folders, OneDrive, Google Drive — attach a copy or link it', keywords: 'file attach attachment upload onedrive google drive nas share folder document pdf',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:pickFile'); } },
   { id: 'table', group: 'Media', title: 'Table', desc: '3 × 3 table', keywords: 'grid spreadsheet', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { id: 'code', group: 'Media', title: 'Code block', desc: 'Code with syntax colors', keywords: '``` script snippet', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   // Math
@@ -162,7 +164,10 @@ export const SLASH_ITEMS = [
 export function filterSlashItems(query) {
   const q = query.toLowerCase().trim();
   const visible = SLASH_ITEMS.filter(i => !i.when || i.when());
-  const items = q ? visible.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q)) : visible;
+  // Best matches first: the name starts with what you typed, then the name contains it, then the rest.
+  const rank = i => { const t = i.title.toLowerCase(); return t.startsWith(q) ? 0 : t.includes(q) ? 1 : 2; };
+  const items = q ? visible.filter(i => `${i.title} ${i.group} ${i.keywords}`.toLowerCase().includes(q))
+    .map((i, n) => [i, n]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([i]) => i) : visible;
   // Fresh date/time in the descriptions each time the menu opens
   return items.map(i => (i.id === 'date' ? { ...i, desc: today() } : i.id === 'time' ? { ...i, desc: now() } : i));
 }

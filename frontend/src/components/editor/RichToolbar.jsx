@@ -3,7 +3,7 @@
 import { useEffect, useReducer } from 'react';
 import {
   Undo2, Redo2, Bold, Italic, Underline, Strikethrough, Code, Highlighter, List, ListOrdered, ListChecks, ListTodo, Quote, Code2,
-  Link as LinkIcon, Image as ImageIcon, Table as TableIcon, Minus, AlignLeft, AlignCenter, AlignRight, ListCollapse,
+  Link as LinkIcon, Paperclip, Image as ImageIcon, Table as TableIcon, Minus, AlignLeft, AlignCenter, AlignRight, ListCollapse,
 } from 'lucide-react';
 import TurnInto from './TurnInto';
 import { SLASH_ITEMS } from './extensions';
@@ -70,6 +70,7 @@ export default function RichToolbar({ editor }) {
       {sep('s5')}
       {btn('link', <LinkIcon size={15} />, 'Link', () => setLink(editor), editor.isActive('link'))}
       {btn('image', <ImageIcon size={15} />, 'Image from this device', () => slash(editor, 'upload'))}
+      {btn('file', <Paperclip size={15} />, 'File from a folder or drive (attach a copy or link)', () => editor.emit('synapse:pickFile'))}
       {btn('table', <TableIcon size={15} />, 'Table', () => slash(editor, 'table'), false, editor.isActive('table'))}
       {btn('hr', <Minus size={15} />, 'Divider', () => slash(editor, 'divider'))}
       {sep('s6')}

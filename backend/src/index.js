@@ -25,6 +25,7 @@ import shareRoutes from './routes/shares.js';
 import { ownerRouter as publishRoutes, publicRouter } from './routes/publish.js';
 import { purgeOrphanChatFiles } from './chat.js';
 import backupRoutes from './routes/backups.js';
+import fileRoutes from './routes/files.js';
 import { startBackups } from './backups.js';
 
 const app = express();
@@ -33,7 +34,8 @@ const PORT = process.env.PORT || 3001;
 // Trust the first proxy (Nginx Proxy Manager / Cloudflare) so req.ip is the real client.
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false }));
+// Popups we open (OneDrive / Google sign-in) must stay linked to the app window.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } }));
 // Chat's live stream must not be held back for compression.
 app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/chats/events') && !req.path.startsWith('/api/ai/') && compression.filter(req, res) }));
 // The frontend is served from this same origin, so CORS is only needed if CORS_ORIGIN is set.
@@ -71,6 +73,7 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/backups', backupRoutes);
+app.use('/api/files', fileRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/ai', aiRoutes);

@@ -47,7 +47,12 @@ async function serverError(err) {
  * format: 'pdf' | 'docx' | 'markdown' | 'html'; scope: 'note' | 'subtree' | 'workspace'.
  * Returns { printed: true } when the PDF went to the browser's print dialog instead.
  */
-export async function runExport({ format, scope, noteId, workspace, pageSize = 'A4', pageBreaks = true, onProgress = () => {} }) {
+export async function runExport({ format, scope, noteId, workspace, pageSize = 'A4', pageBreaks = true, onProgress = () => {}, deliver = null, fileName = null }) {
+  // deliver(blob, name): where the file goes (default: the browser's downloads). fileName overrides the name.
+  const out = async (data, name, type) => {
+    if (!deliver) { download(data, name, type); return; }
+    await deliver(data instanceof Blob ? data : new Blob([data], { type }), fileName || name);
+  };
   const all = await getWorkspaceNotes(workspace.id);
   const notes = pickNotes(all, scope, noteId);
   if (!notes.length) throw new Error('Nothing to export');
@@ -55,8 +60,8 @@ export async function runExport({ format, scope, noteId, workspace, pageSize = '
 
   if (format === 'markdown') {
     onProgress('Collecting notes…');
-    const out = buildMarkdown(notes, all, title);
-    download(out.data, out.name, out.type);
+    const md = buildMarkdown(notes, all, title);
+    await out(md.data, md.name, md.type);
     return {};
   }
 
@@ -67,14 +72,14 @@ export async function runExport({ format, scope, noteId, workspace, pageSize = '
   const name = safeFileName(title);
 
   if (format === 'html') {
-    download(doc.html, `${name}.html`, 'text/html');
+    await out(doc.html, `${name}.html`, 'text/html');
     return {};
   }
 
   if (format === 'docx') {
     const { htmlToDocx } = await import('./docx');
     const blob = await htmlToDocx(doc, { title, pageSize, pageBreaks, onProgress });
-    download(blob, `${name}.docx`, blob.type);
+    await out(blob, `${name}.docx`, blob.type);
     return {};
   }
 
@@ -82,11 +87,12 @@ export async function runExport({ format, scope, noteId, workspace, pageSize = '
   onProgress('Making the PDF…');
   try {
     const res = await api.post('/export/pdf', { html: doc.html, pageSize, title }, { responseType: 'blob', timeout: 180_000 });
-    download(res.data, `${name}.pdf`, 'application/pdf');
+    await out(res.data, `${name}.pdf`, 'application/pdf');
     return {};
   } catch (err) {
     const offline = !err.response; // no answer at all: offline, or server unreachable
     const unavailable = err.response?.status === 503;
+    if ((offline || unavailable) && deliver) throw new Error('The server couldn’t make the PDF, so it can’t be saved there — choose Word or Web page, or download it instead');
     if (offline || unavailable) {
       await printInBrowser(doc.html);
       return { printed: true };

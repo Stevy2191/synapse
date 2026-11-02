@@ -109,6 +109,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Multi-user**: the first account is the admin, who adds everyone else
 - **Two-step verification**: authenticator apps (works with Bitwarden, 1Password…), passkeys (Face ID, Touch ID, Windows Hello, security keys) and recovery codes
 - **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes
+- **Files**: network folders (NAS), OneDrive and Google Drive — attach files to notes as a copy or a link, save exports there, browse from the sidebar; the admin decides who can use each folder, everyone connects their own cloud account
 - **Automatic backups**: daily or weekly, keep as many as you like, optional backup password (encrypted), save to a NAS folder, one-click restore — in Settings → Server → Backups
 - **Proxy-ready**: works behind Nginx Proxy Manager, Cloudflare Tunnel and others
 
@@ -166,6 +167,8 @@ The setup code stops a stranger from claiming the admin account before you do. I
 | `synapse update` | Download and start the latest version |
 | `synapse backup [folder]` | Save notes, uploads and settings to a `.tar.gz` |
 | `synapse restore <file>` | Restore a backup (the current data is kept aside) |
+| `synapse files-add <folder> [name]` | Let Synapse use a server folder (then pick who in Settings → Server → Files) |
+| `synapse files-remove <name>` / `files-list` | Stop using / list those folders |
 | `synapse backups-to <folder>` | Save the automatic backups in that folder (e.g. your NAS), or `default` |
 | `synapse logs [-f]` | Recent logs (`synapse logs caddy` for HTTPS) |
 | `synapse setup-code` | Show the admin setup code |
