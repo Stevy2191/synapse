@@ -4,6 +4,32 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.18.1 — November 2026
+
+### Security
+A full security review. Fixes:
+- **The server can no longer be used to reach your network.** Calendar links and AI service addresses
+  (and push notification endpoints) are checked before the server connects: cloud-metadata addresses are
+  always refused, and addresses on the server's own network (192.168.x.x, 10.x.x.x, localhost…) are only
+  allowed for admins — or for everyone if an admin turns on **Settings → Server → Let everyone use
+  local-network addresses** (needed if family/office members use Ollama on your LAN). Every redirect is
+  checked too.
+- **Content-Security-Policy turned on**: browsers only run Synapse's own code, so even if harmful HTML
+  ever got into a page it couldn't run. Also stops other sites from framing Synapse.
+- **Password and two-step-code guessing limited per account** (10 wrong passwords or 6 wrong codes →
+  that account's sign-in pauses for 15 minutes), on top of the per-address limits. Published-link PINs
+  also have a limit across all addresses.
+- **Visitors can't fake their address** to get around those limits: only proxies on this machine or a
+  private network are trusted to report it (`TRUST_PROXY` to change).
+- **Live editing:** the connection now uses a one-time pass instead of putting the sign-in in the
+  address (proxies log addresses), and people removed from a workspace — or signed out everywhere — are
+  disconnected immediately instead of being able to keep editing an open note.
+- **Meeting recordings:** only ordinary audio/video files are processed (a disguised "playlist" file
+  could otherwise make the converter read other files or fetch addresses).
+- **Updated libraries with known security bugs**: the editor (Tiptap 3.32, ProseMirror — fixes a paste
+  issue), the HTML cleaner (DOMPurify), Express, compression, nodemailer, axios and others.
+- Excalidraw whiteboards now load their fonts from your server only (they also tried esm.sh on the internet).
+
 ## v1.18.0 — November 2026
 
 ### Changed

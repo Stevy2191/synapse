@@ -250,7 +250,12 @@ export const queuePosition = id => queue.indexOf(id) + 1;
 
 function ffmpegToPcm(input, output) {
   return new Promise((resolve, reject) => {
-    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', input, '-vn', '-ac', '1', '-ar', '16000', '-f', 'f32le', output], { stdio: ['ignore', 'ignore', 'pipe'] });
+    // Only plain local files in ordinary audio/video formats: a "recording" that is really a playlist
+    // (HLS, concat…) could otherwise make ffmpeg read other files or fetch web addresses.
+    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
+      '-protocol_whitelist', 'file',
+      '-format_whitelist', 'mov,mp4,m4a,3gp,matroska,webm,ogg,wav,mp3,flac,aac,avi,asf,amr,caf,aiff,w64,wv',
+      '-i', input, '-vn', '-ac', '1', '-ar', '16000', '-f', 'f32le', output], { stdio: ['ignore', 'ignore', 'pipe'] });
     let err = '';
     p.stderr.on('data', d => { err += d; });
     p.on('error', e => reject(new MeetingError(500, e.code === 'ENOENT' ? 'ffmpeg isn’t installed on the server, so the recording can’t be read' : e.message)));

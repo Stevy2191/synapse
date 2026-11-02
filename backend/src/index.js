@@ -41,11 +41,40 @@ import { pruneActivity } from './activity.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Trust the first proxy (Nginx Proxy Manager / Cloudflare) so req.ip is the real client.
-app.set('trust proxy', 1);
+// Which proxies may tell us the visitor's real address (X-Forwarded-For). By default only ones on this
+// machine or a private network (Caddy, Nginx Proxy Manager, a Docker network) — so someone connecting
+// straight from the internet can't fake their address to dodge the sign-in limits.
+// TRUST_PROXY overrides it (e.g. "1" for one hop of anything, or a list of addresses).
+const TRUST_PROXY = process.env.TRUST_PROXY?.trim();
+app.set('trust proxy', TRUST_PROXY ? (/^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY) : 'loopback, linklocal, uniquelocal');
 
-// Popups we open (OneDrive / Google sign-in) must stay linked to the app window.
-app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } }));
+// Security headers. The Content-Security-Policy only lets the browser run Synapse's own scripts, so
+// even if something slipped HTML into a page it couldn't run code. Popups we open (OneDrive / Google
+// sign-in) must stay linked to the app window (COOP). Routes that serve files set their own, stricter CSP.
+const DRAWIO_ORIGIN = (() => { try { return new URL(process.env.DRAWIO_URL || 'https://embed.diagrams.net').origin; } catch { return 'https://embed.diagrams.net'; } })();
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'wasm-unsafe-eval'"],            // text recognition runs WebAssembly
+      workerSrc: ["'self'", 'blob:'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],  // pictures linked from the web, GIFs
+      mediaSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      connectSrc: ["'self'", 'data:', 'blob:', (req) => `ws://${req.headers.host}`, (req) => `wss://${req.headers.host}`],
+      frameSrc: ["'self'", 'blob:', DRAWIO_ORIGIN, 'https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://www.loom.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],                             // no one can frame Synapse (clickjacking)
+      manifestSrc: ["'self'"],
+    },
+  },
+}));
 // Chat's live stream must not be held back for compression.
 app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/chats/events') && !req.path.startsWith('/api/ai/') && compression.filter(req, res) }));
 // The frontend is served from this same origin, so CORS is only needed if CORS_ORIGIN is set.

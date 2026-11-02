@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { lockedFor, recordFailure, clearFailures } from '../middleware/accountGuard.js';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import { registrationOpen, validImage } from '../settings.js';
@@ -60,8 +61,12 @@ router.post('/login', authLimiter, async (req, res, next) => {
     }
 
     const user = db.prepare('SELECT * FROM users WHERE username=? COLLATE NOCASE OR email=? COLLATE NOCASE').get(username.trim(), username.trim());
+    const guardKey = `login:${user?.id || username.trim().toLowerCase()}`;
+    const wait = lockedFor(guardKey);
+    if (wait) return res.status(429).json({ error: `Too many wrong passwords for this account. Try again in ${wait} minute${wait === 1 ? '' : 's'}.` });
     const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
-    if (!user || !valid) return res.status(401).json({ error: 'Invalid username or password' });
+    if (!user || !valid) { recordFailure(guardKey, 10); return res.status(401).json({ error: 'Invalid username or password' }); }
+    clearFailures(guardKey);
 
     // Two-step verification: the password was right, now ask for the second step.
     if (hasMfa(user.id)) {

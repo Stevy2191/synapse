@@ -362,8 +362,24 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
-- Tiptap packages must all be the same version (3.22.5). Images are stored as data URLs
+- Tiptap packages must all be the same version (3.32.2). Images are stored as data URLs
   (resized) so they work offline.
+
+- **Security** (review Nov 2026, v1.18.1): outbound requests to user-entered addresses go through
+  backend/src/netguard.js `guardedFetch` (undici Agent with a DNS lookup that refuses blocked IPs at
+  connect time + manual redirects, each hop checked; `publicHttpsAgent` for web-push). NEVER = link-local/
+  metadata/multicast; LOCAL (loopback, RFC1918, CGNAT, fc00::/7) only if `mayUseLocal(user)` = admin or
+  setting `allow_local_urls`. Used by calendars, AI (OpenAI-compatible), push. Helmet CSP is on (index.js:
+  script-src self + wasm-unsafe-eval for OCR; img https:/http:; frame-src draw.io origin + YouTube/Vimeo/
+  Loom; connect-src self + ws(s)://host) — new external resources need adding there. Per-account lockouts
+  in middleware/accountGuard.js (login 10, MFA 6 per 15 min). `trust proxy` defaults to
+  'loopback, linklocal, uniquelocal' (TRUST_PROXY env). Collab WebSocket uses one-time tickets
+  (POST /api/notes/:id/collab-ticket, 60 s) and recheckCollab() every minute / on membership change.
+  ffmpeg runs with -protocol_whitelist file and a -format_whitelist. Excalidraw font path is set in
+  public/excalidraw-path.js before any app code (it reads it at module load; Vite chunk order made an
+  in-bundle assignment too late). Tiptap is now 3.32.2 (all packages the same). Known leftovers: uuid
+  (v3/v5 buffer issue, we only use v4), katex (needs prior prototype pollution; peer-capped at 0.18 by
+  @tiptap/extension-mathematics), lodash-es/nanoid inside Excalidraw/mermaid (not reachable with user input).
 
 ## Testing (how this was done)
 

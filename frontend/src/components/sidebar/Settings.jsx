@@ -712,6 +712,19 @@ function ServerGeneralPage() {
           <button role="switch" aria-checked={settings.allow_registration} onClick={toggleSignups} className={`toggle${settings.allow_registration ? ' on' : ''}`}><span /></button>
         </section>
       )}
+      {settings && (
+        <section style={{ ...section, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Let everyone use local-network addresses</label>
+            <p style={hint}>{settings.allow_local_urls
+              ? 'Anyone with an account can point calendar links and AI services (like Ollama) at computers on this server’s network.'
+              : 'Only admins can use addresses on this server’s own network (like Ollama at 192.168.x.x) for calendars and AI. This stops others from using the server to reach devices on your network.'}</p>
+          </div>
+          <button role="switch" aria-checked={settings.allow_local_urls} onClick={async () => {
+            try { const { data } = await api.patch('/admin/settings', { allow_local_urls: !settings.allow_local_urls }); setSettings(data); } catch (err) { toast.error(errorText(err)); }
+          }} className={`toggle${settings.allow_local_urls ? ' on' : ''}`}><span /></button>
+        </section>
+      )}
       {settings && <GifSettings settings={settings} setSettings={setSettings} />}
       {about && (
         <section style={section}>

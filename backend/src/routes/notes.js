@@ -6,7 +6,7 @@ import { TRASH_DAYS } from '../config.js';
 import { noteAccess, currentLock, takeLock, afterNoteSaved } from '../shares.js';
 import { sendTo } from '../chat.js';
 import { workspaceFor, MY_WORKSPACES_SQL, workspacePeopleIds, isShared, notifyWorkspace } from '../members.js';
-import { isCollabNote, externalChange, setContentSaver } from '../collab.js';
+import { isCollabNote, externalChange, setContentSaver, issueTicket } from '../collab.js';
 import { notifyMentions } from '../mentions.js';
 import { logActivity } from '../activity.js';
 
@@ -15,7 +15,7 @@ router.use(requireAuth);
 
 // Shared workspaces: after any change, tell the other members' apps to pull now (members.js).
 router.use((req, res, next) => {
-  if (req.method === 'GET' || req.path === '/batch') return next();
+  if (req.method === 'GET' || req.path === '/batch' || req.path.endsWith('/collab-ticket')) return next();
   res.on('finish', () => {
     if (res.statusCode >= 400) return;
     let ws = typeof req.body?.workspace_id === 'string' ? req.body.workspace_id : null;
@@ -452,6 +452,14 @@ router.get('/workspace/:wsId/trash', (req, res) => {
 
 // Send a copy of a template to someone else on this server: it lands in the "Templates" folder of
 // their first workspace (created if needed), named "<title> (from <sender>)" if they already have one.
+// A one-time pass for the live-editing connection (collab.js) — keeps the sign-in token out of URLs.
+router.post('/:id/collab-ticket', (req, res) => {
+  const access = noteAccess(req.params.id, req.user.id);
+  if (!access || !isCollabNote(access.note)) return res.status(404).json({ error: 'Not found' });
+  const tv = db.prepare('SELECT token_version FROM users WHERE id=?').get(req.user.id)?.token_version ?? 0;
+  res.json({ ticket: issueTicket(req.user, tv, access.note.id) });
+});
+
 router.post('/:id/send-template', (req, res) => {
   const note = getOwnedNote(req.params.id, req.user.id);
   if (!note || note.deleted_at) return res.status(404).json({ error: 'Not found — if you just made this template, wait for it to sync and try again' });

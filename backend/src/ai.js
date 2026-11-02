@@ -6,6 +6,7 @@
 //   • Claude — the official Anthropic SDK (Messages API, streaming).
 //   • Everything else — the OpenAI-compatible "chat completions" API, which all of them offer.
 import crypto from 'crypto';
+import { guardedFetch, mayUseLocal } from './netguard.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from './db/index.js';
 import { JWT_SECRET } from './config.js';
@@ -189,7 +190,9 @@ export function resolveAccount(userId, override = {}) {
   const model = (override.model !== undefined ? String(override.model || '').trim() : '') || row.model || p.defaultModel || '';
   if (p.needsKey && !apiKey) throw new AiError(400, `Add your ${p.label} key in Settings → AI assistant`);
   if (p.protocol === 'openai' && !baseUrl) throw new AiError(400, 'Add the address of your AI service in Settings → AI assistant');
-  return { provider, protocol: p.protocol, label: p.label, apiKey, baseUrl, model };
+  // Local-network AI (Ollama, LM Studio on the LAN) only for admins, or everyone if an admin allowed it.
+  const allowLocal = mayUseLocal(db.prepare('SELECT role FROM users WHERE id=?').get(userId));
+  return { provider, protocol: p.protocol, label: p.label, apiKey, baseUrl, model, allowLocal };
 }
 
 export function logUsage(userId, acct, task, charsIn, charsOut) {
@@ -209,6 +212,7 @@ function friendly(err, acct) {
     return new AiError(504, `${acct.label} didn’t answer in time${acct.model ? ` (model “${acct.model}”)` : ''}. Try again, or pick a faster model (one with “flash” in the name).`);
   }
   if (err?.name === 'AbortError') return new AiError(499, 'Stopped');
+  if (err?.code === 'EBLOCKED') return new AiError(400, err.message);
   if (/ECONNREFUSED|ENOTFOUND|fetch failed|EAI_AGAIN|ETIMEDOUT/i.test(raw + (err?.cause?.code || ''))) {
     return new AiError(502, `Couldn’t reach ${acct.label}${acct.baseUrl ? ` at ${acct.baseUrl}` : ''}. Is it running, and can the Synapse server reach it?`);
   }
@@ -241,12 +245,12 @@ export async function streamChat(acct, { system, messages, signal, onText }) {
       return full;
     }
     // OpenAI-compatible
-    const res = await fetch(`${acct.baseUrl}/chat/completions`, {
+    const res = await guardedFetch(`${acct.baseUrl}/chat/completions`, {
       method: 'POST',
       signal,
       headers: { 'Content-Type': 'application/json', ...(acct.apiKey ? { Authorization: `Bearer ${acct.apiKey}` } : {}) },
       body: JSON.stringify({ model: acct.model, stream: true, messages: [{ role: 'system', content: system }, ...messages] }),
-    });
+    }, { allowLocal: acct.allowLocal });
     if (!res.ok) {
       let msg = '';
       try { const j = await res.json(); msg = j?.error?.message || j?.message || JSON.stringify(j).slice(0, 200); } catch { /* not JSON */ }
@@ -293,10 +297,10 @@ export async function listModels(acct) {
       for await (const m of client.models.list()) ids.push(m.id);
       return ids;
     }
-    const res = await fetch(`${acct.baseUrl}/models`, {
+    const res = await guardedFetch(`${acct.baseUrl}/models`, {
       headers: acct.apiKey ? { Authorization: `Bearer ${acct.apiKey}` } : {},
       signal: AbortSignal.timeout(15000),
-    });
+    }, { allowLocal: acct.allowLocal });
     if (!res.ok) throw Object.assign(new Error(res.statusText), { status: res.status });
     const j = await res.json();
     return (j.data || j.models || []).map(m => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean).sort();

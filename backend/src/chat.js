@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import webpush from 'web-push';
+import { publicHttpsAgent } from './netguard.js';
 import { db, UPLOADS_DIR } from './db/index.js';
 import { JWT_SECRET } from './config.js';
 import { getSetting, setSetting } from './settings.js';
@@ -191,7 +192,8 @@ export async function pushTo(userId, payload) {
   const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
   await Promise.all(subs.map(async s => {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 3600, urgency: 'high' });
+      // Push services are on the public internet; the guarded agent refuses private / local addresses.
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 3600, urgency: 'high', agent: publicHttpsAgent });
     } catch (err) {
       // 404/410: the subscription has ended (app removed, permission revoked).
       if (err.statusCode === 404 || err.statusCode === 410) db.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').run(s.endpoint);

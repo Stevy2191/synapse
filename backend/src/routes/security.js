@@ -1,5 +1,6 @@
 // Two-step verification routes (mounted under /api/auth).
 import { Router } from 'express';
+import { lockedFor, recordFailure, clearFailures } from '../middleware/accountGuard.js';
 import bcrypt from 'bcryptjs';
 import {
   generateRegistrationOptions, verifyRegistrationResponse,
@@ -36,7 +37,11 @@ async function confirmPassword(userId, password) {
 router.post('/mfa/totp', limiter, (req, res, next) => {
   try {
     const user = userFromMfaToken(req.body?.mfa_token);
-    if (!user.totp_enabled || !checkTotp(user, req.body?.code)) throw new HttpError(401, 'That code isn’t right. Codes change every 30 seconds — try the newest one.');
+    const key = `mfa:${user.id}`;
+    const wait = lockedFor(key);
+    if (wait) throw new HttpError(429, `Too many wrong codes. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`);
+    if (!user.totp_enabled || !checkTotp(user, req.body?.code)) { recordFailure(key, 6); throw new HttpError(401, 'That code isn’t right. Codes change every 30 seconds — try the newest one.'); }
+    clearFailures(key);
     res.json(sessionFor(user.id));
   } catch (err) { next(err); }
 });
@@ -44,7 +49,11 @@ router.post('/mfa/totp', limiter, (req, res, next) => {
 router.post('/mfa/recovery', limiter, (req, res, next) => {
   try {
     const user = userFromMfaToken(req.body?.mfa_token);
-    if (!useRecoveryCode(user.id, req.body?.code)) throw new HttpError(401, 'That recovery code isn’t right, or it has already been used.');
+    const key = `mfa:${user.id}`;
+    const wait = lockedFor(key);
+    if (wait) throw new HttpError(429, `Too many wrong codes. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`);
+    if (!useRecoveryCode(user.id, req.body?.code)) { recordFailure(key, 6); throw new HttpError(401, 'That recovery code isn’t right, or it has already been used.'); }
+    clearFailures(key);
     const left = db.prepare('SELECT COUNT(*) AS c FROM recovery_codes WHERE user_id=? AND used_at IS NULL').get(user.id).c;
     res.json({ ...sessionFor(user.id), recovery_codes_left: left });
   } catch (err) { next(err); }

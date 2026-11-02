@@ -260,6 +260,7 @@ Notes:
 | `SETUP_CODE` | random | Code needed to create the admin account. `off` to skip it (trusted networks only) |
 | `ALLOW_REGISTRATION` | `false` | `true` lets anyone create an account. Otherwise only the first user (admin) can register |
 | `CORS_ORIGIN` | unset | Only needed if a different site calls the API from a browser (comma-separated list) |
+| `TRUST_PROXY` | private networks | Which reverse proxies may report the visitor's real address. By default only proxies on this machine or a private network (Caddy, Nginx Proxy Manager, Docker). Set a number (e.g. `1`) or address list only if your proxy is elsewhere |
 | `PORT` | `3001` | Internal port |
 | `DATA_DIR` | `/data` | Database and uploads location |
 

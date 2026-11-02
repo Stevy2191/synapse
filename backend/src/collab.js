@@ -1,7 +1,7 @@
 // Live editing together (Google Docs-style) for Write-mode notes in shared workspaces.
 //
 // Each open note is a Yjs document kept here and saved in note_ydocs; browsers connect over a
-// WebSocket at /api/collab?note=<id>&token=<jwt> and speak the standard y-protocols sync + awareness
+// WebSocket at /api/collab?note=<id>&ticket=<one-time pass> and speak the standard y-protocols sync + awareness
 // messages (who's here, where their cursor is), plus small JSON "control" messages:
 //   server → client  hello {gen, role}   seed (fill the empty document from the note's saved HTML)
 //                    external {html}     the note was changed outside the editor (Tasks page, board…):
@@ -10,6 +10,7 @@
 //   client → server  html {html, md}     the current text, saved as the note's rich_content / content
 // Devices keep their own copy (IndexedDB) so edits made offline merge in when they reconnect. `gen`
 // (generation) changes when the server throws its copy away, so devices know to drop theirs.
+import crypto from 'crypto';
 import { WebSocketServer } from 'ws';
 import * as Y from 'yjs';
 import * as syncProtocol from 'y-protocols/sync';
@@ -17,7 +18,6 @@ import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import { db } from './db/index.js';
-import { userFromToken } from './middleware/auth.js';
 import { noteAccess } from './shares.js';
 import { isShared } from './members.js';
 
@@ -31,6 +31,29 @@ db.exec(`
 `);
 
 const MSG_SYNC = 0, MSG_AWARENESS = 1, MSG_CONTROL = 3;
+
+// One-time passes for opening the WebSocket, so the sign-in token never goes in a URL (proxies log
+// URLs). The app asks for one with its normal sign-in (POST /api/collab/ticket); it works once, for 60 s.
+const tickets = new Map(); // ticket → { userId, tv, noteId, at }
+setInterval(() => { const t = Date.now(); for (const [k, v] of tickets) if (t - v.at > 60_000) tickets.delete(k); }, 30_000).unref();
+export function issueTicket(user, tv, noteId) {
+  const ticket = crypto.randomBytes(24).toString('base64url');
+  tickets.set(ticket, { userId: user.id, tv, noteId, at: Date.now() });
+  return ticket;
+}
+function useTicket(ticket, noteId) {
+  const t = tickets.get(String(ticket || ''));
+  if (!t) return null;
+  tickets.delete(ticket);
+  if (Date.now() - t.at > 60_000 || t.noteId !== noteId) return null;
+  return t;
+}
+const userRow = db.prepare('SELECT id, username, role, token_version, display_name FROM users WHERE id=?');
+/** Still signed in? (not deleted, and not "signed out everywhere" / password changed since) */
+function stillValid(userId, tv) {
+  const u = userRow.get(userId);
+  return u && (u.token_version ?? 0) === tv ? u : null;
+}
 const docs = new Map(); // noteId → { ydoc, awareness, conns: Map(ws → { user, role, synced, ids:Set }), gen, seeder, saveTimer }
 let saveContent = null; // set by routes/notes.js: (noteId, userId, { rich_content, content }) => void
 
@@ -175,19 +198,37 @@ export function resetDoc(noteId) {
   }
 }
 
+/**
+ * Check everyone connected still may be here: signed in (not signed out everywhere / deleted) and
+ * still allowed to see the note (not removed from the workspace), with their current role.
+ * Runs every minute, and straight away when workspace membership changes.
+ */
+export function recheckCollab() {
+  for (const d of docs.values()) {
+    for (const [ws, c] of d.conns) {
+      const user = stillValid(c.user.id, c.tv);
+      const access = user && noteAccess(d.noteId, user.id);
+      if (!access || !isCollabNote(access.note)) { try { ws.close(4003, 'access'); } catch { /* ignore */ } continue; }
+      c.role = access.role === 'view' ? 'view' : 'edit';
+    }
+  }
+}
+
 export function attachCollab(server) {
+  setInterval(recheckCollab, 60_000).unref();
   const wss = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024 });
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname !== '/api/collab') return; // not ours (nothing else uses WebSockets)
-    const user = userFromToken(url.searchParams.get('token'));
     const noteId = url.searchParams.get('note') || '';
+    const t = useTicket(url.searchParams.get('ticket'), noteId);
+    const user = t && stillValid(t.userId, t.tv);
     const access = user && noteAccess(noteId, user.id);
     if (!access || !isCollabNote(access.note)) { socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, ws => {
       const d = loadDoc(noteId);
       const role = access.role === 'view' ? 'view' : 'edit';
-      d.conns.set(ws, { user, role, synced: false, ids: new Set() });
+      d.conns.set(ws, { user, role, synced: false, ids: new Set(), tv: t.tv });
       ws.binaryType = 'arraybuffer';
       ws.on('message', data => onMessage(d, ws, data));
       ws.on('close', () => onClose(d, ws));

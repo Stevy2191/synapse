@@ -1,5 +1,6 @@
 // Chat API: conversations, members, messages, files, reactions, live events, GIF search, push.
 import { Router } from 'express';
+import { checkUrl } from '../netguard.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -504,6 +505,7 @@ router.post('/push/subscribe', wrap((req, res) => {
   const s = req.body?.subscription;
   if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint) || s.endpoint.length > 1000
     || typeof s.keys?.p256dh !== 'string' || typeof s.keys?.auth !== 'string') throw new HttpError(400, 'Invalid subscription');
+  try { checkUrl(s.endpoint, false); } catch { throw new HttpError(400, 'Invalid subscription'); }
   db.prepare(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth) VALUES (?,?,?,?)
     ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth`)
     .run(s.endpoint, req.user.id, s.keys.p256dh.slice(0, 200), s.keys.auth.slice(0, 100));

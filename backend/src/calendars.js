@@ -1,6 +1,7 @@
 // Calendar subscriptions (ICS links from Outlook, Google, iCloud, Proton, Nextcloud…).
 // The server fetches each link, expands recurring events into a window around today, and stores
 // the occurrences, refreshing every 15 minutes. Read-only: Synapse never changes your calendar.
+import { guardedFetch, mayUseLocal } from './netguard.js';
 import ICAL from 'ical.js';
 import { db } from './db/index.js';
 import { HttpError } from './users.js';
@@ -51,14 +52,14 @@ export function normalizeUrl(input) {
   return parsed.toString();
 }
 
-async function download(url) {
+async function download(url, allowLocal = false) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20_000);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal, redirect: 'follow',
+    const res = await guardedFetch(url, {
+      signal: ctrl.signal,
       headers: { 'User-Agent': 'Synapse calendar sync', Accept: 'text/calendar, */*' },
-    });
+    }, { allowLocal });
     if (!res.ok) {
       throw new Error(res.status === 404 ? 'The calendar link wasn’t found (404). It may have been unpublished.'
         : res.status === 401 || res.status === 403 ? 'The calendar refused access. Check the link is the public/secret ICS link.'
@@ -71,6 +72,7 @@ async function download(url) {
     if (!/BEGIN:VCALENDAR/i.test(text)) throw new Error('That link isn’t a calendar (ICS) file. Make sure you copied the ICS link, not the web page link.');
     return text;
   } catch (err) {
+    if (err.code === 'EBLOCKED') throw err;
     if (err.name === 'AbortError') throw new Error('The calendar took too long to answer.');
     if (err.cause?.code === 'ENOTFOUND') throw new Error('Couldn’t find that server. Check the link.');
     if (err.cause?.code === 'ECONNREFUSED') throw new Error('The calendar server refused the connection.');
@@ -157,7 +159,9 @@ export function expandCalendar(text) {
 
 export async function syncCalendar(cal) {
   try {
-    const events = expandCalendar(await download(cal.url));
+    // Local-network calendar addresses only for admins (or everyone, if an admin allowed it).
+    const owner = db.prepare('SELECT role FROM users WHERE id=?').get(cal.user_id);
+    const events = expandCalendar(await download(cal.url, mayUseLocal(owner)));
     db.transaction(() => {
       db.prepare('DELETE FROM calendar_events WHERE calendar_id=?').run(cal.id);
       const ins = db.prepare(`INSERT INTO calendar_events (calendar_id, uid, title, start, end, all_day, location, description, attendees, join_url)

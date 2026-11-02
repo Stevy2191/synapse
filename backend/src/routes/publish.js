@@ -155,10 +155,13 @@ publicRouter.post('/:id/open', (req, res) => {
   if (p.expires_at && p.expires_at < nowS()) return res.status(410).json({ error: 'This link has expired.' });
   if (p.pin_hash) {
     const key = `${p.id}|${req.ip}`;
+    const linkKey = `${p.id}|*`; // all addresses together: stops guessing a short PIN from many addresses
     const a = attempts.get(key) || { n: 0, reset: Date.now() + 15 * 60_000 };
-    if (a.n >= 8) return res.status(429).json({ error: 'Too many wrong tries — wait 15 minutes and try again.' });
+    const all = attempts.get(linkKey) || { n: 0, reset: Date.now() + 15 * 60_000 };
+    if (a.n >= 8 || all.n >= 40) return res.status(429).json({ error: 'Too many wrong tries — wait 15 minutes and try again.' });
     if (!bcrypt.compareSync(String(req.body?.pin ?? ''), p.pin_hash)) {
       a.n++; attempts.set(key, a);
+      all.n++; attempts.set(linkKey, all);
       return res.status(401).json({ error: req.body?.pin ? 'That PIN or password isn’t right.' : 'Enter the PIN or password.', needs_pin: true });
     }
     attempts.delete(key);

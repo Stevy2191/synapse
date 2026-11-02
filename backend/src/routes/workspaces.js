@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { workspaceFor, workspacePeople, workspacePeopleIds, MY_WORKSPACES_SQL } from '../members.js';
 import { sendTo, pushTo } from '../chat.js';
+import { recheckCollab } from '../collab.js';
 import { addToInbox } from '../activity.js';
 import { v4 as uuid } from 'uuid';
 import { db, removeUploadFiles } from '../db/index.js';
@@ -109,6 +110,7 @@ router.patch('/:id/members/:userId', (req, res) => {
   db.prepare('UPDATE workspace_members SET role=? WHERE workspace_id=? AND user_id=?').run(req.body.role, ws.id, req.params.userId);
   sendTo(workspacePeopleIds(ws.id), 'members:changed', { workspace_id: ws.id });
   sendTo([req.params.userId], 'workspaces:changed', { workspace_id: ws.id });
+  recheckCollab();
   res.json({ members: membersView(ws.id) });
 });
 router.delete('/:id/members/:userId', (req, res) => {
@@ -120,6 +122,7 @@ router.delete('/:id/members/:userId', (req, res) => {
   db.prepare('DELETE FROM workspace_members WHERE workspace_id=? AND user_id=?').run(ws.id, req.params.userId);
   sendTo(before, 'members:changed', { workspace_id: ws.id });
   sendTo([req.params.userId], 'workspaces:changed', { workspace_id: ws.id, removed: true });
+  recheckCollab();
   res.json({ members: membersView(ws.id) });
 });
 
@@ -165,6 +168,7 @@ router.delete('/:id', (req, res) => {
   const people = workspacePeopleIds(ws.id).filter(id => id !== req.user.id);
   db.prepare('DELETE FROM workspaces WHERE id=?').run(ws.id);
   sendTo(people, 'workspaces:changed', { workspace_id: ws.id, removed: true });
+  recheckCollab();
   removeUploadFiles(files);
   res.json({ ok: true });
 });

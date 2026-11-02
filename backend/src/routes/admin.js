@@ -51,6 +51,7 @@ function serverSettings() {
   const key = getSetting('gif_api_key') || '';
   return {
     allow_registration: getSetting('allow_registration') === 'true',
+    allow_local_urls: getSetting('allow_local_urls') === 'true',
     gif_provider: getSetting('gif_provider') || 'giphy',
     gif_key_set: !!key,
     gif_key_hint: key ? `…${key.slice(-4)}` : '',
@@ -65,6 +66,11 @@ router.patch('/settings', (req, res) => {
   if (body.allow_registration !== undefined) {
     if (typeof body.allow_registration !== 'boolean') return res.status(400).json({ error: 'Invalid value' });
     setSetting('allow_registration', body.allow_registration);
+  }
+  // Let non-admins use local-network addresses (calendar links, AI like Ollama on the LAN). See netguard.js.
+  if (body.allow_local_urls !== undefined) {
+    if (typeof body.allow_local_urls !== 'boolean') return res.status(400).json({ error: 'Invalid value' });
+    setSetting('allow_local_urls', body.allow_local_urls);
   }
   // GIF search in chat: a GIPHY or Tenor API key (empty string removes it)
   if (body.gif_provider !== undefined) {

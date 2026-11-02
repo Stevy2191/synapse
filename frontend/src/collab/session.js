@@ -9,6 +9,7 @@ import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { useStore } from '../stores/useStore';
+import api from '../api';
 
 const MSG_SYNC = 0, MSG_AWARENESS = 1, MSG_CONTROL = 3;
 const COLORS = ['#e5534b', '#3b9eff', '#2fb67c', '#f2a93b', '#c061cb', '#14b8a6', '#f97316', '#6366f1', '#ec4899', '#84cc16'];
@@ -19,10 +20,9 @@ const dbName = (userId, noteId) => `synapse-y-${userId}-${noteId}`;
 
 export class CollabSession {
   constructor(noteId, { onStatus } = {}) {
-    const { user, token } = useStore.getState();
+    const { user } = useStore.getState();
     this.noteId = noteId;
     this.userId = user?.id;
-    this.token = token;
     this.onStatus = onStatus || (() => {});
     this.status = { connected: false, synced: false, local: false, role: null, people: [] };
     this.handlers = { seed: null, external: null };
@@ -65,10 +65,20 @@ export class CollabSession {
     this.emit();
   }
 
-  connect() {
-    if (this.destroyed || this.ws || !navigator.onLine) return;
+  async connect() {
+    if (this.destroyed || this.ws || this.connecting || !navigator.onLine) return;
+    // A one-time pass instead of the sign-in token, so the token never appears in a URL (proxy logs).
+    this.connecting = true;
+    let ticket;
+    try { ticket = (await api.post(`/notes/${this.noteId}/collab-ticket`)).data.ticket; } catch {
+      this.connecting = false;
+      if (!this.destroyed) { setTimeout(() => this.connect(), this.retry); this.retry = Math.min(this.retry * 2, 30_000); }
+      return;
+    }
+    this.connecting = false;
+    if (this.destroyed || this.ws) return;
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/api/collab?note=${encodeURIComponent(this.noteId)}&token=${encodeURIComponent(this.token)}`);
+    const ws = new WebSocket(`${proto}://${location.host}/api/collab?note=${encodeURIComponent(this.noteId)}&ticket=${encodeURIComponent(ticket)}`);
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onmessage = e => this.onMessage(e.data);
