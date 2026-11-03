@@ -1095,7 +1095,7 @@ export default function Editor() {
           {!guest && crumbs.map(c => (
             <span key={c.id} style={{ display: 'contents' }}>
               <ChevronRight size={13} style={{ flexShrink: 0 }} />
-              <button className="btn-ghost" style={{ height: 24, padding: '0 4px', fontSize: 13 }} onClick={() => openNote(c.id)}>{c.title}</button>
+              <button className="btn-ghost" style={{ height: 24, padding: '0 4px', fontSize: 13, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170, minWidth: 0, flexShrink: 1 }} title={c.title} onClick={() => openNote(c.id)}>{c.title}</button>
             </span>
           ))}
           <ChevronRight size={13} style={{ flexShrink: 0 }} />

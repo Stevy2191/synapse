@@ -4,6 +4,30 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.21.0 — November 2026
+
+### New: import from Obsidian, Notion, Evernote and OneNote
+- **New → Import notes** (in the New window). Everything goes into one new folder in the workspace you're in,
+  named like “Imported from Notion – Nov 3”, keeping its own folders inside. Move notes out of it whenever you
+  like, or delete that folder to undo the import.
+- **Obsidian**: choose your vault folder (or a .zip of it). Folders and folder notes, pictures, PDFs (as PDF
+  blocks), other files (as 📎 file chips), tags from the front matter, callouts, math, checklists and `[[links]]`
+  come along. Excalidraw drawings and canvases are listed as left out.
+- **Notion**: the .zip from Notion's “Export” (Markdown & CSV, with sub-pages). Pages keep their sub-pages,
+  pictures and links (turned into `[[links]]`); databases become tables, with each row's page under it.
+- **Evernote**: one or more .enex files (one per notebook). Pictures, attachments, checklists, bold/italic,
+  tables and tags come along, plus the date each note was made in Evernote and the web address of web clips.
+  Encrypted text is marked as not imported.
+- **OneNote**: straight from your Microsoft account — **Connect OneNote** asks Microsoft for permission to
+  *read* your notebooks, then tick the notebooks or sections you want. Sections become folders, pages become
+  notes (sub-pages stay under their page) with their pictures, attached files and to-dos.
+- Notes with the same name as one you already have get “(2)” added, and links are pointed at the right one.
+- Files are read in your browser; the import works offline too (files upload when you're back online).
+  A report at the end lists anything that was left out.
+
+### Fixed
+- A long folder name no longer squashes the note's path at the top of the page.
+
 ## v1.20.0 — November 2026
 
 ### New: backups copied to OneDrive or Google Drive

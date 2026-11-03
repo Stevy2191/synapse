@@ -368,6 +368,37 @@ export async function createNote({ workspace_id, parent_id = null, title = 'Unti
 }
 
 /**
+ * Add many notes at once (Import). `list` is in order, parents before their children:
+ * [{ id, parent_id, title, content, rich_content, tags: [] }]. The first note's parent may be null
+ * (it goes at the end of the top level). One transaction, one tree refresh; uploads via the outbox.
+ */
+export async function importNotes(workspace_id, list) {
+  const d = await db();
+  const existing = await getWorkspaceNotes(workspace_id);
+  const pos = new Map(); // parent → next position
+  const nextPos = parent => {
+    if (!pos.has(parent)) pos.set(parent, existing.filter(n => (n.parent_id ?? null) === parent).reduce((m, n) => Math.max(m, n.position), -1) + 1);
+    const p = pos.get(parent);
+    pos.set(parent, p + 1);
+    return p;
+  };
+  const now = Math.floor(Date.now() / 1000);
+  const tx = d.transaction(['notes', 'outbox'], 'readwrite');
+  for (const n of list) {
+    const parent = n.parent_id ?? null;
+    await tx.objectStore('notes').put({
+      id: n.id, workspace_id, parent_id: parent, title: n.title, note_type: 'note',
+      content: n.content || '', rich_content: n.rich_content ?? null, canvas_data: null, editor_mode: 'rich',
+      tags: JSON.stringify(n.tags || []), position: nextPos(parent), created_at: now, updated_at: now, server_version: null,
+    });
+    await tx.objectStore('outbox').add({ op: 'create', noteId: n.id, fields: {}, opId: uuid() });
+  }
+  await tx.done;
+  afterLocalChange();
+  await refreshTree();
+}
+
+/**
  * Save changes to a note. `fields` may include title, content, rich_content, canvas_data,
  * tags (array), editor_mode, parent_id, position.
  */

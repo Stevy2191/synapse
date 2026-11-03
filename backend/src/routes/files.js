@@ -5,7 +5,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { noteAccess } from '../shares.js';
 import {
   sourcesFor, listFiles, downloadFile, uploadFile, attachCopy, startConnect, finishConnect, disconnect,
-  adminView, updateAdmin, FileError,
+  adminView, updateAdmin, FileError, hasOneNote, oneNoteNotebooks, oneNotePages, oneNotePage, oneNoteResource, cloudConfig,
 } from '../files.js';
 
 const router = Router();
@@ -86,7 +86,25 @@ router.post('/attach', wrap(async (req, res) => {
 }));
 
 router.post('/connect/:provider', wrap(async (req, res) => {
-  res.json(startConnect(req.user, req.params.provider, String(req.body?.origin || '')));
+  res.json(startConnect(req.user, req.params.provider, String(req.body?.origin || ''), { onenote: req.body?.onenote === true }));
+}));
+
+// OneNote import (Import window): notebooks → sections → pages, read with the person's own sign-in.
+router.get('/onenote/status', (req, res) => {
+  const c = cloudConfig('onedrive');
+  res.json({ configured: !!(c.client_id && c.secret), access: hasOneNote(req.user) }); // access: none | no | yes
+});
+router.get('/onenote/notebooks', wrap(async (req, res) => res.json({ notebooks: await oneNoteNotebooks(req.user) })));
+router.get('/onenote/sections/:id/pages', wrap(async (req, res) => res.json({ pages: await oneNotePages(req.user, req.params.id) })));
+router.get('/onenote/pages/:id', wrap(async (req, res) => res.json(await oneNotePage(req.user, req.params.id))));
+router.get('/onenote/resource', wrap(async (req, res) => {
+  const f = await oneNoteResource(req.user, String(req.query.u || ''));
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('X-File-Type', f.type);
+  res.setHeader('Content-Disposition', 'attachment');
+  if (f.size) res.setHeader('Content-Length', f.size);
+  f.stream.on('error', () => res.destroy());
+  f.stream.pipe(res);
 }));
 router.delete('/connect/:provider', (req, res) => { disconnect(req.user, req.params.provider); res.json({ sources: sourcesFor(req.user) }); });
 

@@ -32,10 +32,11 @@ export const useStore = create(
       activeChatId: null,         // the chat open on the Chats page
       tabs: {},                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
       richToolbar: false,         // formatting bar fixed at the top of Write-mode notes (this device)
+      importOpen: false,          // the Import window (New → Import notes); rendered in AppPage
       filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones
-      templatePicker: null,
+      templatePicker: null,       // { parentId } while "New note from a template" is open (rendered in AppPage)
       pendingComment: null,       // { noteId, threadId } — open this comment thread when the note opens
-      inboxUnread: 0,             // the bell's count (team/inbox)       // { parentId } while "New note from a template" is open (rendered in AppPage)
+      inboxUnread: 0,             // the bell's count (team/inbox)
       activeClusterId: null,      // the cluster shown when view === 'cluster' (components/clusters)
 
       // Offline sync status (see offline/sync.js)

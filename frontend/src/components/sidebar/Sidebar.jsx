@@ -363,6 +363,7 @@ export default function Sidebar({ width, onNavigate }) {
   const createNote = async (type, parentId = null) => {
     if (!activeWorkspace) return;
     if (type === 'template') { useStore.setState({ templatePicker: { parentId } }); onNavigate?.(); return; }
+    if (type === 'import') { useStore.setState({ importOpen: true }); onNavigate?.(); return; }
     if (type?.template) {
       try { await newNoteFromTemplate(type.template, { parentId }); onNavigate?.(); } catch (err) { toast.error(err.message || 'Couldn’t create the note'); }
       return;

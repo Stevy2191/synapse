@@ -11,7 +11,7 @@ import { db } from '../offline/db';
 const MAX_BYTES = 50 * 1024 * 1024;       // same as the server's upload limit
 const CACHE_BYTES = 400 * 1024 * 1024;    // offline copies kept on this device (not counting unsent ones)
 
-export function newId() {
+export function newId() { // a random UUID v4
   // crypto.randomUUID needs https; getRandomValues works on http://LAN addresses too.
   const b = crypto.getRandomValues(new Uint8Array(16));
   b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
@@ -49,7 +49,7 @@ export function uploadPending() {
     for (const rec of await d.getAll('pdfs')) {
       if (!rec.pending) continue;
       const form = new FormData();
-      form.append('file', new File([rec.blob], rec.name, { type: 'application/pdf' }));
+      form.append('file', new File([rec.blob], rec.name, { type: rec.mime || 'application/pdf' }));
       try {
         await api.post(`/attachments/note/${rec.noteId}?id=${rec.id}`, form, { timeout: 0 });
         await put({ ...rec, pending: false });
@@ -64,6 +64,11 @@ export function uploadPending() {
     }
   })().finally(() => { uploading = null; });
   return uploading;
+}
+
+/** Keep any file (Import) to be uploaded as an attachment of `noteId` with the given id. */
+export async function queueFile(id, blob, name, noteId, mime) {
+  await put({ id, blob, name, noteId, mime: mime || blob.type || 'application/octet-stream', pending: true, size: blob.size, usedAt: Date.now() });
 }
 
 export async function hasPending() {

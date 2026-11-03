@@ -135,6 +135,11 @@ frontend/src/
   ocr/client.js, ocr/hash.js        readText (server, else tesseract.js on the device; handwriting → /api/ai/read-image),
                                     readPdf (pdf.js text, OCR for scanned pages), search index (IndexedDB store `ocr`)
   components/ocr/                   ReadTextDialog (Printed / Handwriting, Copy / Insert / New note), OcrSettings (admin)
+  import/             Import (New → Import notes; components/import/ImportDialog.jsx, store importOpen → AppPage):
+                      common.js ImportBuilder (notes + asset placeholders → unique titles, links, HTML+MD, sync.importNotes
+                      bulk insert; files queued via pdf/files.js queueFile), cleanHtml (Evernote/OneNote HTML), readEntries
+                      (zip via fflate / folder); markdownVault.js (Obsidian + Notion), evernote.js (.enex, spark-md5),
+                      onenote.js (server: files.js oneNote*, routes /api/files/onenote/*)
   pdf/files.js, pdf/pdfjs.js, pdf/ink.js   PDF blocks: file store/upload, pdf.js loader, markings (draw, erase, bake)
   components/pdf/                   PdfNode (Tiptap node `pdf`, pickPdf/insertPdf), PdfBlockView (viewer + pen tools)
   meetings/client.js                recorder (zustand useRecorder: mic or getDisplayMedia + mic mixed, MediaRecorder,
@@ -261,6 +266,17 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   pruned in the cloud. backup_cloud* settings survive a restore (backup_ prefix). Test stand-in: scratchpad
   cb/mock2.py (upload sessions, resumable, DELETE, /fail/on|off, /state) on 8097. Not built: choosing another
   folder, sending to a network folder (NAS is done via `synapse backups-to`).
+- **Import** (v1.21.0): Sean chose "a folder in this workspace" and "OneNote from the Microsoft account". All
+  file parsing is in the browser; notes are added locally in one transaction (sync.js importNotes) and upload via
+  the outbox. Pictures → data URLs (fitImage; 1000 px when a note has >20), PDFs → PDF blocks, other files → 📎
+  chips; both kinds of files are stored in IndexedDB `pdfs` (generalised: `mime`) and uploaded with device-picked
+  attachment ids once the note exists on the server (uploadPending retried). Titles are made unique against the
+  workspace ("Name (2)") and links rewritten. OneNote: separate consent — POST /files/connect/onedrive {onenote:true}
+  adds Notes.Read to the scope; the granted scope is kept in the token and reused on refresh (hasOneNote). Server
+  inlines page pictures as data URLs; attachments via /api/files/onenote/resource (only Graph /onenote/resources/
+  URLs). DOMPurify drops data-tag="to-do:completed" (looks like a URI) → markers translated first. ENML self-closing
+  <en-todo/> must be expanded before HTML parsing. Not built: Evernote internal note links, created dates as note
+  dates, Notion HTML exports, Obsidian canvas/Excalidraw. Test data + OneNote stand-in: scratchpad imp/, cb/mock2.py.
 - **Tabs** (built Nov 2026): browser-like (Sean's choice). `activeNote` is still the one open note;
   a store subscription in tabs/tabs.js puts every opened note into the current tab (or switches to
   its tab if already open). `openInNewTab()` / `nextInNewTab()` (Ctrl/⌘/middle-click in the sidebar,
@@ -503,7 +519,7 @@ Other ideas:
 
 - Letting "Can edit" people add new notes inside a shared folder;
   showing embedded Free Draw drawings inside notes shared with you; offline copies of shared notes.
-- Attachments other than images and PDFs (files); import from Obsidian / Notion / OneNote / Evernote.
+- Attachments other than images and PDFs (files). (Import from Obsidian / Notion / Evernote / OneNote is built.)
 - Web clipper (bookmarklet / browser extension) and email-to-note.
 - Outlook calendar two-way: push tasks with due dates (meeting notes from events are built).
 - Reminders via ntfy/Gotify; per-task email reminders (push reminders + the daily email are built).

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, lazy, Suspense } from 'react';
 import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
 import Editor from '../components/editor/Editor';
@@ -23,6 +23,9 @@ import api from '../api';
 import { reportTimeZone, openFromReminderUrl, showReminder } from '../reminders/client';
 import { startOffline, getWorkspaces, syncNow } from '../offline/sync';
 
+// The Import window is only downloaded when someone opens it.
+const ImportDialog = lazy(() => import('../components/import/ImportDialog'));
+
 function useIsNarrow() {
   const query = '(max-width: 820px)';
   const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
@@ -46,6 +49,7 @@ export default function AppPage() {
   const setSearchOpen = useStore(s => s.setSearchOpen);
   const narrow = useIsNarrow();
   const filesOpen = useStore(s => s.filesOpen);
+  const importOpen = useStore(s => s.importOpen);
 
   // Meeting recordings that didn't upload (offline / closed tab): try again now and when back online.
   useEffect(() => {
@@ -154,6 +158,7 @@ export default function AppPage() {
       </main>
       <RecorderBar />
       {templatePicker && <TemplatePicker mode="new" parentId={templatePicker.parentId ?? null} onClose={() => useStore.setState({ templatePicker: null })} />}
+      {importOpen && <Suspense fallback={null}><ImportDialog onClose={() => useStore.setState({ importOpen: false })} /></Suspense>}
       {filesOpen && <FilePicker mode="browse" onClose={() => useStore.setState({ filesOpen: false })} />}
       <SearchModal />
       <Settings />

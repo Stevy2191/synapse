@@ -1795,3 +1795,37 @@ li[data-checked="true"] .task-when { opacity: .6; }
 }
 .backup-cloud-tag { color: var(--accent); white-space: nowrap; }
 .backup-cloud-tag svg { vertical-align: -1px; }
+.nn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .nn-row { grid-template-columns: 1fr; } }
+
+/* ── Import window (components/import) ── */
+.imp-hint { font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 12px; }
+.imp-hint code { font-size: 12px; }
+.imp-small { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: 10px 0 0; }
+.imp-sources { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .imp-sources { grid-template-columns: 1fr; } }
+.imp-source { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 12px; border: 1px solid var(--border-subtle); background: var(--bg-elevated); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.imp-source:hover { border-color: var(--accent); background: var(--accent-subtle); }
+.imp-source span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.imp-source small { font-size: 12px; color: var(--text-muted); }
+.imp-logo { font-size: 22px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: var(--bg-hover); flex-shrink: 0; }
+.imp-back { margin: -4px 0 8px -8px; }
+.imp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.imp-actions .export-go { display: inline-flex; align-items: center; gap: 6px; }
+.imp-alt { border: 1px solid var(--border); }
+.imp-busy { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 10px; text-align: center; color: var(--text-secondary); }
+.imp-busy svg { color: var(--accent); }
+.imp-busy p { margin: 0; font-size: 14px; color: var(--text-primary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.imp-busy small { color: var(--text-muted); }
+.imp-error { display: flex; gap: 6px; align-items: flex-start; color: var(--danger); font-size: 13px; margin: 12px 0 0; }
+.imp-error svg { flex-shrink: 0; margin-top: 2px; }
+.imp-done { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.5; margin: 0; }
+.imp-done svg { color: var(--success, #22c55e); flex-shrink: 0; margin-top: 2px; }
+.imp-skipped { margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
+.imp-skipped summary { cursor: pointer; }
+.imp-skipped ul { margin: 6px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
+.imp-skipped li { margin: 2px 0; }
+.imp-tree { max-height: 300px; overflow: auto; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 8px 10px; }
+.imp-book + .imp-book { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.imp-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 3px 0; cursor: pointer; color: var(--text-primary); }
+.imp-section { padding-left: 24px; color: var(--text-secondary); }

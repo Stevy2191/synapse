@@ -236,7 +236,8 @@ export function updateAdmin(body) {
 
 // OAuth "state" → who started it (kept in memory for 10 minutes).
 const pending = new Map();
-export function startConnect(user, provider, origin) {
+const ONENOTE_SCOPE = 'Notes.Read';
+export function startConnect(user, provider, origin, { onenote = false } = {}) {
   const p = PROVIDERS[provider];
   if (!p) throw new FileError(400, 'Unknown provider');
   if (!configured(provider)) throw new FileError(400, `${p.label} isn’t set up on this server yet — an admin adds it in Settings → Server → Files`);
@@ -244,10 +245,12 @@ export function startConnect(user, provider, origin) {
   try { o = new URL(origin); } catch { throw new FileError(400, 'Bad address'); }
   const redirect = `${o.origin}/api/files/oauth/${provider}/callback`;
   const state = crypto.randomBytes(24).toString('base64url');
-  pending.set(state, { userId: user.id, provider, redirect, at: Date.now() });
+  // OneNote import asks for one more permission (reading notebooks) on top of the usual ones.
+  const scope = provider === 'onedrive' && onenote ? `${p.scope} ${ONENOTE_SCOPE}` : p.scope;
+  pending.set(state, { userId: user.id, provider, redirect, scope, at: Date.now() });
   for (const [k, v] of pending) if (Date.now() - v.at > 10 * 60_000) pending.delete(k);
   const c = cloudConfig(provider);
-  const q = new URLSearchParams({ client_id: c.client_id, response_type: 'code', redirect_uri: redirect, scope: p.scope, state, ...p.extraAuth });
+  const q = new URLSearchParams({ client_id: c.client_id, response_type: 'code', redirect_uri: redirect, scope, state, ...p.extraAuth });
   return { url: `${p.authUrl(c)}?${q}`, redirect };
 }
 
@@ -269,7 +272,7 @@ export async function finishConnect(provider, { code, state, error, error_descri
   if (error) throw new FileError(400, desc || error);
   if (!p || p.provider !== provider) throw new FileError(400, 'This sign-in link has expired — try connecting again');
   const t = await tokenRequest(provider, { grant_type: 'authorization_code', code: String(code || ''), redirect_uri: p.redirect });
-  const tokens = { access: t.access_token, refresh: t.refresh_token || '', expires: Date.now() + (Number(t.expires_in) || 3600) * 1000 };
+  const tokens = { access: t.access_token, refresh: t.refresh_token || '', expires: Date.now() + (Number(t.expires_in) || 3600) * 1000, scope: p.scope };
   let account = '';
   try {
     if (provider === 'onedrive') {
@@ -299,12 +302,12 @@ async function accessToken(user, provider) {
   if (Date.now() < tokens.expires - 60_000) return tokens.access;
   if (!tokens.refresh) throw new FileError(401, `Your ${PROVIDERS[provider].label} sign-in expired — connect it again in Settings → Connected drives`);
   const params = { grant_type: 'refresh_token', refresh_token: tokens.refresh };
-  if (provider === 'onedrive') params.scope = PROVIDERS.onedrive.scope;
+  if (provider === 'onedrive') params.scope = tokens.scope || PROVIDERS.onedrive.scope; // keep e.g. OneNote access
   let t;
   try { t = await tokenRequest(provider, params); } catch {
     throw new FileError(401, `Your ${PROVIDERS[provider].label} sign-in expired — connect it again in Settings → Connected drives`);
   }
-  const next = { access: t.access_token, refresh: t.refresh_token || tokens.refresh, expires: Date.now() + (Number(t.expires_in) || 3600) * 1000 };
+  const next = { access: t.access_token, refresh: t.refresh_token || tokens.refresh, expires: Date.now() + (Number(t.expires_in) || 3600) * 1000, scope: tokens.scope };
   db.prepare('UPDATE file_accounts SET tokens_enc=? WHERE user_id=? AND provider=?').run(encrypt(JSON.stringify(next)), user.id, provider);
   return next.access;
 }
@@ -658,3 +661,99 @@ export function connectedDrives(userId) {
     .map(r => ({ provider: r.provider, label: PROVIDERS[r.provider].label, account: r.account }));
 }
 export const drivesConfigured = () => Object.keys(PROVIDERS).filter(configured).map(id => ({ provider: id, label: PROVIDERS[id].label }));
+
+
+// ───────────────────────── OneNote (import) ─────────────────────────
+//
+// Reads notebooks → sections (and section groups) → pages with the person's own Microsoft sign-in
+// (needs the Notes.Read permission: "Connect OneNote" in the import window). Page pictures are
+// downloaded here and put into the page as data URLs; attached files are fetched one by one through
+// oneNoteResource(), which only accepts OneNote resource addresses on Microsoft Graph.
+
+export function hasOneNote(user) {
+  const row = db.prepare("SELECT tokens_enc FROM file_accounts WHERE user_id=? AND provider='onedrive'").get(user.id);
+  if (!row) return 'none';
+  try { return (JSON.parse(decrypt(row.tokens_enc) || '{}').scope || '').includes(ONENOTE_SCOPE) ? 'yes' : 'no'; } catch { return 'no'; }
+}
+
+async function graphJson(user, url, tries = 0) {
+  const token = await accessToken(user, 'onedrive');
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 429 && tries < 4) { // OneNote limits how fast pages can be read
+    await new Promise(r => setTimeout(r, Math.min(30, Number(res.headers.get('retry-after')) || 5 * (tries + 1)) * 1000));
+    return graphJson(user, url, tries + 1);
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new FileError(403, 'OneNote: Synapse isn’t allowed to read your notebooks yet — click “Connect OneNote”');
+    throw new FileError(res.status === 404 ? 404 : 502, `OneNote: ${data.error?.message || res.statusText}`);
+  }
+  return res;
+}
+async function graphAll(user, url) {
+  const out = [];
+  for (let next = url, page = 0; next && page < 50; page++) {
+    const data = await (await graphJson(user, next)).json();
+    out.push(...(data.value || []));
+    next = data['@odata.nextLink'];
+  }
+  return out;
+}
+
+/** Notebooks with their sections (section groups become nested). */
+export async function oneNoteNotebooks(user) {
+  const sel = 'id,displayName';
+  const groups = async (url, depth) => {
+    if (depth > 3) return [];
+    const list = await graphAll(user, url);
+    return Promise.all(list.map(async g => ({
+      id: g.id, name: g.displayName,
+      sections: (await graphAll(user, `${GRAPH()}/me/onenote/sectionGroups/${encodeURIComponent(g.id)}/sections?$select=${sel}`)).map(x => ({ id: x.id, name: x.displayName })),
+      groups: await groups(`${GRAPH()}/me/onenote/sectionGroups/${encodeURIComponent(g.id)}/sectionGroups?$select=${sel}`, depth + 1),
+    })));
+  };
+  const books = await graphAll(user, `${GRAPH()}/me/onenote/notebooks?$select=${sel}&$orderby=displayName`);
+  return Promise.all(books.map(async b => ({
+    id: b.id, name: b.displayName,
+    sections: (await graphAll(user, `${GRAPH()}/me/onenote/notebooks/${encodeURIComponent(b.id)}/sections?$select=${sel}`)).map(x => ({ id: x.id, name: x.displayName })),
+    groups: await groups(`${GRAPH()}/me/onenote/notebooks/${encodeURIComponent(b.id)}/sectionGroups?$select=${sel}`, 1),
+  })));
+}
+
+export async function oneNotePages(user, sectionId) {
+  const pages = await graphAll(user, `${GRAPH()}/me/onenote/sections/${encodeURIComponent(sectionId)}/pages?$select=id,title,createdDateTime,level,order&$top=100&pagelevel=true`);
+  return pages.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map(p => ({ id: p.id, title: p.title || 'Untitled page', level: p.level || 0, created: p.createdDateTime || null }));
+}
+
+const isResource = u => typeof u === 'string' && u.startsWith(`${GRAPH()}/`) && /\/onenote\/resources\/[^/]+\/(\$value|content)/.test(u);
+const MAX_PICTURE = 15 * 1024 * 1024;
+
+/** A page's HTML, with pictures as data URLs and attached files marked for oneNoteResource(). */
+export async function oneNotePage(user, pageId) {
+  let html = await (await graphJson(user, `${GRAPH()}/me/onenote/pages/${encodeURIComponent(pageId)}/content`)).text();
+  const pics = [...new Set([...html.matchAll(/<img\b[^>]*?\bsrc="([^"]+)"/gi)].map(m => m[1].replace(/&amp;/g, '&')).filter(isResource))];
+  const data = new Map();
+  for (const url of pics.slice(0, 200)) {
+    try {
+      const res = await graphJson(user, url);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > MAX_PICTURE) continue;
+      const type = (res.headers.get('content-type') || 'image/png').split(';')[0];
+      if (!/^image\//.test(type)) continue;
+      data.set(url, `data:${type};base64,${buf.toString('base64')}`);
+    } catch { /* leave it out */ }
+  }
+  html = html.replace(/(<img\b[^>]*?\bsrc=")([^"]+)(")/gi, (m, a, src, b) => {
+    const d = data.get(src.replace(/&amp;/g, '&'));
+    return d ? `${a}${d}${b}` : `${a}${b}`;
+  });
+  return { html };
+}
+
+/** Download one attached file of a OneNote page (url from the page HTML). */
+export async function oneNoteResource(user, url) {
+  if (!isResource(url)) throw new FileError(400, 'Not a OneNote file');
+  const res = await graphJson(user, url);
+  return { stream: Readable.fromWeb(res.body), type: (res.headers.get('content-type') || 'application/octet-stream').split(';')[0], size: Number(res.headers.get('content-length')) || null };
+}

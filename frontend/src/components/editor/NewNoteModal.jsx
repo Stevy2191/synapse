@@ -1,7 +1,7 @@
 // "New": what kind of note to make — a note, a pen drawing, a diagram (draw.io) or a whiteboard
 // (Excalidraw) — or start from one of the workspace's templates, or open today's daily note.
 import { useEffect, useState } from 'react';
-import { FileText, PenLine, Workflow, PenTool, CalendarDays, LayoutTemplate, ChevronRight } from 'lucide-react';
+import { FileText, PenLine, Workflow, PenTool, CalendarDays, LayoutTemplate, ChevronRight, Import } from 'lucide-react';
 import { Modal } from '../chat/ChatDialogs';
 import { useStore } from '../../stores/useStore';
 import { STARTERS, listTemplates } from '../../templates/templates';
@@ -14,7 +14,7 @@ export const NEW_KINDS = [
 ];
 const iconFor = title => STARTERS.find(s => s.title.toLowerCase() === title.toLowerCase())?.icon || '📄';
 
-/** onSelect(type) for the kinds above, 'daily', 'template' (the full picker) or { template } (one of them). */
+/** onSelect(type) for the kinds above, 'daily', 'import', 'template' (the full picker) or { template } (one of them). */
 export default function NewNoteModal({ onSelect, onClose }) {
   const ws = useStore(s => s.activeWorkspace);
   const [templates, setTemplates] = useState(null);
@@ -65,9 +65,12 @@ export default function NewNoteModal({ onSelect, onClose }) {
         </div>
       </div>
 
-      <div className="nn-section">
+      <div className="nn-section nn-row">
         <button type="button" className="nn-daily" onClick={() => onSelect('daily')}>
           <CalendarDays size={16} /> <span><b>Today’s daily note</b><small>Opens it, or makes it with today’s meetings</small></span>
+        </button>
+        <button type="button" className="nn-daily" onClick={() => onSelect('import')}>
+          <Import size={16} /> <span><b>Import notes</b><small>From Obsidian, Notion, Evernote or OneNote</small></span>
         </button>
       </div>
     </Modal>
