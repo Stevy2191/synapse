@@ -2,7 +2,7 @@
 // the list of backups with Download / Restore / Delete, "Back up now" and restoring from a file.
 import { useEffect, useRef, useState } from 'react';
 import {
-  HardDriveDownload, Download, RotateCcw, Trash2, Lock, Upload, CheckCircle2, AlertTriangle, Loader2, FolderOpen, KeyRound,
+  HardDriveDownload, Download, RotateCcw, Trash2, Lock, Upload, CheckCircle2, AlertTriangle, Loader2, FolderOpen, KeyRound, Cloud, CloudUpload, CloudDownload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api';
@@ -20,7 +20,7 @@ function bytes(n) {
 const when = s => new Date(s * 1000).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 const browserTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } };
 
-export default function BackupsPage({ styles }) {
+export default function BackupsPage({ styles, onGo }) {
   const { heading, lead, section, labelStyle, hint, field, primary, secondary } = styles;
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -31,6 +31,16 @@ export default function BackupsPage({ styles }) {
 
   const load = () => api.get('/backups').then(({ data }) => setStatus(data)).catch(err => toast.error(errorText(err)));
   useEffect(() => { load(); }, []);
+  // While a copy is uploading to the cloud (or waiting), refresh so progress shows.
+  const cloudBusy = !!(status?.cloud?.uploading || status?.cloud?.waiting?.length);
+  useEffect(() => {
+    if (!cloudBusy) return undefined;
+    const t = setInterval(() => api.get('/backups').then(({ data }) => setStatus(data)).catch(() => {}), 3000);
+    return () => clearInterval(t);
+  }, [cloudBusy]);
+  const copyToCloud = async b => {
+    try { const { data } = await api.post(`/backups/cloud/copy/${encodeURIComponent(b.name)}`); setStatus(data); toast.success(`Copying to ${data.cloud.target.label}…`); } catch (err) { toast.error(errorText(err)); }
+  };
 
   const save = async fields => {
     try { const { data } = await api.patch('/backups/settings', fields); setStatus(data); return true; } catch (err) { toast.error(errorText(err)); return false; }
@@ -42,6 +52,7 @@ export default function BackupsPage({ styles }) {
       const { data } = await api.post('/backups/run', {}, { timeout: 30 * 60_000 });
       setStatus(data);
       toast.success(`Backup saved (${bytes(data.result.size)})`);
+      if (data.cloud?.target) { setTimeout(load, 1500); setTimeout(load, 5000); } // the cloud copy runs on its own
     } catch (err) { toast.error(errorText(err)); load(); } finally { setBusy(false); }
   };
 
@@ -144,6 +155,8 @@ export default function BackupsPage({ styles }) {
         <p style={hint}>You can also copy a backup file into that folder yourself — it shows up in the list below.</p>
       </section>
 
+      <CloudCopies status={status} setStatus={setStatus} styles={styles} onGo={onGo} />
+
       <Password s={s} save={save} styles={styles} />
 
       {/* List */}
@@ -165,8 +178,12 @@ export default function BackupsPage({ styles }) {
                 </div>
                 <div className="backup-meta">
                   {bytes(b.size)} · {KIND[b.kind]}{b.encrypted && b.current_password === false ? ' · needs an older password' : ''}
+                  {status.cloud?.uploading?.name === b.name
+                    ? <span className="backup-cloud-tag"> · <CloudUpload size={11} /> copying to {status.cloud.target?.label} {Math.floor((status.cloud.uploading.done / Math.max(1, status.cloud.uploading.total)) * 100)}%</span>
+                    : status.cloud?.waiting?.includes(b.name) ? <span className="backup-cloud-tag"> · <CloudUpload size={11} /> waiting to copy to {status.cloud.target?.label}</span> : null}
                 </div>
               </div>
+              {status.cloud?.target && <button className="btn-ghost" onClick={() => copyToCloud(b)} title={`Copy this backup to ${status.cloud.target.label}`}><CloudUpload size={14} /></button>}
               <button className="btn-ghost" onClick={() => download(b)} title="Download this backup"><Download size={14} /></button>
               <button className="btn-ghost" onClick={() => setRestoring(b)} title="Put everything back the way it was in this backup"><RotateCcw size={14} /> Restore</button>
               <button className="btn-ghost danger-hover" onClick={() => remove(b)} title="Delete this backup"><Trash2 size={14} /></button>
@@ -198,6 +215,110 @@ export default function BackupsPage({ styles }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CloudCopies({ status, setStatus, styles, onGo }) {
+  const { section, labelStyle, hint, field, primary, secondary } = styles;
+  const c = status.cloud || {};
+  const t = c.target;
+  const [keep, setKeep] = useState(t?.keep ?? 7);
+  const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState(null); // backups in the cloud folder (loaded on request)
+  const [fetching, setFetching] = useState(null);
+  useEffect(() => { setKeep(t?.keep ?? 7); }, [t?.keep]);
+
+  const patch = async (body, done) => {
+    setBusy(true);
+    try { const { data } = await api.patch('/backups/cloud', body, { timeout: 60_000 }); setStatus(data); if (done) toast.success(done); return true; } catch (err) { toast.error(errorText(err)); return false; } finally { setBusy(false); }
+  };
+  const loadFiles = async () => {
+    setFiles('loading');
+    try { const { data } = await api.get('/backups/cloud/files', { timeout: 60_000 }); setFiles(data.files); } catch (err) { toast.error(errorText(err)); setFiles(null); }
+  };
+  const fetchOne = async f => {
+    setFetching(f.id);
+    try {
+      const { data } = await api.post(`/backups/cloud/files/${encodeURIComponent(f.id)}/fetch`, {}, { timeout: 0 });
+      setStatus(data);
+      setFiles(fs => (Array.isArray(fs) ? fs.map(x => (x.id === f.id ? { ...x, on_server: true } : x)) : fs));
+      toast.success('Copied to this server — it’s in “Your backups” below, ready to restore');
+    } catch (err) { toast.error(errorText(err)); } finally { setFetching(null); }
+  };
+
+  const last = c.last;
+  const noPassword = !status.settings.password_set;
+  return (
+    <section style={section}>
+      <label style={labelStyle}><Cloud size={14} style={{ verticalAlign: -2 }} /> Copies in OneDrive or Google Drive</label>
+      {!c.configured?.length ? (
+        <p style={{ ...hint, marginTop: 0 }}>Keep a copy of every backup in the cloud, so it survives even if this server is lost. First set up OneDrive or Google Drive in <b>Settings → Server → Files</b>, then connect your account in <b>Connected drives</b>.</p>
+      ) : !t ? (
+        <>
+          <p style={{ ...hint, marginTop: 0 }}>Also copy every backup to a <b>Synapse Backups</b> folder in your cloud drive, so a copy survives even if this server — or the building it’s in — is lost.</p>
+          {noPassword && <CloudWarning />}
+          {c.my_drives?.length ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              {c.my_drives.map(d => (
+                <button key={d.provider} style={primary} disabled={busy} onClick={() => patch({ provider: d.provider, keep: 7 }, `Backups will also be copied to ${d.label}`)}>
+                  {busy ? <Loader2 size={14} className="spin" /> : <CloudUpload size={14} />} Copy to {d.label}{d.account ? ` (${d.account})` : ''}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p style={hint}>Connect your {c.configured.map(d => d.label).join(' or ')} first: <button className="btn-ghost" style={{ padding: '2px 6px', color: 'var(--accent)' }} onClick={() => onGo?.('drives')}>Connected drives →</button></p>
+          )}
+        </>
+      ) : (
+        <>
+          <p style={{ ...hint, marginTop: 0 }}>
+            <CheckCircle2 size={13} style={{ verticalAlign: -2, color: 'var(--success, #22c55e)' }} /> On — every automatic backup and every “Back up now” is also copied to the <b>{t.folder}</b> folder in {t.by_me ? 'your' : `${t.by?.display_name || t.by?.username || 'another admin'}’s`} <b>{t.label}</b>{t.account ? ` (${t.account})` : ''}.
+          </p>
+          {noPassword && <CloudWarning />}
+          {last && (last.ok
+            ? <p style={hint}>Last copy: {when(last.at)} · {bytes(last.size || 0)}{last.removed ? ` · removed ${last.removed} older` : ''}</p>
+            : <p style={{ ...hint, color: 'var(--danger)' }}><AlertTriangle size={13} style={{ verticalAlign: -2 }} /> Copying failed {when(last.at)}: {last.error}{last.retrying ? ' — it will try again in 15 minutes.' : ''}</p>)}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Keep the newest</span>
+            <input type="number" min={1} max={365} value={keep} onChange={e => setKeep(e.target.value)} style={{ ...field, flex: '0 0 72px' }} />
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>automatic backups in {t.label}</span>
+            <div style={{ flex: 1 }} />
+            <button style={primary} disabled={busy || Number(keep) === t.keep} onClick={() => patch({ keep: Number(keep) }, 'Saved')}>Save</button>
+          </div>
+          <p style={hint}>Older automatic copies are deleted from {t.label} so it doesn’t fill up. Backups you made by hand stay there until you delete them.</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button style={secondary} onClick={files ? () => setFiles(null) : loadFiles}>{files ? 'Hide' : `Show backups in ${t.label}`}</button>
+            <button style={secondary} disabled={busy} onClick={() => confirm(`Stop copying backups to ${t.label}? Copies already there stay.`) && patch({ off: true }, 'Cloud copies turned off')}>Turn off</button>
+          </div>
+          {files === 'loading' && <p style={hint}><Loader2 size={13} className="spin" style={{ verticalAlign: -2 }} /> Looking in {t.label}…</p>}
+          {Array.isArray(files) && (
+            <div className="backup-list" style={{ marginTop: 10 }}>
+              {!files.length && <p style={{ ...hint, marginTop: 0 }}>No backups in the {t.folder} folder yet.</p>}
+              {files.map(f => (
+                <div key={f.id} className="backup-row">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="backup-when">{f.name.endsWith('.enc') && <Lock size={12} />} {f.name.replace(/^synapse-backup-/, '').replace(/\.tar\.gz(\.enc)?$/, '')}</div>
+                    <div className="backup-meta">{bytes(f.size || 0)} · {f.automatic ? 'Automatic' : 'Made by hand'}{f.on_server ? ' · also on this server' : ''}</div>
+                  </div>
+                  {!f.on_server && (
+                    <button className="btn-ghost" disabled={!!fetching} onClick={() => fetchOne(f)} title="Copy it back to this server, to restore it">
+                      {fetching === f.id ? <Loader2 size={14} className="spin" /> : <CloudDownload size={14} />} Bring back
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {Array.isArray(files) && <p style={hint}>Setting up a new server? Connect the same drive there, turn this on, then “Bring back” a backup and Restore it.</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
+function CloudWarning() {
+  return (
+    <p className="backup-warning"><AlertTriangle size={13} /> <span><b>No backup password is set</b>, so the copies in the cloud aren’t encrypted — anyone who can open that drive (including Microsoft or Google) could read every note in them. Add a backup password below to encrypt them first.</span></p>
   );
 }
 

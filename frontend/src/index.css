@@ -1793,3 +1793,5 @@ li[data-checked="true"] .task-when { opacity: .6; }
   .pdf-head button { padding: 0 7px; }
   .pdf-viewer.full .pdf-pages { padding: 10px; }
 }
+.backup-cloud-tag { color: var(--accent); white-space: nowrap; }
+.backup-cloud-tag svg { vertical-align: -1px; }

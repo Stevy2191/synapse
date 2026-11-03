@@ -322,6 +322,7 @@ export async function runBackup(kind = 'manual') {
     if (kind === 'automatic') prune();
     const result = { ok: true, at: Math.floor(started / 1000), kind, name: r.name, size: r.size, seconds: Math.round((Date.now() - started) / 100) / 10 };
     recordResult(result);
+    import('./cloudBackups.js').then(m => m.afterBackup(r.name, kind)).catch(() => {}); // copy to OneDrive / Google Drive
     console.log(`💾 Backup saved: ${path.join(BACKUP_DIR, r.name)} (${(r.size / 1048576).toFixed(1)} MB)`);
     return result;
   } catch (err) {

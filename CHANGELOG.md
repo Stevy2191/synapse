@@ -4,6 +4,24 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.20.0 — November 2026
+
+### New: backups copied to OneDrive or Google Drive
+- **Settings → Server → Backups → Copies in OneDrive or Google Drive**: one click and every automatic backup
+  (and every **Back up now**) is also copied to a **Synapse Backups** folder in your OneDrive or Google Drive,
+  so a copy survives even if the server — or the building it's in — is lost.
+- Uses the drive you connected in **Settings → Connected drives** (the admin first sets up OneDrive / Google
+  Drive in **Settings → Server → Files**, as before).
+- **Keeps its own number** of automatic backups in the cloud (7 to start with); older ones there are deleted
+  so the drive doesn't fill up. Backups you made by hand stay until you delete them.
+- **Big backups are fine**: they're sent in 10 MB pieces, and a piece that fails is tried again. If the
+  internet or the drive is down, the copy is retried every 15 minutes (for about 3 hours) and the page says so.
+- A **copy button** on each backup sends that one to the cloud now.
+- **Bring back**: "Show backups in OneDrive / Google Drive" lists what's there; **Bring back** copies one to
+  this server so you can Restore it — handy for setting up a new server after the old one died.
+- **Encryption**: with a backup password set, only scrambled (encrypted) files go to the cloud. Without one,
+  the page warns clearly that Microsoft or Google could read the copies.
+
 ## v1.19.0 — November 2026
 
 ### New: PDFs inside notes, with pen markup

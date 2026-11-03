@@ -510,3 +510,151 @@ export async function attachCopy(user, sourceId, id, noteId) {
   return { id: attId, name: original, mime: file.mime, size };
 }
 
+
+// ───────────────────────── backups to a cloud drive (backups.js / cloudBackups.js) ─────────────────────────
+//
+// Backups can be gigabytes, so they're sent from the file in pieces (never read into memory whole).
+// They go into one folder ("Synapse Backups" at the top of the drive) of the admin who set it up.
+
+async function readChunk(fd, start, len) {
+  const buf = Buffer.alloc(len);
+  const { bytesRead } = await fd.read(buf, 0, len, start);
+  return bytesRead === len ? buf : buf.subarray(0, bytesRead);
+}
+
+const odBackups = {
+  async ensureFolder(user, name) {
+    const res = await fetch(`${GRAPH()}/me/drive/root:/${encodeURIComponent(name)}`, { headers: { Authorization: `Bearer ${await accessToken(user, 'onedrive')}` } });
+    if (res.ok) { const f = await res.json(); if (f.folder) return { id: f.id, name: f.name }; }
+    const made = await (await api(user, 'onedrive', `${GRAPH()}/me/drive/root/children`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }),
+    })).json();
+    return { id: made.id, name: made.name };
+  },
+  async list(user, folderId) {
+    const out = [];
+    let next = `${GRAPH()}/me/drive/items/${encodeURIComponent(folderId)}/children?$top=200&$select=id,name,size,file,lastModifiedDateTime`;
+    for (let page = 0; next && page < 20; page++) {
+      const data = await (await api(user, 'onedrive', next)).json();
+      for (const i of data.value || []) if (i.file) out.push({ id: i.id, name: i.name, size: i.size, modified: Math.floor(Date.parse(i.lastModifiedDateTime) / 1000) || null });
+      next = data['@odata.nextLink'];
+    }
+    return out;
+  },
+  async upload(user, folderId, filePath, name, onProgress) {
+    const size = (await fs.promises.stat(filePath)).size;
+    const session = await (await api(user, 'onedrive', `${GRAPH()}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }),
+    })).json();
+    const CHUNK = 320 * 1024 * 32; // 10 MiB (must be a multiple of 320 KiB)
+    const fd = await fs.promises.open(filePath, 'r');
+    try {
+      let last = null;
+      for (let start = 0; start < size || (size === 0 && !last); start += CHUNK) {
+        const body = await readChunk(fd, start, Math.min(CHUNK, size - start));
+        const end = start + body.length;
+        let res;
+        for (let attempt = 0; ; attempt++) { // the upload address needs no sign-in header
+          res = await fetch(session.uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${start}-${end - 1}/${size}` }, body }).catch(e => ({ ok: false, status: 0, e }));
+          if (res.ok || res.status === 202 || attempt >= 3 || (res.status >= 400 && res.status < 500)) break;
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        }
+        if (!res.ok && res.status !== 202) throw new FileError(502, `OneDrive upload failed (${res.status || 'no connection'})`);
+        last = res;
+        onProgress?.(end, size);
+        if (size === 0) break;
+      }
+      const item = await last.json();
+      return { id: item.id, name: item.name, size: item.size };
+    } finally { await fd.close(); }
+  },
+  async remove(user, id) {
+    await api(user, 'onedrive', `${GRAPH()}/me/drive/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  async download(user, id) {
+    const res = await api(user, 'onedrive', `${GRAPH()}/me/drive/items/${encodeURIComponent(id)}/content`);
+    return Readable.fromWeb(res.body);
+  },
+};
+
+const gBackups = {
+  async ensureFolder(user, name) {
+    const q = new URLSearchParams({ q: `name='${name.replace(/['\\]/g, '')}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`, fields: 'files(id,name)' });
+    const found = (await (await api(user, 'google', `${GDRIVE()}/files?${q}`)).json()).files?.[0];
+    if (found) return { id: found.id, name: found.name };
+    const made = await (await api(user, 'google', `${GDRIVE()}/files?fields=id,name`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: ['root'] }),
+    })).json();
+    return { id: made.id, name: made.name };
+  },
+  async list(user, folderId) {
+    const out = [];
+    let token = '';
+    for (let page = 0; page < 20; page++) {
+      const q = new URLSearchParams({ q: `'${folderId.replace(/['\\]/g, '')}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`, fields: 'nextPageToken,files(id,name,size,modifiedTime)', pageSize: '200', ...(token ? { pageToken: token } : {}) });
+      const data = await (await api(user, 'google', `${GDRIVE()}/files?${q}`)).json();
+      for (const f of data.files || []) out.push({ id: f.id, name: f.name, size: Number(f.size) || 0, modified: Math.floor(Date.parse(f.modifiedTime) / 1000) || null });
+      token = data.nextPageToken;
+      if (!token) break;
+    }
+    return out;
+  },
+  async upload(user, folderId, filePath, name, onProgress) {
+    const size = (await fs.promises.stat(filePath)).size;
+    // Resumable upload: one request for the address, then the file in pieces.
+    const start0 = await api(user, 'google', `${GUPLOAD()}/files?uploadType=resumable&fields=id,name,size`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/octet-stream', 'X-Upload-Content-Length': String(size) },
+      body: JSON.stringify({ name: safeFileName(name), parents: [folderId] }),
+    });
+    const url = start0.headers.get('location');
+    if (!url) throw new FileError(502, 'Google Drive didn’t give an upload address');
+    const CHUNK = 256 * 1024 * 40; // 10 MiB (must be a multiple of 256 KiB)
+    const fd = await fs.promises.open(filePath, 'r');
+    try {
+      for (let start = 0; ; start += CHUNK) {
+        const body = await readChunk(fd, start, Math.min(CHUNK, size - start));
+        const end = start + body.length;
+        let res;
+        for (let attempt = 0; ; attempt++) {
+          res = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${await accessToken(user, 'google')}`, 'Content-Range': size ? `bytes ${start}-${end - 1}/${size}` : 'bytes */0' }, body }).catch(() => ({ ok: false, status: 0 }));
+          if (res.ok || res.status === 308 || attempt >= 3 || (res.status >= 400 && res.status < 500)) break;
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        }
+        onProgress?.(end, size);
+        if (res.ok) {
+          const f = await res.json();
+          // Drive allows two files with the same name: drop an older copy of this backup (sent again).
+          for (const o of await gBackups.list(user, folderId).catch(() => [])) if (o.name === f.name && o.id !== f.id) await gBackups.remove(user, o.id).catch(() => {});
+          return { id: f.id, name: f.name, size: Number(f.size) || size };
+        }
+        if (res.status !== 308) throw new FileError(502, `Google Drive upload failed (${res.status || 'no connection'})`);
+        if (end >= size) throw new FileError(502, 'Google Drive didn’t finish the upload');
+      }
+    } finally { await fd.close(); }
+  },
+  async remove(user, id) {
+    await api(user, 'google', `${GDRIVE()}/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  async download(user, id) {
+    const res = await api(user, 'google', `${GDRIVE()}/files/${encodeURIComponent(id)}?alt=media`);
+    return Readable.fromWeb(res.body);
+  },
+};
+
+/** Backup operations for a provider ('onedrive' | 'google'). */
+export function backupDrive(provider) {
+  if (!PROVIDERS[provider]) throw new FileError(400, 'Unknown drive');
+  if (!configured(provider)) throw new FileError(400, `${PROVIDERS[provider].label} isn’t set up on this server (Settings → Server → Files)`);
+  return provider === 'onedrive' ? odBackups : gBackups;
+}
+export const driveLabel = provider => PROVIDERS[provider]?.label || provider;
+/** The drives this person has connected (for choosing where backups go). */
+export function connectedDrives(userId) {
+  return db.prepare('SELECT provider, account FROM file_accounts WHERE user_id=?').all(userId)
+    .filter(r => PROVIDERS[r.provider] && configured(r.provider))
+    .map(r => ({ provider: r.provider, label: PROVIDERS[r.provider].label, account: r.account }));
+}
+export const drivesConfigured = () => Object.keys(PROVIDERS).filter(configured).map(id => ({ provider: id, label: PROVIDERS[id].label }));

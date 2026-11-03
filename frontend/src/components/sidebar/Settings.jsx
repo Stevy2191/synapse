@@ -134,7 +134,7 @@ export default function Settings() {
             {page === 'server-email' && isAdmin && <EmailSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-meetings' && isAdmin && <MeetingAdminPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
             {page === 'server-ocr' && isAdmin && <OcrSettings styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
-            {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} />}
+            {page === 'server-backups' && isAdmin && <BackupsPage styles={{ heading, lead, section, labelStyle, hint, field, primary, secondary }} onGo={go} />}
           </div>
         </div>
       </div>

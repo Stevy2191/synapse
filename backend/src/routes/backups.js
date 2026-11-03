@@ -8,6 +8,7 @@ import {
   backupStatus, updateBackupSettings, runBackup, deleteBackup, downloadLink, checkDownload, backupPath,
   prepareRestore, adoptUpload, BackupError, BACKUP_DIR,
 } from '../backups.js';
+import { cloudStatus, setCloud, copyToCloud, listCloud, fetchFromCloud } from '../cloudBackups.js';
 
 const router = Router();
 
@@ -29,23 +30,39 @@ const wrapErr = fn => async (req, res, next) => {
   }
 };
 
-router.get('/', wrapErr((req, res) => res.json(backupStatus())));
+const status = req => ({ ...backupStatus(), cloud: cloudStatus(req.user) });
+router.get('/', wrapErr((req, res) => res.json(status(req))));
+
+// Copies in OneDrive / Google Drive (cloudBackups.js)
+router.patch('/cloud', wrapErr(async (req, res) => {
+  await setCloud(req.user, req.body || {});
+  res.json(status(req));
+}));
+router.get('/cloud/files', wrapErr(async (req, res) => res.json({ files: await listCloud() })));
+router.post('/cloud/files/:id/fetch', wrapErr(async (req, res) => {
+  const name = await fetchFromCloud(String(req.params.id));
+  res.json({ name, ...status(req) });
+}));
+router.post('/cloud/copy/:name', wrapErr((req, res) => {
+  copyToCloud(req.params.name);
+  res.json(status(req));
+}));
 
 router.patch('/settings', wrapErr((req, res) => {
   updateBackupSettings(req.body || {});
-  res.json(backupStatus());
+  res.json(status(req));
 }));
 
 router.post('/run', wrapErr(async (req, res) => {
   const result = await runBackup('manual');
-  res.json({ result, ...backupStatus() });
+  res.json({ result, ...status(req) });
 }));
 
 router.post('/:name/link', wrapErr((req, res) => res.json({ url: downloadLink(req.params.name) })));
 
 router.delete('/:name', wrapErr((req, res) => {
   deleteBackup(req.params.name);
-  res.json(backupStatus());
+  res.json(status(req));
 }));
 
 // Restore: checks and unpacks the backup, saves a safety backup of today's data, then restarts
@@ -69,7 +86,7 @@ router.post('/upload', upload.single('file'), wrapErr((req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   try {
     const name = adoptUpload(req.file.path, req.file.originalname);
-    res.json({ name, ...backupStatus() });
+    res.json({ name, ...status(req) });
   } catch (err) {
     fs.rmSync(req.file.path, { force: true });
     throw err;

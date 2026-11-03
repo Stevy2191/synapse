@@ -53,6 +53,9 @@ backend/src/
   backups.js + routes/backups.js   automatic backups (admin, Settings → Server → Backups): tar.gz of
                       db.backup() snapshot + uploads/ + manifest; optional AES-256-GCM (.enc) with a
                       scrypt key; schedule/keep/password in settings (backup_*); signed download links
+  cloudBackups.js     backup copies in OneDrive / Google Drive (setting backup_cloud = {provider, user_id, folder_id,
+                      keep}; queue backup_cloud_queue, retried every 15 min ×12; prune automatic ones; list / bring back);
+                      drive operations = files.js backupDrive() (chunked OneDrive upload session / Google resumable)
   files.js + routes/files.js   File integrations: network folders under /files/<slug> (FILES_DIR in dev;
                       access per folder in file_folders), OneDrive (Graph) + Google Drive (v3) via OAuth —
                       admin client id/secret in settings (secret encrypted), per-user tokens in
@@ -250,6 +253,14 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   carried the old AI key (only in encrypted backups). Restore also accepts `synapse backup`
   archives (data/ prefix). Clients need no special handling: pull compares versions and drops
   notes the server no longer has.
+- **Cloud backup copies** (v1.20.0): Sean chose "its own keep number (default 7)" and "warn, but allow without a
+  password". The admin who turns it on uses *their own* connected drive (file_accounts); folder "Synapse Backups"
+  at the drive root (re-made if deleted). backups.js runBackup → afterBackup(name, kind) for automatic + manual
+  (not before-restore). Uploads stream from the file in 10 MiB pieces (OneDrive createUploadSession with
+  conflictBehavior replace; Google resumable + dedupe same name), 3 retries per piece. Only AUTO-named files are
+  pruned in the cloud. backup_cloud* settings survive a restore (backup_ prefix). Test stand-in: scratchpad
+  cb/mock2.py (upload sessions, resumable, DELETE, /fail/on|off, /state) on 8097. Not built: choosing another
+  folder, sending to a network folder (NAS is done via `synapse backups-to`).
 - **Tabs** (built Nov 2026): browser-like (Sean's choice). `activeNote` is still the one open note;
   a store subscription in tabs/tabs.js puts every opened note into the current tab (or switches to
   its tab if already open). `openInNewTab()` / `nextInNewTab()` (Ctrl/⌘/middle-click in the sidebar,
@@ -485,8 +496,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 
 Sean's priorities first (asked for Nov 2026):
 
-- (File integrations are built — see Files above. Still open: scheduled backups straight to a
-  connected cloud drive, search inside files, offline copies of attachments.)
+- (File integrations and cloud backup copies are built. Still open: search inside files, offline copies of
+  attachments.)
 
 Other ideas:
 
@@ -501,7 +512,6 @@ Other ideas:
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
 - Team follow-ups: groups/teams, shared lists, a team calendar view, comment reactions/emoji.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
-- Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).
 - Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,
   auto-recording prompts from calendar events; in Firefox/Safari hide "Online meeting" (no getDisplayMedia
   audio — Mozilla bug 1541425) and add a microphone picker (for Stereo Mix / virtual cables).
