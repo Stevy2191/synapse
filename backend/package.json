@@ -1,6 +1,6 @@
 {
   "name": "synapse-backend",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

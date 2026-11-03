@@ -8,6 +8,8 @@ import TemplatePicker from '../components/templates/TemplatePicker';
 import { startTeam } from '../team/team';
 import InboxView, { refreshInboxCount } from '../components/team/InboxView';
 import ActivityView from '../components/team/ActivityView';
+import HomeView from '../components/home/HomeView';
+import { useHome } from '../home/home';
 import { RecorderBar } from '../components/meetings/Recorder';
 import FilePicker from '../components/files/FilePicker';
 import { retryUnsent } from '../meetings/client';
@@ -100,6 +102,11 @@ export default function AppPage() {
     openFromReminderUrl(window.location.search);
     startTeam();
     refreshInboxCount();
+    // Open Home when Synapse starts (unless turned off in Home → Customize, or a link asked for a note).
+    if (!/[?&](note|open)=/.test(window.location.search)) {
+      if (useHome.getState().prefs.start_home) useStore.getState().setView('home');
+      useHome.getState().load().then(p => { if (!p.start_home && useStore.getState().view === 'home') useStore.getState().setView('editor'); });
+    }
     reportTimeZone(user.id);
     const onSwMessage = e => {
       if (e.data?.type === 'open-chat') useStore.getState().setActiveChat(e.data.chatId);
@@ -154,7 +161,7 @@ export default function AppPage() {
         </>
       ))}
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : view === 'cluster' ? <ClusterView /> : view === 'inbox' ? <InboxView /> : view === 'activity' ? <ActivityView /> : <><TabBar /><Editor /></>}
+        {view === 'graph' ? <GraphView /> : view === 'tasks' ? <TasksView /> : view === 'trash' ? <TrashView /> : view === 'chat' ? <ChatView /> : view === 'ask' ? <AskView /> : view === 'cluster' ? <ClusterView /> : view === 'inbox' ? <InboxView /> : view === 'activity' ? <ActivityView /> : view === 'home' ? <HomeView /> : <><TabBar /><Editor /></>}
       </main>
       <RecorderBar />
       {templatePicker && <TemplatePicker mode="new" parentId={templatePicker.parentId ?? null} onClose={() => useStore.setState({ templatePicker: null })} />}

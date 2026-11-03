@@ -34,6 +34,7 @@ import { startBackups } from './backups.js';
 import { startCloudBackups } from './cloudBackups.js';
 import { startReminders } from './reminders.js';
 import { attachCollab } from './collab.js';
+import homeRoutes from './routes/home.js';
 import reminderRoutes from './routes/reminders.js';
 import commentRoutes from './routes/comments.js';
 import inboxRoutes from './routes/inbox.js';
@@ -119,6 +120,7 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/calendars', calendarRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/home', homeRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/team', inboxRoutes); // /api/team/inbox, /api/team/activity/:wsId
 app.use('/api/ai', aiRoutes);

@@ -135,6 +135,9 @@ frontend/src/
   ocr/client.js, ocr/hash.js        readText (server, else tesseract.js on the device; handwriting → /api/ai/read-image),
                                     readPdf (pdf.js text, OCR for scanned pages), search index (IndexedDB store `ocr`)
   components/ocr/                   ReadTextDialog (Printed / Handwriting, Copy / Insert / New note), OcrSettings (admin)
+  home/home.js        Home: useHome (prefs from /api/home, cached in localStorage synapse.home), togglePin, allNotes,
+                      datedTasks (reminder rule), openAnywhere (switch workspace + open); components/home/HomeView.jsx
+                      (view 'home', WsChip = workspace icon+name+colour); backend routes/home.js (home_prefs table)
   import/             Import (New → Import notes; components/import/ImportDialog.jsx, store importOpen → AppPage):
                       common.js ImportBuilder (notes + asset placeholders → unique titles, links, HTML+MD, sync.importNotes
                       bulk insert; files queued via pdf/files.js queueFile), cleanHtml (Evernote/OneNote HTML), readEntries
@@ -266,6 +269,12 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   pruned in the cloud. backup_cloud* settings survive a restore (backup_ prefix). Test stand-in: scratchpad
   cb/mock2.py (upload sessions, resumable, DELETE, /fail/on|off, /state) on 8097. Not built: choosing another
   folder, sending to a network folder (NAS is done via `synapse backups-to`).
+- **Home** (v1.22.0): Sean chose "home page with widgets" and "all workspaces, but clearly defined" → every item has a
+  WsChip (workspace icon, name, colour) and filter chips narrow to one workspace. Boxes: today, tasks, pinned,
+  recent, inbox, workspaces (order/hidden/pinned/start_home per person in home_prefs, synced; offline uses the
+  localStorage copy). Two independent columns (chunks around the full-width Workspaces box). Opens at start unless
+  start_home is off or the URL asks for a note. Home → New note sets store newNoteRequest (Sidebar opens its New
+  window; opens the sidebar on phones). Sidebar/Search/Shared-with-me clicks now leave *any* non-editor view.
 - **Import** (v1.21.0): Sean chose "a folder in this workspace" and "OneNote from the Microsoft account". All
   file parsing is in the browser; notes are added locally in one transaction (sync.js importNotes) and upload via
   the outbox. Pictures → data URLs (fitImage; 1000 px when a note has >20), PDFs → PDF blocks, other files → 📎

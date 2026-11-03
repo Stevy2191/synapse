@@ -4,6 +4,27 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.22.0 — November 2026
+
+### New: Home page
+- **Home** (top of the sidebar) is an overview of *all* your workspaces, and it opens when Synapse starts:
+  - **Today's meetings** from your calendars (click one to open its meeting note),
+  - **To-dos**: overdue, today and the next 7 days — tick them off right there,
+  - **Pinned notes** — pin any note with the 📌 on it in the sidebar or on Home,
+  - **Recently edited** notes, **Inbox** (mentions, assigned to-dos, replies),
+  - **Workspaces**: each one with its notes, to-dos (and how many are late) and when it was last edited.
+- **Always clear which workspace**: every item carries its workspace's icon, name and colour. The chips at the
+  top (“All workspaces · Personal · Office”) show just one workspace.
+- Quick buttons: New note, Daily note, Search, Import.
+- **Customize**: hide boxes, change their order, and choose whether Home opens at start. Saved to your account,
+  so every device shows the same Home.
+- To-dos follow the reminder rule: in your own workspaces the ones not assigned to someone else, in shared
+  workspaces the ones assigned to you.
+
+### Fixed
+- After opening **Inbox** (or Activity, Home…), clicking a note in the sidebar now opens it — you no longer
+  have to click Inbox again first. Same for Shared with me and Search.
+
 ## v1.21.0 — November 2026
 
 ### New: import from Obsidian, Notion, Evernote and OneNote

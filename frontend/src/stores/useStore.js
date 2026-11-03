@@ -32,6 +32,7 @@ export const useStore = create(
       activeChatId: null,         // the chat open on the Chats page
       tabs: {},                   // open tabs per workspace: { [wsId]: { items: [{ id, title, shared }], active } } (tabs/tabs.js)
       richToolbar: false,         // formatting bar fixed at the top of Write-mode notes (this device)
+      newNoteRequest: false,      // Home → New note: the sidebar opens its New window
       importOpen: false,          // the Import window (New → Import notes); rendered in AppPage
       filesOpen: false,           // the Files window (sidebar → Files); lives outside the sidebar so it stays open on phones
       templatePicker: null,       // { parentId } while "New note from a template" is open (rendered in AppPage)
@@ -97,7 +98,7 @@ export const useStore = create(
     }),
     {
       name: 'synapse-store',
-      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, activeClusterId: s.activeClusterId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask', 'inbox', 'activity'].includes(s.view) ? 'editor' : s.view })
+      partialize: (s) => ({ token: s.token, user: s.user, activeWorkspace: s.activeWorkspace, sidebarWidth: s.sidebarWidth, sidebarOpen: s.sidebarOpen, rightRailOpen: s.rightRailOpen, rightRailTab: s.rightRailTab, activeChatId: s.activeChatId, activeClusterId: s.activeClusterId, tabs: s.tabs, richToolbar: s.richToolbar, view: ['graph', 'tasks', 'trash', 'ask', 'inbox', 'activity', 'home'].includes(s.view) ? 'editor' : s.view })
     }
   )
 );

@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
   Search, Network, ListTodo, MessageCircle, Sparkles, Users, Bell, Activity, Eye, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
-  FolderOpen,
+  FolderOpen, Home, Pin, PinOff,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
+import { useHome, togglePin } from '../../home/home';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import NewNoteModal from '../editor/NewNoteModal';
@@ -64,7 +65,7 @@ function SharedWithMe({ onNavigate }) {
   if (!items.length) return null;
   const go = async (id, e) => {
     if (e && (e.ctrlKey || e.metaKey || e.button === 1)) { await openInNewTab(id, { shared: true }); onNavigate?.(); return; }
-    if (await openSharedNote(id)) onNavigate?.();
+    if (await openSharedNote(id)) { if (useStore.getState().view !== 'editor') useStore.getState().setView('editor'); onNavigate?.(); }
   };
   const rows = [];
   for (const r of items) {
@@ -106,6 +107,7 @@ function SharedWithMe({ onNavigate }) {
 }
 
 function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
+  const pinned = useHome(s => s.prefs.pinned.includes(note.id));
   const [expanded, setExpanded] = useState(true);
   const [hint, setHint] = useState(null); // 'before' | 'after' | 'inside' while something is dragged over
   const [dragging, setDragging] = useState(false);
@@ -196,6 +198,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
           {sharedMark && <Users size={11} className="tree-shared" aria-label="Shared" />}
         </span>
         <span className="note-actions" style={{ display: 'flex', gap: 1 }}>
+          <button onClick={e => { e.stopPropagation(); togglePin(note.id); }} className="btn-ghost" style={miniBtn} title={pinned ? 'Unpin from Home' : 'Pin to Home'}>{pinned ? <PinOff size={12} /> : <Pin size={12} />}</button>
           <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title="Add a note inside"><Plus size={13} /></button>
           <button onClick={handleDelete} className="btn-ghost" style={{ ...miniBtn, color: 'var(--danger)' }} title="Move to Trash"><Trash2 size={12} /></button>
         </span>
@@ -327,8 +330,7 @@ export default function Sidebar({ width, onNavigate }) {
   const selectNote = useCallback(async (id, e) => {
     if (e && (e.ctrlKey || e.metaKey || e.button === 1)) await openInNewTab(id);
     else await openNote(id);
-    // Leave Graph / Tasks / Trash / Chats so the note is actually shown.
-    if (['graph', 'tasks', 'trash', 'chat', 'ask'].includes(view)) setView('editor');
+    if (view !== 'editor') setView('editor'); // leave Inbox / Tasks / Graph / Home … so the note is actually shown
     onNavigate?.();
   }, [view, setView, onNavigate]);
 
@@ -397,6 +399,9 @@ export default function Sidebar({ width, onNavigate }) {
   };
 
   const newNote = (parentId = null) => { setPendingParent(parentId); setShowNewNote(true); };
+  // Home's "New note" button asks the sidebar to open the New window.
+  const newNoteRequest = useStore(s => s.newNoteRequest);
+  useEffect(() => { if (newNoteRequest) { useStore.setState({ newNoteRequest: false }); newNote(); } }, [newNoteRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <aside style={{
@@ -415,6 +420,9 @@ export default function Sidebar({ width, onNavigate }) {
       <div style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <WorkspacePicker />
         <div style={{ height: 8 }} />
+        <button className={`nav-item${view === 'home' ? ' on' : ''}`} onClick={() => { setView('home'); onNavigate?.(); }} title="An overview of all your workspaces">
+          <Home size={14} /> Home
+        </button>
         <button className="nav-item" onClick={() => setSearchOpen(true)}>
           <Search size={14} /> Search <kbd>Ctrl K</kbd>
         </button>
