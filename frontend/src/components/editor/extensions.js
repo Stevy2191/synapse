@@ -7,6 +7,7 @@ import Suggestion from '@tiptap/suggestion';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { useStore } from '../../stores/useStore';
+import { pickPdf } from '../pdf/PdfNode';
 import { openNoteByTitle, createNote } from '../../offline/sync';
 import { nextInNewTab } from '../../tabs/tabs';
 import { fitImage } from '../../utils/image';
@@ -124,6 +125,8 @@ export const SLASH_ITEMS = [
       if (!videoSource(url)) { toast.error('That link isn’t a YouTube, Vimeo or Loom video, or a video file.'); return; }
       e.chain().focus().insertContent([{ type: 'video', attrs: { url } }, { type: 'paragraph' }]).run();
     } },
+  { id: 'pdf', group: 'Media', title: 'PDF', desc: 'Show a PDF in the note — write and highlight on it with a pen', keywords: 'pdf document pages annotate markup mark up pen highlight sign form worksheet',
+    run: (e, r) => { e.chain().focus().deleteRange(r).run(); pickPdf(e, useStore.getState().activeNote?.note?.id); } },
   { id: 'file', group: 'Media', title: 'File from a folder or drive', desc: 'Network folders, OneDrive, Google Drive — attach a copy or link it', keywords: 'file attach attachment upload onedrive google drive nas share folder document pdf',
     run: (e, r) => { e.chain().focus().deleteRange(r).run(); e.emit('synapse:pickFile'); } },
   { id: 'meeting', group: 'Media', title: 'Record a meeting', desc: 'Record, then get a transcript with who said what (and a summary)', keywords: 'meeting record recording audio transcribe transcript voice call teams zoom minutes dictate speakers',

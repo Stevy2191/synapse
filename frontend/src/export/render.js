@@ -174,6 +174,30 @@ async function renderBody(note, ctx) {
       el.replaceWith(out);
     } else el.replaceWith(make('p', 'x-missing', esc(drawing ? `Empty drawing “${title}”` : `Drawing “${title}” not found`)));
   }
+  // PDF blocks → each page as a picture, with the markings (up to 40 pages)
+  for (const el of [...body.querySelectorAll('div[data-pdf]')]) {
+    const name = el.getAttribute('data-name') || 'PDF';
+    const out = make('div', 'x-pdf');
+    try {
+      const [{ pdfBytes }, { loadPdf }, { parseInk, pagePicture }] = await Promise.all([import('../pdf/files'), import('../pdf/pdfjs'), import('../pdf/ink')]);
+      const ink = parseInk(el.getAttribute('data-ink'));
+      const pdf = await loadPdf(await pdfBytes(el.getAttribute('data-pdf')));
+      const max = Math.min(pdf.numPages, 40);
+      for (let i = 1; i <= max; i++) {
+        const fig = make('figure', 'x-figure x-pdf-page');
+        const img = doc.createElement('img');
+        img.setAttribute('src', await pagePicture(pdf, i, ink[i], 1000));
+        img.setAttribute('alt', `${name} – page ${i}`);
+        fig.append(img);
+        out.append(fig);
+      }
+      if (pdf.numPages > max) out.append(make('p', 'x-missing', esc(`… ${pdf.numPages - max} more pages of “${name}” not included`)));
+      pdf.destroy();
+    } catch {
+      out.append(make('p', 'x-missing', esc(`📄 PDF “${name}” (couldn’t be included)`)));
+    }
+    el.replaceWith(out);
+  }
   // Videos → a link
   for (const el of [...body.querySelectorAll('[data-video]')]) {
     const url = el.getAttribute('data-video') || '';

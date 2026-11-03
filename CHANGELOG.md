@@ -4,6 +4,29 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.19.0 — November 2026
+
+### New: PDFs inside notes, with pen markup
+- **Put a PDF in any note**: type **/pdf**, or drag a PDF file onto the note (pasting one works too). The pages
+  show right in the note, in a scrolling viewer; **Full screen** (⤢) gives you the whole screen with zoom.
+- **Mark it up**: press **Mark up**, then write with the **pen**, draw over text with the **highlighter**, or
+  remove strokes with the **eraser**. 5 colours and 3 thicknesses each, Undo / Redo, Clear all. Pen pressure
+  makes lines thicker and thinner like real ink.
+- **Pen-friendly on a tablet**: once you've used a pen (Apple Pencil, Surface pen…), your fingers scroll the
+  pages instead of drawing, so your hand resting on the screen leaves no marks.
+- **The original PDF is never changed** — your markings are saved with the note, on top. Hide them with the
+  eye button, or **Download** the PDF *with your markings* (a new PDF with them drawn in) or the original.
+- **Works offline**: a PDF you've opened once opens without a connection. Add one while offline and it uploads
+  by itself when you're back online.
+- **Together**: in shared workspaces everyone sees markings appear live; people who can only view see the PDF
+  but can't mark it up. Markings are kept in the note's History.
+- **Exports**: PDF, Word and web-page exports include the PDF's pages (with markings) as pictures; Markdown
+  exports include the PDF file itself.
+
+### Fixed
+- In a shared workspace, someone with **Can view** opening a note nobody had opened in the editor yet (for
+  example one made from a template or by the AI) saw an empty page. They now see the note.
+
 ## v1.18.1 — November 2026
 
 ### Security

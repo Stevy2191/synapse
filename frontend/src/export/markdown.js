@@ -2,7 +2,7 @@
 // as files in an "attachments" folder. Obsidian-friendly: [[links]], callouts, math, Mermaid and
 // tags (as front matter) work there as they are.
 import { zipSync, strToU8 } from 'fflate';
-import { htmlToMarkdown, DIAGRAM_FENCE } from '../components/editor/convert';
+import { htmlToMarkdown, DIAGRAM_FENCE, PDF_FENCE } from '../components/editor/convert';
 import { drawingSvg, parseTags } from './render';
 import { flowchartSvg } from './flowchart';
 
@@ -38,7 +38,7 @@ function unique(name, taken) {
  * Build the Markdown export. Returns { kind: 'file', name, data } for one note with no pictures,
  * otherwise { kind: 'zip', name, data } (data is a Uint8Array).
  */
-export function buildMarkdown(notes, all, title) {
+export async function buildMarkdown(notes, all, title) {
   const files = {};
   const attachmentNames = new Set();
   const folderNames = new Map(); // folder path → Set of names in it
@@ -89,6 +89,23 @@ export function buildMarkdown(notes, all, title) {
           return `![${label}](${up}${addAttachment(`${note.title} – diagram ${k}`, file.bytes, file.ext)})`;
         } catch { return ''; }
       });
+      // PDF blocks → the file itself (with the markings drawn in, if there are any)
+      const pdfs = [...md.matchAll(PDF_FENCE)];
+      for (const m of pdfs) {
+        let link = '';
+        try {
+          const d = JSON.parse(m[1]);
+          const name = String(d.name || 'Document.pdf').replace(/\.pdf$/i, '');
+          let bytes = await (await import('../pdf/files')).pdfBytes(d.id);
+          const { parseInk, inkCount, bakeInk } = await import('../pdf/ink');
+          const ink = parseInk(d.ink);
+          if (inkCount(ink)) bytes = await bakeInk(bytes, ink);
+          link = `[📄 ${name}.pdf](${up}${addAttachment(name, new Uint8Array(bytes), 'pdf')})`;
+        } catch {
+          try { link = `📄 ${JSON.parse(m[1]).name || 'PDF'} (not included)`; } catch { link = ''; }
+        }
+        md = md.replace(m[0], () => link);
+      }
       // Embedded Free Draw notes
       md = md.replace(/^!\[\[([^\[\]\n]+)\]\]\s*$/gm, (m, t) => {
         const drawing = all.find(n => n.note_type === 'draw' && n.title.toLowerCase() === t.trim().toLowerCase());

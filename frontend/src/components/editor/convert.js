@@ -12,6 +12,8 @@ import { extractMath, restoreMath, mathNodeHtml, videoSource } from './embeds';
 //   {"kind":"drawio","scene":null,"preview":"data:image/svg+xml;base64,…"}
 //   ```
 export const DIAGRAM_FENCE = /```synapse-diagram\n([\s\S]*?)\n```/g;
+// PDF blocks the same way (markings included):  ```synapse-pdf\n{"id":…,"name":…,"pages":…,"ink":{…}}\n```
+export const PDF_FENCE = /```synapse-pdf\n([\s\S]*?)\n```/g;
 
 export function markdownToHtml(md) {
   // $…$ and $$…$$ math is set aside first so Markdown doesn't eat its _ and \ characters.
@@ -43,6 +45,18 @@ export function markdownToHtml(md) {
       div.setAttribute('data-speakers', JSON.stringify(meta.speakers || {}));
       code.parentElement.replaceWith(div);
     } catch { /* leave it as code */ }
+  }
+  for (const code of doc.querySelectorAll('pre > code.language-synapse-pdf')) {
+    try {
+      const d = JSON.parse(code.textContent);
+      if (typeof d.id !== 'string') continue;
+      const div = doc.createElement('div');
+      div.setAttribute('data-pdf', d.id);
+      div.setAttribute('data-name', String(d.name || 'Document.pdf'));
+      div.setAttribute('data-pages', String(Number(d.pages) || 0));
+      if (d.ink && typeof d.ink === 'object' && Object.keys(d.ink).length) div.setAttribute('data-ink', JSON.stringify(d.ink));
+      code.parentElement.replaceWith(div);
+    } catch {}
   }
   for (const code of doc.querySelectorAll('pre > code.language-synapse-diagram')) {
     try {
@@ -116,6 +130,13 @@ export function markdownToHtml(md) {
   return doc.body.innerHTML;
 }
 
+function pdfFence(node) {
+  let ink;
+  try { ink = JSON.parse(node.getAttribute('data-ink') || 'null') || undefined; } catch { ink = undefined; }
+  const d = { id: node.getAttribute('data-pdf'), name: node.getAttribute('data-name') || 'Document.pdf', pages: Number(node.getAttribute('data-pages')) || 0, ...(ink ? { ink } : {}) };
+  return `\n\n\`\`\`synapse-pdf\n${JSON.stringify(d)}\n\`\`\`\n\n`;
+}
+
 // Blocks that have no text of their own (Turndown would otherwise drop them as empty).
 function special(node) {
   if (node.nodeType !== 1) return null;
@@ -124,6 +145,7 @@ function special(node) {
   if (type === 'inline-math') return `$${node.getAttribute('data-latex') || ''}$`;
   if (type === 'block-math') return `\n\n$$\n${node.getAttribute('data-latex') || ''}\n$$\n\n`;
   if (node.hasAttribute('data-drawing')) return `\n\n![[${node.getAttribute('data-drawing')}]]\n\n`;
+  if (node.hasAttribute('data-pdf')) return pdfFence(node);
   if (node.hasAttribute('data-video')) return `\n\n[▶ Video](${node.getAttribute('data-video')})\n\n`;
   return null;
 }

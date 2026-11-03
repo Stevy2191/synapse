@@ -1,6 +1,6 @@
 {
   "name": "synapse-frontend",
-  "version": "1.18.1",
+  "version": "1.19.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -63,6 +63,7 @@
     "lucide-react": "^0.383.0",
     "marked": "^12.0.0",
     "mermaid": "^11.17.2",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "perfect-freehand": "^1.2.3",
     "qrcode": "^1.5.4",

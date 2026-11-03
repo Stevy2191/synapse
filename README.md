@@ -111,6 +111,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes
 - **Meeting recording & transcripts**: record in the room or an online call, or upload a recording; transcript with who-said-what, audio player, AI summary and to-dos — transcribed free on your own server or with your AssemblyAI/Deepgram key
 - **Text recognition (OCR)**: copy or insert the text from pictures, screenshots, scanned PDFs and photos of whiteboards; handwriting (and Free Draw) to text via your AI; search finds words inside pictures — runs on your own server, and on the device when offline
+- **PDFs in notes**: drop a PDF into any note and read it there; write, highlight and erase on the pages with a pen, finger or mouse (the original file is never changed), download it with or without your markings — works offline, and live in shared workspaces
 - **Files**: network folders (NAS), OneDrive and Google Drive — attach files to notes as a copy or a link, save exports there, browse from the sidebar; the admin decides who can use each folder, everyone connects their own cloud account
 - **Automatic backups**: daily or weekly, keep as many as you like, optional backup password (encrypted), save to a NAS folder, one-click restore — in Settings → Server → Backups
 - **Proxy-ready**: works behind Nginx Proxy Manager, Cloudflare Tunnel and others

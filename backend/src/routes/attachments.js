@@ -45,17 +45,36 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024, files: 1 }, // 50MB
 });
 
+// A device may choose the id itself (?id=<uuid>) so a block inserted offline can point at the file
+// before it's uploaded (PDF blocks). Re-sending the same id for the same note is a no-op.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const ATT_FIELDS = 'id,filename,original_name,mime_type,size,created_at';
+
 router.post('/note/:noteId',
   // Check ownership before accepting the upload, so nothing is written to disk on a 404.
   (req, res, next) => ownedNote(req.params.noteId, req.user.id) ? next() : res.status(404).json({ error: 'Note not found' }),
+  (req, res, next) => {
+    const want = req.query.id;
+    if (want === undefined) return next();
+    if (typeof want !== 'string' || !UUID_RE.test(want)) return res.status(400).json({ error: 'Bad id' });
+    const had = db.prepare('SELECT note_id FROM attachments WHERE id=?').get(want);
+    if (!had) return next();
+    if (had.note_id !== req.params.noteId) return res.status(409).json({ error: 'That id is taken' });
+    res.json({ attachment: db.prepare(`SELECT ${ATT_FIELDS} FROM attachments WHERE id=?`).get(want) });
+  },
   upload.single('file'),
   (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const id = uuid();
+    const id = typeof req.query.id === 'string' ? req.query.id : uuid();
     const originalName = req.file.originalname.replace(/[\r\n"\\/]/g, '_').slice(0, 255);
-    db.prepare('INSERT INTO attachments (id,note_id,filename,original_name,mime_type,size) VALUES (?,?,?,?,?,?)')
-      .run(id, req.params.noteId, req.file.filename, originalName, req.file.mimetype, req.file.size);
-    const attachment = db.prepare('SELECT id,filename,original_name,mime_type,size,created_at FROM attachments WHERE id=?').get(id);
+    try {
+      db.prepare('INSERT INTO attachments (id,note_id,filename,original_name,mime_type,size) VALUES (?,?,?,?,?,?)')
+        .run(id, req.params.noteId, req.file.filename, originalName, req.file.mimetype, req.file.size);
+    } catch {
+      removeUploadFiles([req.file.filename]); // two uploads raced for the same id
+      return res.status(409).json({ error: 'That id is taken' });
+    }
+    const attachment = db.prepare(`SELECT ${ATT_FIELDS} FROM attachments WHERE id=?`).get(id);
     res.json({ attachment });
   }
 );

@@ -60,7 +60,7 @@ export async function runExport({ format, scope, noteId, workspace, pageSize = '
 
   if (format === 'markdown') {
     onProgress('Collecting notes…');
-    const md = buildMarkdown(notes, all, title);
+    const md = await buildMarkdown(notes, all, title);
     await out(md.data, md.name, md.type);
     return {};
   }

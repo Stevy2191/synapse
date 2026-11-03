@@ -35,7 +35,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff2}'], // mjs: the PDF reader's worker (PDF blocks offline)
         // Chat notifications (push) are handled by this small extra script.
         importScripts: ['/push-sw.js'],
         // Excalidraw's fonts (~14 MB, mostly CJK) are cached the first time they're used instead.

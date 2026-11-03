@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
-import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, convertCallouts } from './convert';
+import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, PDF_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
 import { noteKind, isUntitled, nameForDiagramNote } from '../noteKinds';
 import { drawingPreview } from '../freedraw/DrawingEmbed';
@@ -130,6 +130,13 @@ function renderMarkdown(content) {
     try {
       const d = JSON.parse(json);
       return d.preview?.startsWith('data:image/') ? `\n\n![${d.kind === 'excalidraw' ? 'Excalidraw drawing' : 'draw.io diagram'}](${d.preview})\n\n` : '';
+    } catch { return ''; }
+  });
+  content = content.replace(PDF_FENCE, (m, json) => {
+    try {
+      const d = JSON.parse(json);
+      const name = String(d.name || 'PDF').replace(/[<>&"]/g, c => `&#${c.charCodeAt(0)};`);
+      return `\n\n<div class="pdf-md">📄 <b>${name}</b>&nbsp;· ${Number(d.pages) || '?'} pages — switch to Write mode to read and mark it up</div>\n\n`;
     } catch { return ''; }
   });
   // "![[Drawing]]" on its own line: a placeholder that PreviewHtml fills with the drawing's picture
@@ -399,7 +406,11 @@ export default function Editor() {
       if (!alive) return;
       setLivePeople(st.people || []);
       setLiveConnected(!!st.synced);
-      if (st.local || st.synced) setLiveMode(m => (m === 'fallback' ? m : 'live'));
+      // A viewer can't fill an empty shared document (only editors seed it): until someone who can edit
+      // opens the note, show its saved copy instead of a blank page.
+      if (st.synced && st.role === 'view' && session?.ydoc.getXmlFragment('default').length === 0 && (liveNoteRef.current?.rich_content || '').replace(/<p><\/p>/g, '').trim()) {
+        setLiveMode('fallback');
+      } else if (st.local || st.synced) setLiveMode(m => (m === 'fallback' ? m : 'live'));
       if (st.reset) restart();
     };
     const restart = async () => {
@@ -644,6 +655,8 @@ export default function Editor() {
   // Saves go to this device first (instant, works offline); offline/sync.js uploads them.
   const liveSavedRef = useRef({ title: null, tags: null });
   useEffect(() => { liveSavedRef.current = { title: null, tags: null }; }, [activeNote?.note?.id]);
+  const viewOnlyRef = useRef(false);
+  viewOnlyRef.current = role === 'view' && !guest;
   const save = useCallback(async (noteId, t, c, rc, tg, mode) => {
     try {
       const lv = liveRef.current;
@@ -676,6 +689,7 @@ export default function Editor() {
         }
         return;
       }
+      if (viewOnlyRef.current) return; // view-only member of a shared workspace: nothing to save
       await saveNote(noteId, { title: t, content: c, rich_content: rc, tags: tg, editor_mode: mode });
       publishNoteSaved(noteId);
       updateNoteInTree(noteId, { title: t, tags: JSON.stringify(tg), kind: noteKind({ note_type: useStore.getState().notes.find(n => n.id === noteId)?.note_type || 'note', content: c, rich_content: rc }) });

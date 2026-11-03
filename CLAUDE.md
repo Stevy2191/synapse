@@ -132,6 +132,8 @@ frontend/src/
   ocr/client.js, ocr/hash.js        readText (server, else tesseract.js on the device; handwriting → /api/ai/read-image),
                                     readPdf (pdf.js text, OCR for scanned pages), search index (IndexedDB store `ocr`)
   components/ocr/                   ReadTextDialog (Printed / Handwriting, Copy / Insert / New note), OcrSettings (admin)
+  pdf/files.js, pdf/pdfjs.js, pdf/ink.js   PDF blocks: file store/upload, pdf.js loader, markings (draw, erase, bake)
+  components/pdf/                   PdfNode (Tiptap node `pdf`, pickPdf/insertPdf), PdfBlockView (viewer + pen tools)
   meetings/client.js                recorder (zustand useRecorder: mic or getDisplayMedia + mic mixed, MediaRecorder,
                                     chunks kept in IndexedDB `recordings` until uploaded, retryUnsent), API
   components/meetings/              MeetingBlock (Tiptap node `meeting`), Recorder (RecordDialog, RecorderBar,
@@ -288,6 +290,18 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   device over getWorkspaceNotes() (works offline); hidden always wins, pinned always included; no
   rules = only pinned notes. Fields: tag, title, text, kind, created, updated, inside, has. Editing
   needs a connection (workspace settings PATCH). Real folders were offered and not wanted.
+- **PDF blocks** (v1.19.0): Sean chose "block inside a note" and "keep original, markings on top". Tiptap node
+  `pdf` (components/pdf/PdfNode.js + PdfBlockView.jsx): `<div data-pdf="<attachment id>" data-name data-pages
+  data-ink='{"<page>":[strokes]}'>`, Markdown fence ```` ```synapse-pdf {json} ````. The file is a normal
+  attachment whose id the *device* picks (`POST /api/attachments/note/:id?id=<uuid v4>`; same id + same note =
+  no-op, other note = 409), so a block added offline already points at it; pdf/files.js keeps PDFs in IndexedDB
+  store `pdfs` (db v5; `pending` until uploaded, uploadPending() on start / online / every 60 s; offline copies
+  capped at 400 MB). Markings: pdf/ink.js, page units (page width = 1000), perfect-freehand outlines via
+  freedraw strokePath; eraser removes whole strokes; bakeInk() draws them into a copy with pdf-lib (handles page
+  rotation). Pen seen → fingers pan by hand (touch-action none while marking, so a pen never scrolls). pdf.js
+  worker is `.mjs` → workbox globPatterns include mjs (needed offline). Export: render.js turns pages into PNGs
+  (≤40), Markdown export adds the (marked-up) file. Not built: search inside PDFs, text notes/typing on pages,
+  pinch-zoom inside the viewer, PDFs for public (published) links (shows "couldn't be included").
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.
@@ -478,14 +492,13 @@ Other ideas:
 
 - Letting "Can edit" people add new notes inside a shared folder;
   showing embedded Free Draw drawings inside notes shared with you; offline copies of shared notes.
-- Attachments other than images (PDF viewer
-  inline, files); import from Obsidian / Notion / OneNote / Evernote.
+- Attachments other than images and PDFs (files); import from Obsidian / Notion / OneNote / Evernote.
 - Web clipper (bookmarklet / browser extension) and email-to-note.
 - Outlook calendar two-way: push tasks with due dates (meeting notes from events are built).
 - Reminders via ntfy/Gotify; per-task email reminders (push reminders + the daily email are built).
 - Database/table views (properties per note, Notion-style). (Kanban board is built.)
+- PDF follow-ups: search inside PDFs, typing text / signatures on pages, PDFs on published links.
 - OCR follow-ups: search inside attached files/PDFs, reading text in pictures of shared notes for guests.
-- PDF annotation with the pen.
 - Team follow-ups: groups/teams, shared lists, a team calendar view, comment reactions/emoji.
 - Encrypted / locked notes (client-side encryption, e.g. for passwords-adjacent info).
 - Backups straight to OneDrive / Google Drive (local + NAS folder backups are built).

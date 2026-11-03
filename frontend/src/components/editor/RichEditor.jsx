@@ -20,7 +20,7 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Link as LinkExt } from '@tiptap/extension-link';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link as LinkIcon, Quote, Highlighter, Heading1, Heading2, Heading3,
-  Type, ListChecks, ListTodo, Paperclip, ScanText, PenLine, Mic, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, Plus,
+  Type, ListChecks, ListTodo, Paperclip, ScanText, PenLine, Mic, List, ListOrdered, Code2, Table as TableIcon, Minus, Image as ImageIcon, FileText, FileType2, Plus,
   ArrowDownToLine, ArrowRightToLine, Trash2, GitFork, Pencil, Workflow, PenTool,
   Sparkles, Youtube, Sigma, Radical, Waypoints, ListCollapse, Info, Lightbulb, TriangleAlert, OctagonAlert, ImageUp, FilePlus, ListTree, CalendarDays, Clock, CalendarClock, AtSign, MessageSquarePlus,
 } from 'lucide-react';
@@ -31,6 +31,7 @@ import { Mathematics } from '@tiptap/extension-mathematics';
 import { VideoEmbed, MathDialog } from './embeds';
 import { FileLink } from './FileLink';
 import { MeetingNode } from '../meetings/MeetingBlock';
+import { PdfNode, insertPdf } from '../pdf/PdfNode';
 import { DrawingEmbed, DrawingPicker } from '../freedraw/DrawingEmbed';
 import { DiagramNode } from '../diagrams/DiagramNode';
 import { CodeBlock } from './CodeBlockView';
@@ -58,10 +59,12 @@ function isTaskListTitle(ed, pos) {
   } catch { return false; }
 }
 
+const isPdfFile = f => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+
 const SLASH_ICONS = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3, todo: ListChecks, ul: List, ol: ListOrdered,
   link: FileText, quote: Quote, code: Code2, table: TableIcon, divider: Minus, image: ImageIcon,
-  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, file: Paperclip, ocr: ScanText, meeting: Mic, upload: ImageUp, subnote: FilePlus, toc: ListTree,
+  drawio: Workflow, excalidraw: PenTool, toggle: ListCollapse, tasklist: ListTodo, file: Paperclip, ocr: ScanText, meeting: Mic, pdf: FileType2, upload: ImageUp, subnote: FilePlus, toc: ListTree,
   ai: Sparkles, 'callout-info': Info, 'callout-tip': Lightbulb, 'callout-warning': TriangleAlert, 'callout-danger': OctagonAlert,
   date: CalendarDays, time: Clock, datetime: CalendarClock, video: Youtube, drawing: PenTool, math: Sigma, 'math-inline': Radical, mermaid: Waypoints,
 };
@@ -108,6 +111,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
   };
   const getUi = useCallback(() => ui.current, []);
 
+  const editorInstance = useRef(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false, link: false, underline: false, ...(collab ? { undoRedo: false } : {}) }),
@@ -151,6 +155,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
       VideoEmbed,
       FileLink,
       MeetingNode,
+      PdfNode,
       DrawingEmbed,
       Mathematics.configure({
         katexOptions: { throwOnError: false },
@@ -160,7 +165,25 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     ],
     ...(collab ? {} : { content: content || '<p></p>' }),
     // The styles below are scoped to this class.
-    editorProps: { attributes: { class: 'rich-editor-content' } },
+    editorProps: {
+      attributes: { class: 'rich-editor-content' },
+      // A PDF dropped or pasted into the note becomes a PDF block.
+      handleDrop: (view, event, slice, moved) => {
+        const file = !moved && [...(event.dataTransfer?.files || [])].find(isPdfFile);
+        if (!file || !view.editable) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        insertPdf(editorInstance.current, file, useStore.getState().activeNote?.note?.id, pos);
+        return true;
+      },
+      handlePaste: (view, event) => {
+        const file = [...(event.clipboardData?.files || [])].find(isPdfFile);
+        if (!file || !view.editable) return false;
+        event.preventDefault();
+        insertPdf(editorInstance.current, file, useStore.getState().activeNote?.note?.id);
+        return true;
+      },
+    },
     onUpdate: ({ editor, transaction }) => {
       const html = editor.getHTML();
       lastHtmlRef.current = html;
@@ -170,6 +193,7 @@ export default function RichEditor({ content, onChange, editorRef: editorRefProp
     },
   });
 
+  editorInstance.current = editor;
   useEffect(() => {
     if (editorRefProp) editorRefProp.current = editor;
     onEditor?.(editor);

@@ -106,6 +106,7 @@ body { margin: 0; background: #fff; color: #1f2330; font: 400 11pt/1.6 "Inter", 
 .x-toc-item { color: #4b5563; }
 .x-figure { margin: 1em 0; text-align: center; break-inside: avoid; }
 .x-figure img, .x-figure svg { max-width: 100%; height: auto; }
+.x-pdf-page img { border: 1px solid #d4d4d8; }
 .x-mermaid { margin: 1em 0; text-align: center; break-inside: avoid; }
 .x-mermaid svg { max-width: 100%; height: auto; }
 .x-math-block { margin: 0.8em 0; text-align: center; overflow-x: auto; }

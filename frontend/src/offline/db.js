@@ -8,6 +8,8 @@
 //   calendar    — calendar events by month ("2026-11"), for offline viewing.
 //   recordings  — meeting recordings not uploaded yet (survive a crash / being offline)
 //   ocr         — text read from pictures in notes (picture hash → text), so search finds it offline.
+//   pdfs        — PDF files shown in PDF blocks: kept so they open offline, and ones added offline
+//                 until they're uploaded ({ id, blob, name, noteId, pending, size, usedAt }).
 import { openDB } from 'idb';
 
 let dbPromise = null;
@@ -17,7 +19,7 @@ export function openUserDb(userId) {
   if (currentUserId === userId && dbPromise) return dbPromise;
   currentUserId = userId;
   // One database per user so people sharing a browser never see each other's notes.
-  dbPromise = openDB(`synapse-${userId}`, 4, {
+  dbPromise = openDB(`synapse-${userId}`, 5, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore('workspaces', { keyPath: 'id' });
@@ -31,6 +33,8 @@ export function openUserDb(userId) {
       if (oldVersion < 3) db.createObjectStore('ocr');
       // v4: meeting recordings not uploaded yet (kept while recording, and if the upload failed)
       if (oldVersion < 4) db.createObjectStore('recordings', { keyPath: 'localId' });
+      // v5: PDF files of PDF blocks (offline copies + not uploaded yet)
+      if (oldVersion < 5) db.createObjectStore('pdfs', { keyPath: 'id' });
     },
   });
   return dbPromise;

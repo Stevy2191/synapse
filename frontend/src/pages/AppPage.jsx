@@ -49,9 +49,13 @@ export default function AppPage() {
 
   // Meeting recordings that didn't upload (offline / closed tab): try again now and when back online.
   useEffect(() => {
-    const t = setTimeout(retryUnsent, 4000);
-    window.addEventListener('online', retryUnsent);
-    return () => { clearTimeout(t); window.removeEventListener('online', retryUnsent); };
+    // PDFs added offline (or whose note wasn't on the server yet) are uploaded later.
+    const sendPdfs = () => import('../pdf/files').then(m => m.hasPending().then(p => p && m.uploadPending())).catch(() => {});
+    const retry = () => { retryUnsent(); sendPdfs(); };
+    const t = setTimeout(retry, 4000);
+    const iv = setInterval(sendPdfs, 60000);
+    window.addEventListener('online', retry);
+    return () => { clearTimeout(t); clearInterval(iv); window.removeEventListener('online', retry); };
   }, []);
 
   // Start closed on phones; the menu button opens it.
