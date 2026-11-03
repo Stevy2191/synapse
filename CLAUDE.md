@@ -492,5 +492,5 @@ Other ideas:
 - Meetings follow-ups: desktop helper app for one-click call recording, live (real-time) transcript,
   auto-recording prompts from calendar events; in Firefox/Safari hide "Online meeting" (no getDisplayMedia
   audio — Mozilla bug 1541425) and add a microphone picker (for Stereo Mix / virtual cables).
-- Mobile polish; installable PWA "share to Synapse"; quick-capture widget.
+- Mobile polish. (Sean said no to "share to Synapse" / quick capture — Nov 2026; don't suggest it again.)
 - Public REST API + API tokens / webhooks (for Home Assistant, scripts, n8n).
