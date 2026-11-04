@@ -514,6 +514,10 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - Suggestion menus ("/", "[[", "@") have priority 2000 so their Enter/arrow keys win over block keymaps
   (the toggle title's Enter used to steal it). Slash heading items call setTextLevel() (works on toggle
   titles); filterSlashItems(query, editor) limits the menu on a toggle title to TITLE_ITEMS.
+- TurnInto.jsx (v1.22.1): replaceBlocks must set the selection inside the new block (+ scrollIntoView) — a
+  replaced range leaves the cursor *after* it and the view jumped there. A selection starting on a toggle title
+  (`fromTitle`) gets the full menu: heading items change only the title size when just the title is selected
+  (`inTitle`); every other choice first `unwrapToggle()`s the whole details into plain lines, then applies.
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 

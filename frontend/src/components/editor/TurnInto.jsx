@@ -2,7 +2,8 @@
 // checklist, quote, callout, toggle, code block, equation… (the block types from the "/" menu).
 // Renders inline (not in a portal) so clicking it doesn't close the floating toolbar.
 import { useEffect, useRef, useState } from 'react';
-import { textLevel, setTextLevel } from './blocks';
+import { TextSelection } from '@tiptap/pm/state';
+import { setTextLevel } from './blocks';
 import {
   Type, Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, ListCollapse, ListTodo, Quote, Info, Lightbulb, TriangleAlert,
   OctagonAlert, Code2, Sigma, Radical, FileText, ChevronDown, Check,
@@ -22,8 +23,40 @@ function replaceBlocks(editor, make) {
     const node = make(texts, state.schema);
     if (!node) return false;
     tr.replaceWith(range.start, range.end, node);
+    // Keep the cursor in the new block (at the end of its first line). Otherwise it lands in the line
+    // after it, and the page scrolls there — to the bottom when the block is near the end of the note.
+    const first = TextSelection.findFrom(tr.doc.resolve(range.start), 1, true);
+    if (first) tr.setSelection(TextSelection.create(tr.doc, first.$from.end()));
+    tr.scrollIntoView();
     return true;
   }).run();
+}
+
+/**
+ * The toggle (or task list) the selection starts in, turned back into plain lines (title first, then
+ * each line inside it, formatting kept) and selected — so any "Turn into" choice can then apply to
+ * the whole section. Returns false when the selection isn't in a toggle.
+ */
+function unwrapToggle(editor) {
+  const { state } = editor;
+  const { $from } = state.selection;
+  let d = $from.depth;
+  while (d > 0 && $from.node(d).type.name !== 'details') d--;
+  if (d <= 0) return false;
+  const node = $from.node(d);
+  const start = $from.before(d);
+  const { paragraph } = state.schema.nodes;
+  const lines = [];
+  node.descendants(n => {
+    if (n.isTextblock) { lines.push(paragraph.create(null, n.type.name === 'codeBlock' ? (n.textContent ? state.schema.text(n.textContent) : null) : n.content)); return false; }
+    return true;
+  });
+  if (!lines.length) lines.push(paragraph.create());
+  const tr = state.tr.replaceWith(start, start + node.nodeSize, lines);
+  const size = lines.reduce((n, l) => n + l.nodeSize, 0);
+  tr.setSelection(TextSelection.create(tr.doc, start + 1, start + size - 1));
+  editor.view.dispatch(tr);
+  return true;
 }
 
 // Only inside one paragraph/heading: the selected text itself becomes something else.
@@ -84,12 +117,25 @@ const ITEMS = [
     run: e => replaceText(e, text => `[[${text.replace(/[[\]]/g, '')}]]`) },
 ];
 
-const inTitle = e => e.state.selection.$from.parent.type.name === 'detailsSummary';
+// Only the toggle's title line is selected (headings then change the title's size).
+const inTitle = e => { const { $from, $to } = e.state.selection; return $from.parent.type.name === 'detailsSummary' && $from.sameParent($to); };
+// The selection starts on a toggle's title: the choice applies to the whole toggle / task list.
+const fromTitle = e => e.state.selection.$from.parent.type.name === 'detailsSummary';
+
+/** Run a "Turn into" choice. Starting on a toggle's title, everything but heading sizes (title only)
+ *  first turns the whole toggle back into lines, then applies the choice to them. */
+function runItem(editor, item) {
+  if (fromTitle(editor)) {
+    if (item.titleOk && inTitle(editor) && item.id !== 'text') return item.run(editor);
+    unwrapToggle(editor);
+    if (item.id === 'text') return true;
+  }
+  return item.run(editor);
+}
 
 // What the block where the selection starts is (innermost wins: a heading inside a callout is a heading).
 function currentId(editor) {
   const { $from } = editor.state.selection;
-  if ($from.parent.type.name === 'detailsSummary') { const l = textLevel(editor); return l ? `h${l}` : 'text'; }
   for (let d = $from.depth; d > 0; d--) {
     const n = $from.node(d);
     switch (n.type.name) {
@@ -105,6 +151,14 @@ function currentId(editor) {
     }
   }
   return 'text';
+}
+
+// On a toggle's title the menu explains what each choice does there.
+function titleHint(editor, item) {
+  if (!fromTitle(editor)) return item.hint;
+  if (inTitle(editor) && item.titleOk && item.id !== 'text') return 'Size of the toggle’s title';
+  if (item.id === 'text') return 'Back to plain lines';
+  return item.id === 'toggle' || item.id === 'tasklist' ? item.hint : 'The whole section';
 }
 
 export default function TurnInto({ editor }) {
@@ -138,7 +192,7 @@ export default function TurnInto({ editor }) {
       {open && (
         <div className="turn-into-menu" onMouseDown={e => e.preventDefault()}>
           <div className="turn-into-head">Turn into</div>
-          {ITEMS.filter(i => (inTitle(editor) ? i.titleOk : !i.textOnly || oneLine)).map(item => {
+          {ITEMS.filter(i => (!i.textOnly || (oneLine && !fromTitle(editor)))).map(item => {
             const head = item.group !== lastGroup ? item.group : null;
             lastGroup = item.group;
             const Icon = item.icon;
@@ -147,9 +201,9 @@ export default function TurnInto({ editor }) {
               <div key={item.id}>
                 {head && <div className="turn-into-group">{head}</div>}
                 <button type="button" className={`turn-into-item${on ? ' on' : ''}`}
-                  onClick={() => { item.run(editor); setOpen(false); }}>
+                  onClick={() => { runItem(editor, item); setOpen(false); }}>
                   <Icon size={15} />
-                  <span><span>{item.title}</span>{item.hint && <small>{item.hint}</small>}</span>
+                  <span><span>{item.title}</span>{titleHint(editor, item) && <small>{titleHint(editor, item)}</small>}</span>
                   {on && <Check size={14} className="turn-into-check" />}
                 </button>
               </div>

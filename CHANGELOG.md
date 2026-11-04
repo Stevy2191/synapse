@@ -4,6 +4,17 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.22.1 — November 2026
+
+### Fixed
+- **Turn into on a toggle or task list**: selecting one (from its title line) and choosing “Turn into” only
+  offered heading sizes. Now every choice is there and applies to the whole section — back to plain text, a
+  bulleted/numbered list, a checklist, a quote, a callout, a code block, or toggle ↔ task list. Heading sizes
+  still change just the title when only the title line is selected; the menu says which is which.
+- **No more jumping to the bottom**: after turning text into a toggle or task list, the cursor landed in the line
+  *after* the new block and the page scrolled there (to the bottom when it was near the end of the note). The
+  cursor now stays on the new block's title.
+
 ## v1.22.0 — November 2026
 
 ### New: Home page
