@@ -4,6 +4,14 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.22.2 — November 2026
+
+### Fixed
+- **Turn into → Task list (or Checklist, lists, Toggle) with several lines** made one item out of all of them
+  ("PowerlessPowerful (Companion novella)RecklessFearless") when the lines were joined with Shift+Enter or came
+  from pasted text — those are line breaks inside one paragraph, not separate lines. Every line now becomes its
+  own task / item.
+
 ## v1.22.1 — November 2026
 
 ### Fixed

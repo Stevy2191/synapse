@@ -122,6 +122,29 @@ const inTitle = e => { const { $from, $to } = e.state.selection; return $from.pa
 // The selection starts on a toggle's title: the choice applies to the whole toggle / task list.
 const fromTitle = e => e.state.selection.$from.parent.type.name === 'detailsSummary';
 
+// Choices that make one item / line per line of text.
+const PER_LINE = new Set(['ul', 'ol', 'todo', 'toggle', 'tasklist', 'code', 'math']);
+
+/**
+ * Lines inside one paragraph made with Shift+Enter (or pasted text) are line *breaks*, not separate
+ * paragraphs — so a task list would get all of them as one task ("PowerlessPowerfulReckless…").
+ * Split every break in the selection into its own paragraph first.
+ */
+function splitBreaks(editor) {
+  const { state } = editor;
+  const { from, to } = state.selection;
+  const spots = [];
+  state.doc.nodesBetween(from, to, (n, pos) => { if (n.type.name === 'hardBreak') spots.push(pos); });
+  if (!spots.length) return;
+  const tr = state.tr;
+  for (const pos of spots.reverse()) {
+    const $p = tr.doc.resolve(pos);
+    if (['paragraph', 'heading'].includes($p.parent.type.name)) { tr.delete(pos, pos + 1); tr.split(pos); } else tr.replaceWith(pos, pos + 1, state.schema.text(' '));
+  }
+  tr.setSelection(TextSelection.create(tr.doc, tr.mapping.map(from), tr.mapping.map(to, -1)));
+  editor.view.dispatch(tr);
+}
+
 /** Run a "Turn into" choice. Starting on a toggle's title, everything but heading sizes (title only)
  *  first turns the whole toggle back into lines, then applies the choice to them. */
 function runItem(editor, item) {
@@ -130,6 +153,7 @@ function runItem(editor, item) {
     unwrapToggle(editor);
     if (item.id === 'text') return true;
   }
+  if (PER_LINE.has(item.id)) splitBreaks(editor);
   return item.run(editor);
 }
 

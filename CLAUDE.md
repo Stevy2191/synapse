@@ -518,6 +518,8 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   replaced range leaves the cursor *after* it and the view jumped there. A selection starting on a toggle title
   (`fromTitle`) gets the full menu: heading items change only the title size when just the title is selected
   (`inTitle`); every other choice first `unwrapToggle()`s the whole details into plain lines, then applies.
+  Per-line choices (lists, checklist, toggle, task list, code, math) first `splitBreaks()` — Shift+Enter /
+  pasted lines are hardBreaks inside one paragraph and used to merge into a single item (v1.22.2).
 - Chat dialogs: a `window` keydown listener re-registered on every render (inline onClose)
   missed real Escape presses; Modal in ChatDialogs.jsx keeps one `document` listener + a ref.
 
