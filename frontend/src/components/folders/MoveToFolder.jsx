@@ -86,7 +86,7 @@ export default function MoveToFolder() {
           {shown.map(f => (
             <button key={f.id} type="button" onClick={() => go(f.id, f.title)} className={note.parent_id === f.id ? 'here' : ''}
               style={{ paddingLeft: 10 + (needle ? 0 : f.depth * 16) }} title={f.path.join(' / ')}>
-              <Folder size={14} style={{ color: '#e3a33b' }} /> {needle ? f.path.join(' / ') : f.title}
+              <Folder size={14} style={{ color: 'var(--folder-color, #e3a33b)' }} /> {needle ? f.path.join(' / ') : f.title}
               {note.parent_id === f.id && <Check size={14} className="move-here" />}
             </button>
           ))}

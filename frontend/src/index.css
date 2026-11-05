@@ -352,7 +352,7 @@ body {
   --hl-addition-bg: rgba(165, 224, 117, 0.12);
   --hl-deletion-bg: rgba(255, 107, 127, 0.12);
 }
-:root[data-theme="light"], :root[data-theme="neural-light"] {
+:root[data-scheme="light"] {
   --code-bg: #f6f7fd;
   --code-text: #24292f;
   --hl-comment: #6e7781;
@@ -1932,3 +1932,61 @@ li[data-checked="true"] .task-when { opacity: .6; }
 .folder-empty { color: var(--text-muted); font-size: 13.5px; padding: 12px 4px; }
 .move-dialog .drawing-picker-list button.here { background: var(--accent-subtle); }
 .move-here { margin-left: auto; color: var(--accent); }
+
+
+/* ── Theme extras ─────────────────────────────────────────────────────────────
+   Optional variables the designed themes set (themes/index.js `designed()`); a theme that
+   doesn't set one keeps today's look through the fallback. */
+.nav-item.on { background: var(--selected-bg, var(--accent-subtle)); color: var(--selected-text, var(--text-primary)); box-shadow: var(--selected-bar, inset 2px 0 0 var(--accent)); }
+.nav-item.on svg { color: var(--selected-icon, inherit); }
+.section-label { color: var(--section-label, var(--text-muted)); }
+.tab-bar { background: var(--tab-bg, var(--bg-surface, var(--bg-base))); }
+.right-rail { background: var(--rail-bg, transparent); }
+.rich-editor-content h2 { color: var(--h2, inherit); }
+.rich-editor-content h3 { color: var(--h3, inherit); }
+.rich-editor-content th { background: var(--th-bg, var(--bg-elevated)) !important; color: var(--th-text, inherit); }
+.tag-chip:nth-of-type(3n+1) { background: var(--tag-1-bg, var(--accent-subtle)); color: var(--tag-1, var(--accent-hover)); }
+.tag-chip:nth-of-type(3n+2) { background: var(--tag-2-bg, var(--accent-subtle)); color: var(--tag-2, var(--accent-hover)); }
+.tag-chip:nth-of-type(3n)   { background: var(--tag-3-bg, var(--accent-subtle)); color: var(--tag-3, var(--accent-hover)); }
+.nav-item[data-nav] > svg:first-child { color: var(--nav-icon, currentColor); }
+.nav-item[data-nav="home"] { --nav-icon: var(--nav-home); }
+.nav-item[data-nav="search"] { --nav-icon: var(--nav-search); }
+.nav-item[data-nav="inbox"] { --nav-icon: var(--nav-inbox); }
+.nav-item[data-nav="activity"] { --nav-icon: var(--nav-activity); }
+.nav-item[data-nav="graph"] { --nav-icon: var(--nav-graph); }
+.nav-item[data-nav="tasks"] { --nav-icon: var(--nav-tasks); }
+.nav-item[data-nav="ask"] { --nav-icon: var(--nav-ask); }
+.nav-item[data-nav="chats"] { --nav-icon: var(--nav-chats); }
+.nav-item[data-nav="files"] { --nav-icon: var(--nav-files); }
+.nav-item[data-nav="trash"] { --nav-icon: var(--nav-trash); }
+.nav-item.on[data-nav] > svg:first-child { color: var(--selected-icon, var(--nav-icon, currentColor)); }
+
+/* Synapse Signature: the "firing neuron" gradient and a soft glow */
+:root[data-theme="signature"] { --syn: linear-gradient(90deg, #a855f7 0%, #ec4899 50%, #22d3ee 100%); }
+[data-theme="signature"] aside:not(.right-rail) { background: radial-gradient(120% 60% at 0% 0%, rgba(168,85,247,.16), transparent 60%), var(--bg-sidebar) !important; }
+[data-theme="signature"] .tab-bar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--syn); opacity: .9; pointer-events: none; }
+[data-theme="signature"] .doc-title { background: var(--syn); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-theme="signature"] .doc-title::placeholder { color: var(--text-muted); }
+[data-theme="signature"] .section-label { background: var(--syn); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+[data-theme="signature"] .nav-item.on { background: linear-gradient(90deg, rgba(168,85,247,.30), rgba(34,211,238,.10)); box-shadow: inset 3px 0 0 #c084fc, 0 0 18px rgba(168,85,247,.25); }
+[data-theme="signature"] .rich-editor-content h2 { text-shadow: 0 0 18px rgba(34,211,238,.35); }
+[data-theme="signature"] .rich-editor-content th { background: linear-gradient(90deg, rgba(168,85,247,.28), rgba(34,211,238,.18)) !important; }
+[data-theme="signature"] .tag-chip { border: 1px solid rgba(192,132,252,.45); box-shadow: 0 0 10px rgba(168,85,247,.25); }
+[data-theme="signature"] .rich-editor-content a, [data-theme="signature"] .wiki-link { color: #e879f9; }
+[data-theme="signature"] .cal-event { box-shadow: 0 0 0 1px rgba(168,85,247,.08), 0 8px 22px rgba(0,0,0,.5); }
+
+/* High Contrast: bold labels, underlined headings, outlined tags */
+[data-theme="contrast"] .section-label { font-weight: 800; }
+[data-theme="contrast"] .doc-title { font-weight: 800; letter-spacing: -0.03em; }
+[data-theme="contrast"] .rich-editor-content h2 { border-bottom: 2px solid var(--accent); display: inline-block; padding-bottom: 2px; }
+[data-theme="contrast"] .tag-chip { background: transparent; border: 1px solid var(--accent); }
+[data-theme="contrast"] .rich-editor-content th { border-bottom: 2px solid var(--accent) !important; }
+[data-theme="contrast"] .nav-item.on svg { color: var(--selected-text) !important; }
+
+/* Neural Layers: raised sidebar and cards */
+[data-theme="layers"] aside:not(.right-rail) { background: linear-gradient(180deg, #1d2142 0%, #171a35 100%) !important; box-shadow: 4px 0 24px rgba(0,0,0,.35); }
+[data-theme="layers"] .cal-event { box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+[data-theme="layers"] .rich-editor-content table { box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+
+/* Light designed themes: soft shadows instead of borders on cards */
+[data-scheme="light"] .cal-event { box-shadow: 0 1px 3px rgba(30,40,80,.08); }

@@ -105,7 +105,7 @@ Install it to your home screen and it works like an app — online or off.
 **Running it**
 - **Offline-first**: every device keeps a copy; changes sync when you're back online, and conflicts never lose work
 - **Installable** on phones and computers as an app
-- **Themes**: Neural (default) and Neural Light, following your device's light/dark setting, plus Dark, Light, Dracula, Nord, Solarized and Tokyo Night
+- **Themes**: Neural (default) and Neural Light, following your device's light/dark setting, plus 20 more — Synapse Signature, Nord, Ember, Evergreen, Graphite, Abyss, Sakura, Dusk, High Contrast, Warm Paper, Daybreak, Arctic and others — each giving the sidebar, page and panels their own shade and colour-coding the sidebar
 - **Multi-user**: the first account is the admin, who adds everyone else
 - **Two-step verification**: authenticator apps (works with Bitwarden, 1Password…), passkeys (Face ID, Touch ID, Windows Hello, security keys) and recovery codes
 - **Easy install & maintenance**: one-line installer, HTTPS with or without a domain, notes on a local disk, Docker volume or network share, and a `synapse` command for updates, backups and fixes

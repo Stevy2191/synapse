@@ -29,7 +29,7 @@ const DRAW_TOOLS = new Set(['pen', 'marker', 'highlighter']);
 const SHAPES = [['line', Minus, 'Line'], ['arrow', MoveUpRight, 'Arrow'], ['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellipse']];
 const MIN_ZOOM = 0.1, MAX_ZOOM = 8;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const appIsLight = () => ['light', 'neural-light'].includes(document.documentElement.getAttribute('data-theme'));
+const appIsLight = () => document.documentElement.getAttribute('data-scheme') === 'light';
 
 function usePref(key, initial) {
   const [v, setV] = useState(() => { try { const s = localStorage.getItem(key); return s == null ? initial : JSON.parse(s); } catch { return initial; } });

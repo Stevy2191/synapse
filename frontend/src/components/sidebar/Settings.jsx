@@ -254,40 +254,62 @@ function ChangePassword() {
   );
 }
 
+const THEME_GROUPS = [
+  ['Synapse', ['auto', 'neural', 'neural-light', 'signature', 'layers', 'neural-color']],
+  ['Dark', ['nord', 'ember', 'evergreen', 'graphite', 'abyss', 'sakura', 'dusk', 'contrast', 'dark', 'dracula', 'tokyo-night', 'nord-classic']],
+  ['Light', ['paper', 'daybreak', 'arctic', 'light', 'solarized']],
+];
+
+/** A small picture of the theme: its sidebar (with the sidebar icon colours) next to its page and accent. */
+function ThemeCard({ themeKey, selected, onPick }) {
+  const theme = THEMES[themeKey];
+  const parts = themeKey === 'auto' ? [THEMES.neural.vars, THEMES['neural-light'].vars] : [theme.vars];
+  return (
+    <button onClick={onPick} title={theme.label} style={{
+      padding: 0, borderRadius: 10, cursor: 'pointer', overflow: 'hidden', textAlign: 'left',
+      border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+      background: 'var(--bg-surface)', boxShadow: selected ? 'var(--glow)' : 'none', transition: 'all .15s',
+    }}>
+      <div style={{ height: 52, display: 'flex' }}>
+        {parts.map((v, i) => {
+          const navs = ['--nav-home', '--nav-tasks', '--nav-ask'].map(k => v[k]).filter(Boolean);
+          const dots = navs.length ? navs : [v['--text-muted'], v['--text-muted'], v['--text-muted']];
+          return (
+            <div key={i} style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+              <div style={{ width: '34%', background: v['--bg-sidebar'] || v['--bg-surface'], padding: '9px 0 0 8px', display: 'flex', flexDirection: 'column', gap: 5, borderRight: `1px solid ${v['--border']}` }}>
+                {dots.map((c, j) => <span key={j} style={{ width: 16, height: 4, borderRadius: 2, background: c }} />)}
+              </div>
+              <div style={{ flex: 1, background: v['--bg-base'], padding: '9px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ width: '70%', height: 6, borderRadius: 3, background: v['--h2'] || v['--text-primary'] }} />
+                <span style={{ width: '90%', height: 3, borderRadius: 2, background: v['--text-muted'] }} />
+                <span style={{ width: 22, height: 7, borderRadius: 4, background: v['--accent'] }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{theme.label}</span>
+        {themeKey === 'auto' && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>default</span>}
+      </div>
+    </button>
+  );
+}
+
 function AppearancePage() {
   const { user, setTheme } = useStore(s => ({ user: s.user, setTheme: s.setTheme }));
   return (
     <div>
       <h3 style={heading}>Appearance</h3>
       <p style={lead}>Your theme follows you to every workspace and device.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-        {Object.entries(THEMES).map(([key, theme]) => {
-          const selected = (user?.theme || 'auto') === key;
-          const v = key === 'auto' ? THEMES.neural.vars : theme.vars;
-          const v2 = key === 'auto' ? THEMES['neural-light'].vars : null;
-          return (
-            <button key={key} onClick={() => setTheme(key)} style={{
-              padding: 0, borderRadius: 10, cursor: 'pointer', overflow: 'hidden', textAlign: 'left',
-              border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-              background: 'var(--bg-surface)', boxShadow: selected ? 'var(--glow)' : 'none', transition: 'all .15s',
-            }}>
-              <div style={{ height: 46, display: 'flex' }}>
-                {[v, v2].filter(Boolean).map((vars, i) => (
-                  <div key={i} style={{ flex: 1, background: vars['--bg-base'], display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px' }}>
-                    {[vars['--accent'], vars['--text-primary'], vars['--success']].map((c, j) => (
-                      <span key={j} style={{ width: j === 0 ? 14 : 8, height: j === 0 ? 14 : 8, borderRadius: '50%', background: c }} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text-primary)', flex: 1 }}>{theme.label}</span>
-                {key === 'auto' && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>default</span>}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {THEME_GROUPS.map(([groupTitle, keys]) => (
+        <div key={groupTitle} style={{ marginBottom: 18 }}>
+          <div className="section-label" style={{ margin: '4px 0 8px' }}>{groupTitle}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+            {keys.filter(k => THEMES[k]).map(key => <ThemeCard key={key} themeKey={key} selected={(user?.theme || 'auto') === key} onPick={() => setTheme(key)} />)}
+          </div>
+        </div>
+      ))}
       <p style={{ ...hint, marginTop: 14 }}>Auto uses Neural or Neural Light to match your device's light/dark setting.</p>
     </div>
   );

@@ -184,7 +184,7 @@ export const VideoEmbed = Node.create({
 let mermaidPromise = null;
 let renderCount = 0;
 function isLight() {
-  return ['light', 'neural-light'].includes(document.documentElement.getAttribute('data-theme'));
+  return document.documentElement.getAttribute('data-scheme') === 'light';
 }
 
 /** SVG for a Mermaid chart (Mermaid is large, so it's only downloaded when a chart is shown). */

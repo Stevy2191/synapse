@@ -351,6 +351,13 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   worker is `.mjs` → workbox globPatterns include mjs (needed offline). Export: render.js turns pages into PNGs
   (≤40), Markdown export adds the (marked-up) file. Not built: search inside PDFs, text notes/typing on pages,
   pinch-zoom inside the viewer, PDFs for public (published) links (shows "couldn't be included").
+- **Themes** (v1.24.0): Sean found Nord "blends together"; chose bold, distinct looks. themes/index.js: old themes are
+  plain var sets; the designed ones (DESIGNED map → `designed(p)`) add optional "theme extras" — `--nav-<key>` (sidebar
+  icon colours via `data-nav` on Sidebar buttons), `--h2/--h3`, `--th-bg/--th-text`, `--tag-1..3(-bg)`, `--folder-color`,
+  `--selected-bg/-text/-bar`, `--section-label`, `--rail-bg`, `--tab-bg` — all used in index.css with fallbacks, so old
+  themes look unchanged. applyTheme() removes vars the previous theme set and sets `data-scheme` light|dark: use
+  data-scheme (not data-theme) for light/dark checks (Mermaid, code colours, Free Draw). Old Nord kept as `nord-classic`.
+  New theme = add to DESIGNED + backend routes/auth.js valid list + Settings.jsx THEME_GROUPS.
 - **Offline-first**: the UI reads/writes IndexedDB; `sync.js` pushes an outbox and pulls.
   Notes carry `version`; edits send `base_version` + `op_id`; a mismatch makes a
   "(conflict copy)" note on the server (keep-both). `getWorkspaceNotes()` is the local source of truth.

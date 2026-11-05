@@ -4,6 +4,25 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.24.0 — November 2026
+
+### New: 14 themes that don't blend together
+- Every new theme gives the sidebar, the page and the side panel their own shade, colours each sidebar item
+  (Home, Inbox, Tasks, Ask AI, Chats, Files, Trash…), tints headings, tags and table headers, and keeps the
+  accent for what's selected or clickable. Choose one in **Settings → Appearance**, now grouped into Synapse,
+  Dark and Light with a small preview of each.
+- **Synapse:** *Synapse Signature* (near-black with the violet → pink → cyan “firing neuron” gradient and a soft
+  glow), *Neural Layers* (Neural with raised panels), *Neural Color* (Neural with colour-coded items).
+- **Dark:** *Nord* (sharpened — see below), *Ember*, *Evergreen*, *Graphite*, *Abyss*, *Sakura*, *Dusk*,
+  *High Contrast*.
+- **Light:** *Warm Paper*, *Daybreak*, *Arctic*.
+
+### Changed
+- **Nord** now uses Nord's whole palette — darker sidebar, raised cards, the Aurora colours on icons, tags and
+  headings, and plain light-grey text instead of everything in frost blue. The previous look is still there as
+  **Nord Classic**.
+- Charts, code colours and drawings follow whether a theme is light or dark (works for every new theme).
+
 ## v1.23.0 — November 2026
 
 ### New: Folders

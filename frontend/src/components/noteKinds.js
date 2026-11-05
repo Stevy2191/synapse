@@ -8,7 +8,7 @@ export const KINDS = {
   excalidraw: { icon: PenTool, label: 'Excalidraw drawing', color: '#8b85ff' },
   flowchart: { icon: GitFork, label: 'Flowchart', color: '#06b6d4' },
   freedraw: { icon: Pencil, label: 'Free Draw', color: '#ec4899' },
-  folder: { icon: Folder, label: 'Folder', color: '#e3a33b' },
+  folder: { icon: Folder, label: 'Folder', color: 'var(--folder-color, #e3a33b)' },
 };
 
 /** The kind of a full note (with its content). */

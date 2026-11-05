@@ -447,38 +447,38 @@ export default function Sidebar({ width, onNavigate }) {
       <div style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <WorkspacePicker />
         <div style={{ height: 8 }} />
-        <button className={`nav-item${view === 'home' ? ' on' : ''}`} onClick={() => { setView('home'); onNavigate?.(); }} title="An overview of all your workspaces">
+        <button data-nav="home" className={`nav-item${view === 'home' ? ' on' : ''}`} onClick={() => { setView('home'); onNavigate?.(); }} title="An overview of all your workspaces">
           <Home size={14} /> Home
         </button>
-        <button className="nav-item" onClick={() => setSearchOpen(true)}>
+        <button data-nav="search" className="nav-item" onClick={() => setSearchOpen(true)}>
           <Search size={14} /> Search <kbd>Ctrl K</kbd>
         </button>
-        <button className={`nav-item${view === 'inbox' ? ' on' : ''}`} onClick={() => { setView(view === 'inbox' ? 'editor' : 'inbox'); onNavigate?.(); }} title="Mentions, assigned to-dos, replies">
+        <button data-nav="inbox" className={`nav-item${view === 'inbox' ? ' on' : ''}`} onClick={() => { setView(view === 'inbox' ? 'editor' : 'inbox'); onNavigate?.(); }} title="Mentions, assigned to-dos, replies">
           <Bell size={14} /> Inbox
           {inboxUnread > 0 && <span className="nav-badge" title="New">{inboxUnread > 99 ? '99+' : inboxUnread}</span>}
         </button>
         {isTeamWorkspace(activeWorkspace) && (
-          <button className={`nav-item${view === 'activity' ? ' on' : ''}`} onClick={() => { setView(view === 'activity' ? 'editor' : 'activity'); onNavigate?.(); }} title="Who changed what in this workspace">
+          <button data-nav="activity" className={`nav-item${view === 'activity' ? ' on' : ''}`} onClick={() => { setView(view === 'activity' ? 'editor' : 'activity'); onNavigate?.(); }} title="Who changed what in this workspace">
             <Activity size={14} /> Activity
           </button>
         )}
-        <button className={`nav-item${view === 'graph' ? ' on' : ''}`} onClick={() => { setView(view === 'graph' ? 'editor' : 'graph'); onNavigate?.(); }}>
+        <button data-nav="graph" className={`nav-item${view === 'graph' ? ' on' : ''}`} onClick={() => { setView(view === 'graph' ? 'editor' : 'graph'); onNavigate?.(); }}>
           <Network size={14} /> Graph
         </button>
-        <button className={`nav-item${view === 'tasks' ? ' on' : ''}`} onClick={() => { setView(view === 'tasks' ? 'editor' : 'tasks'); onNavigate?.(); }}>
+        <button data-nav="tasks" className={`nav-item${view === 'tasks' ? ' on' : ''}`} onClick={() => { setView(view === 'tasks' ? 'editor' : 'tasks'); onNavigate?.(); }}>
           <ListTodo size={14} /> Tasks
           {dueCount > 0 && <span className="nav-badge" title="Due today or overdue">{dueCount}</span>}
         </button>
         {aiAllowed && (
-          <button className={`nav-item${view === 'ask' ? ' on' : ''}`} onClick={() => { setView(view === 'ask' ? 'editor' : 'ask'); onNavigate?.(); }}>
+          <button data-nav="ask" className={`nav-item${view === 'ask' ? ' on' : ''}`} onClick={() => { setView(view === 'ask' ? 'editor' : 'ask'); onNavigate?.(); }}>
             <Sparkles size={14} /> Ask AI
           </button>
         )}
-        <button className={`nav-item${view === 'chat' ? ' on' : ''}`} onClick={() => { setView(view === 'chat' ? 'editor' : 'chat'); onNavigate?.(); }}>
+        <button data-nav="chats" className={`nav-item${view === 'chat' ? ' on' : ''}`} onClick={() => { setView(view === 'chat' ? 'editor' : 'chat'); onNavigate?.(); }}>
           <MessageCircle size={14} /> Chats
           {chatUnread > 0 && <span className="nav-badge" title="Unread messages">{chatUnread > 99 ? '99+' : chatUnread}</span>}
         </button>
-        <button className="nav-item" onClick={() => { useStore.setState({ filesOpen: true }); onNavigate?.(); }} title="Network folders, OneDrive and Google Drive">
+        <button data-nav="files" className="nav-item" onClick={() => { useStore.setState({ filesOpen: true }); onNavigate?.(); }} title="Network folders, OneDrive and Google Drive">
           <FolderOpen size={14} /> Files
         </button>
       </div>
@@ -517,7 +517,7 @@ export default function Sidebar({ width, onNavigate }) {
 
       {/* Trash, just above the footer */}
       <div style={{ padding: '6px 10px 4px', borderTop: '1px solid var(--border-subtle)' }}>
-        <button className={`nav-item${view === 'trash' ? ' on' : ''}`} onClick={() => { setView(view === 'trash' ? 'editor' : 'trash'); onNavigate?.(); }}>
+        <button data-nav="trash" className={`nav-item${view === 'trash' ? ' on' : ''}`} onClick={() => { setView(view === 'trash' ? 'editor' : 'trash'); onNavigate?.(); }}>
           <TrashIcon size={14} /> Trash
           {trashCount > 0 && <span className="nav-count" title="Notes in the Trash">{trashCount}</span>}
         </button>
