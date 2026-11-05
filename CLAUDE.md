@@ -325,7 +325,20 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   rules:[{field, op, value}], pinned:[noteIds], hidden:[noteIds], created_at}]`. Matching runs on the
   device over getWorkspaceNotes() (works offline); hidden always wins, pinned always included; no
   rules = only pinned notes. Fields: tag, title, text, kind, created, updated, inside, has. Editing
-  needs a connection (workspace settings PATCH). Real folders were offered and not wanted.
+  needs a connection (workspace settings PATCH). Real folders were offered then and not wanted; Sean asked for
+  them later (v1.23.0) — see Folders.
+- **Folders** (v1.23.0): Sean chose "folders + sub-notes" (notes can still hold notes) and "convert holder notes".
+  A folder is a note with `note_type='folder'` (NOTE_TYPES on the server), so sync, sharing, Trash, moves and
+  drag and drop all work unchanged; its `content` is an optional plain description, editor_mode 'markdown'.
+  Migration 5 (db/index.js) turned existing holders into folders: note with children and no own text, or only
+  the blurb Synapse wrote (Daily notes / Meetings / Templates). Daily notes, Meetings › month, Templates and
+  imports (root + textless vault folders) now create folders. folders/folders.js: newFolder, moveToFolder,
+  open/closed state per device (localStorage `synapse.openFolders`), takeRename (select a new folder's name).
+  components/folders: FolderView (folder page in Editor when noteType==='folder'), MoveToFolder (dialog,
+  `useStore.setState({ moveToFolder: id })`). Folders are left out of the graph, [[ menu, clusters, Home's recent
+  list, tasks; kept in search. Folder top bar: Share + Move only.
+- **Meeting notes** no longer create a daily note (Sean disliked it): ensureMeetingNote only links an existing
+  daily note; the template's {{day}} is empty otherwise (empty field drops the "Day:" line).
 - **PDF blocks** (v1.19.0): Sean chose "block inside a note" and "keep original, markings on top". Tiptap node
   `pdf` (components/pdf/PdfNode.js + PdfBlockView.jsx): `<div data-pdf="<attachment id>" data-name data-pages
   data-ink='{"<page>":[strokes]}'>`, Markdown fence ```` ```synapse-pdf {json} ````. The file is a normal

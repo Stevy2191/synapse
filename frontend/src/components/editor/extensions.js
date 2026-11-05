@@ -219,7 +219,7 @@ function wikiItems(query) {
   const q = query.trim().toLowerCase();
   const { notes, activeNote } = useStore.getState();
   const matches = notes
-    .filter(n => n.id !== activeNote?.note?.id && n.title.toLowerCase().includes(q))
+    .filter(n => n.id !== activeNote?.note?.id && n.note_type !== 'folder' && n.title.toLowerCase().includes(q))
     .sort((a, b) => (a.title.toLowerCase().startsWith(q) ? 0 : 1) - (b.title.toLowerCase().startsWith(q) ? 0 : 1))
     .slice(0, 8)
     .map(n => ({ id: n.id, title: n.title, kind: 'note', noteType: n.note_type, noteKind: n.kind }));

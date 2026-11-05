@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChevronRight, Plus, Trash2, FileText, GitFork, Pencil, ChevronsUpDown, Check,
   Search, Network, ListTodo, MessageCircle, Sparkles, Users, Bell, Activity, Eye, Trash2 as TrashIcon, Settings2, PanelLeftClose, Cloud, CloudOff, RefreshCw,
-  FolderOpen, Home, Pin, PinOff,
+  FolderOpen, Home, Pin, PinOff, Folder, FolderPlus, FolderInput,
 } from 'lucide-react';
 import { useStore } from '../../stores/useStore';
 import { useHome, togglePin } from '../../home/home';
@@ -24,6 +24,7 @@ import { newNoteFromTemplate } from '../../templates/templates';
 import { openDailyNote } from '../../offline/dailyNotes';
 import { monthEvents, eventDays, dayKey } from '../../offline/calendar';
 import { htmlToMarkdown } from '../editor/convert';
+import { folderOpen, setFolderOpen, newFolder } from '../../folders/folders';
 
 
 function countDescendants(id, notes) {
@@ -108,7 +109,19 @@ function SharedWithMe({ onNavigate }) {
 
 function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const pinned = useHome(s => s.prefs.pinned.includes(note.id));
-  const [expanded, setExpanded] = useState(true);
+  const isFolder = note.note_type === 'folder';
+  const [expanded, setExpandedState] = useState(() => (isFolder ? folderOpen(note.id, false) : true));
+  const setExpanded = v => setExpandedState(prev => {
+    const next = typeof v === 'function' ? v(prev) : v;
+    if (isFolder) setFolderOpen(note.id, next);
+    return next;
+  });
+  useEffect(() => {
+    if (!isFolder) return undefined;
+    const sync = e => { if (e.detail.id === note.id) setExpandedState(e.detail.open); };
+    window.addEventListener('synapse:folder-toggle', sync);
+    return () => window.removeEventListener('synapse:folder-toggle', sync);
+  }, [isFolder, note.id]);
   const [hint, setHint] = useState(null); // 'before' | 'after' | 'inside' while something is dragged over
   const [dragging, setDragging] = useState(false);
   const expandTimer = useRef(null);
@@ -118,9 +131,19 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
   const children = notes.filter(n => n.parent_id === note.id);
   const hasChildren = children.length > 0;
   const kind = kindInfo(note);
-  const Icon = kind.icon;
+  const Icon = isFolder && expanded && hasChildren ? FolderOpen : kind.icon;
   const untitled = /^untitled\b/i.test(note.title.trim());
   const active = activeId === note.id;
+
+  // A folder opens its page and unfolds; clicking it again (while it's showing) folds it.
+  // On phones the sidebar stays open, so you can keep browsing.
+  const clickRow = e => {
+    if (!isFolder || e.ctrlKey || e.metaKey || e.button === 1) { onSelect(note.id, e); return; }
+    if (active && useStore.getState().view === 'editor') { setExpanded(x => !x); return; }
+    setExpanded(true);
+    openNote(note.id);
+    if (useStore.getState().view !== 'editor') useStore.getState().setView('editor');
+  };
 
   // Deleting moves the note (and anything inside it) to the Trash, with an Undo.
   const handleDelete = async (e) => {
@@ -148,7 +171,7 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
     <div>
       <div
         className={`tree-row nav-item${active ? ' on' : ''}${hint ? ` drop-${hint}` : ''}`}
-        onClick={e => onSelect(note.id, e)}
+        onClick={clickRow}
         onMouseDown={e => { if (e.button === 1) e.preventDefault(); }}
         onAuxClick={e => { if (e.button === 1) { e.preventDefault(); onSelect(note.id, e); } }}
         style={{ paddingLeft: 6 + depth * 14, gap: 4, opacity: dragging ? 0.4 : 1 }}
@@ -197,9 +220,13 @@ function NoteItem({ note, notes, depth = 0, onSelect, activeId, onAddChild }) {
           {untitled && kind.key !== 'note' && <span className="tree-kind"> · {kind.label}</span>}
           {sharedMark && <Users size={11} className="tree-shared" aria-label="Shared" />}
         </span>
+        {isFolder && <span className="tree-count" title={`${children.length} item${children.length === 1 ? '' : 's'} inside`}>{children.length || ''}</span>}
         <span className="note-actions" style={{ display: 'flex', gap: 1 }}>
-          <button onClick={e => { e.stopPropagation(); togglePin(note.id); }} className="btn-ghost" style={miniBtn} title={pinned ? 'Unpin from Home' : 'Pin to Home'}>{pinned ? <PinOff size={12} /> : <Pin size={12} />}</button>
-          <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title="Add a note inside"><Plus size={13} /></button>
+          {isFolder
+            ? <button onClick={e => { e.stopPropagation(); newFolder(note.id); }} className="btn-ghost" style={miniBtn} title="New folder inside"><FolderPlus size={12} /></button>
+            : <button onClick={e => { e.stopPropagation(); togglePin(note.id); }} className="btn-ghost" style={miniBtn} title={pinned ? 'Unpin from Home' : 'Pin to Home'}>{pinned ? <PinOff size={12} /> : <Pin size={12} />}</button>}
+          <button onClick={e => { e.stopPropagation(); useStore.setState({ moveToFolder: note.id }); }} className="btn-ghost" style={miniBtn} title="Move to folder…"><FolderInput size={12} /></button>
+          <button onClick={e => { e.stopPropagation(); onAddChild(note.id); }} className="btn-ghost" style={miniBtn} title={isFolder ? 'New note in this folder' : 'Add a note inside'}><Plus size={13} /></button>
           <button onClick={handleDelete} className="btn-ghost" style={{ ...miniBtn, color: 'var(--danger)' }} title="Move to Trash"><Trash2 size={12} /></button>
         </span>
       </div>
@@ -401,7 +428,7 @@ export default function Sidebar({ width, onNavigate }) {
   const newNote = (parentId = null) => { setPendingParent(parentId); setShowNewNote(true); };
   // Home's "New note" button asks the sidebar to open the New window.
   const newNoteRequest = useStore(s => s.newNoteRequest);
-  useEffect(() => { if (newNoteRequest) { useStore.setState({ newNoteRequest: false }); newNote(); } }, [newNoteRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (newNoteRequest) { useStore.setState({ newNoteRequest: false }); newNote(newNoteRequest.parentId ?? null); } }, [newNoteRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <aside style={{
@@ -459,7 +486,10 @@ export default function Sidebar({ width, onNavigate }) {
       {/* Notes tree */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 12px 6px 19px' }}>
         <span className="section-label">Notes</span>
-        <button onClick={() => newNote()} disabled={!activeWorkspace} className="btn-ghost" style={miniBtn} title="New note"><Plus size={14} /></button>
+        <span style={{ display: 'flex', gap: 2 }}>
+          <button onClick={() => newFolder(null)} disabled={!activeWorkspace} className="btn-ghost" style={miniBtn} title="New folder"><FolderPlus size={14} /></button>
+          <button onClick={() => newNote()} disabled={!activeWorkspace} className="btn-ghost" style={miniBtn} title="New note"><Plus size={14} /></button>
+        </span>
       </div>
       <div
         className={rootHint ? 'drop-root' : ''}

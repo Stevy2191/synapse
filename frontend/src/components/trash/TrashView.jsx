@@ -1,12 +1,12 @@
 // Deleted notes, kept for a while (30 days by default) before they're removed for good.
 import { useCallback, useEffect, useState } from 'react';
-import { Trash2, RotateCcw, FileText, GitFork, Pencil, CloudOff, RefreshCw, Search } from 'lucide-react';
+import { Trash2, RotateCcw, FileText, GitFork, Pencil, CloudOff, RefreshCw, Search, Folder } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../stores/useStore';
 import SidebarButton from '../sidebar/SidebarButton';
 import { fetchTrash, restoreFromTrash, deleteForever, emptyTrash, pendingDeletes } from '../../offline/sync';
 
-const ICONS = { note: FileText, diagram: GitFork, draw: Pencil };
+const ICONS = { note: FileText, diagram: GitFork, draw: Pencil, folder: Folder };
 const DAY = 86400;
 
 function ago(ts) {

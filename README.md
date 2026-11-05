@@ -94,7 +94,7 @@ Install it to your home screen and it works like an app — online or off.
 - **Sharing & history**: share a note (or a whole folder of notes) with family or teammates as **Can view** or **Can edit**. Editors take turns — everyone else sees changes appear live with “Mom is editing” — and **History** shows who changed what and when, with additions and removals highlighted and one-click restore
 - **Chat**: live conversations with family or your team — start one on its own ("Vacation 2026") or about a note (members can read it). Emoji, GIFs, pictures and files, replies, reactions, edit/delete, @mentions, `[[note]]` links, unread badges, typing indicators, and notifications on your phone or computer
 - **Workspaces**: keep Home, Work and so on apart, each with its own icon, color and settings
-- **Nested notes** with drag and drop
+- **Folders** to organise notes (drag notes in, or use *Move*), alongside notes that hold sub-notes; drag and drop to rearrange
 - **Trash**: deleted notes (with anything inside them) go to the Trash, with Undo, and are deleted for good after 30 days. Restore or delete them forever from **Trash** at the bottom of the sidebar
 - **Wiki links**: type `[[` to link a note (or create it); backlinks show in the side panel
 - **Graph view** of every connection

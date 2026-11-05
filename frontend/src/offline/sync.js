@@ -328,7 +328,7 @@ function excerpt(text, terms) {
 
 /** Nodes and [[link]] edges for the graph view, from the local copy. */
 export async function graphData(workspaceId) {
-  const all = await getWorkspaceNotes(workspaceId);
+  const all = (await getWorkspaceNotes(workspaceId)).filter(n => n.note_type !== 'folder'); // folders hold notes; they aren't linked
   const byTitle = new Map(all.map(n => [n.title.toLowerCase(), n.id]));
   const edges = [];
   for (const note of all) {
@@ -387,8 +387,9 @@ export async function importNotes(workspace_id, list) {
   for (const n of list) {
     const parent = n.parent_id ?? null;
     await tx.objectStore('notes').put({
-      id: n.id, workspace_id, parent_id: parent, title: n.title, note_type: 'note',
-      content: n.content || '', rich_content: n.rich_content ?? null, canvas_data: null, editor_mode: 'rich',
+      id: n.id, workspace_id, parent_id: parent, title: n.title, note_type: n.note_type || 'note',
+      content: n.content || '', rich_content: n.note_type === 'folder' ? null : (n.rich_content ?? null), canvas_data: null,
+      editor_mode: n.note_type === 'folder' ? 'markdown' : 'rich',
       tags: JSON.stringify(n.tags || []), position: nextPos(parent), created_at: now, updated_at: now, server_version: null,
     });
     await tx.objectStore('outbox').add({ op: 'create', noteId: n.id, fields: {}, opId: uuid() });

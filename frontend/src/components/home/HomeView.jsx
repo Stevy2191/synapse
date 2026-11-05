@@ -248,7 +248,7 @@ function PinnedBox({ notes, order, loading }) {
 }
 
 function RecentBox({ notes, loading, pinned }) {
-  const recent = [...notes].filter(n => !/^Templates$/i.test(n.title)).sort((a, b) => b.updated_at - a.updated_at).slice(0, 10);
+  const recent = [...notes].filter(n => n.note_type !== 'folder' && !/^Templates$/i.test(n.title)).sort((a, b) => b.updated_at - a.updated_at).slice(0, 10);
   return (
     <>
       <BoxHead icon={Clock} title="Recently edited" />

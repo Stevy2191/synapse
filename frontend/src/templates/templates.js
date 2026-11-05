@@ -135,7 +135,7 @@ const FOLDER_BLURB = 'Templates for new notes. Each note in here is a template: 
 async function ensureFolder(workspaceId) {
   let folder = await templatesFolder(workspaceId);
   if (!folder) {
-    folder = await createNote({ workspace_id: workspaceId, title: FOLDER, editor_mode: 'markdown' });
+    folder = await createNote({ workspace_id: workspaceId, title: FOLDER, note_type: 'folder', editor_mode: 'markdown' });
     await saveNote(folder.id, { content: FOLDER_BLURB });
   }
   return folder;

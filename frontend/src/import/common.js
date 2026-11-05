@@ -108,7 +108,11 @@ export class ImportBuilder {
         this.skip(n.title, 'too large even after shrinking pictures — imported without its pictures');
         html = html.replace(/<img\b[^>]*>/g, '<p><em>[picture left out]</em></p>');
       }
-      out.push({ id: n.id, parent_id: n.parentKey === '__root' ? root.id : this.byKey.get(n.parentKey).id, title: n.title, rich_content: html, content: htmlToMarkdown(html), tags: n.tags });
+      const parent_id = n.parentKey === '__root' ? root.id : this.byKey.get(n.parentKey).id;
+      // A folder from the vault with no text of its own becomes a real folder.
+      const textless = !html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() && !/<(img|figure|div data-)/i.test(html);
+      if (textless && kids.has(n.key)) out.push({ id: n.id, parent_id, title: n.title, note_type: 'folder', content: '', tags: n.tags });
+      else out.push({ id: n.id, parent_id, title: n.title, rich_content: html, content: htmlToMarkdown(html), tags: n.tags });
     }
     const count = out.length;
     const summary = [
@@ -117,7 +121,8 @@ export class ImportBuilder {
       '<p>Move these notes wherever you like, or delete this whole folder to undo the import.</p>',
     ].join('');
     onProgress?.(`Adding ${count + 1} notes…`);
-    await importNotes(workspaceId, [{ id: root.id, parent_id: null, title: root.title, rich_content: summary, content: htmlToMarkdown(summary), tags: [] }, ...out]);
+    // The import goes into one folder; its description is the report above.
+    await importNotes(workspaceId, [{ id: root.id, parent_id: null, title: root.title, note_type: 'folder', content: htmlToMarkdown(summary), tags: [] }, ...out]);
     // Files can only be uploaded once their notes are on the server: try again over the next minute.
     for (const ms of [0, 5000, 15000, 40000]) setTimeout(() => uploadPending().catch(() => {}), ms);
     return { rootId: root.id, rootTitle: root.title, count, ...this.counts, skipped: this.skipped };

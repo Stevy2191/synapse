@@ -1,3 +1,4 @@
+import MoveToFolder from '../components/folders/MoveToFolder';
 import { useEffect, useCallback, useState, lazy, Suspense } from 'react';
 import { useStore } from '../stores/useStore';
 import Sidebar from '../components/sidebar/Sidebar';
@@ -168,6 +169,7 @@ export default function AppPage() {
       {importOpen && <Suspense fallback={null}><ImportDialog onClose={() => useStore.setState({ importOpen: false })} /></Suspense>}
       {filesOpen && <FilePicker mode="browse" onClose={() => useStore.setState({ filesOpen: false })} />}
       <SearchModal />
+      <MoveToFolder />
       <Settings />
     </div>
   );

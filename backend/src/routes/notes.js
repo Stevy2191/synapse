@@ -28,7 +28,8 @@ router.use((req, res, next) => {
   next();
 });
 
-const NOTE_TYPES = ['note', 'diagram', 'draw'];
+// 'folder' holds notes (and folders); its `content` is an optional short description.
+const NOTE_TYPES = ['note', 'diagram', 'draw', 'folder'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Changing any of these bumps the note's version. Moves (parent/position) don't, so
 // reorganising the tree on one device never conflicts with edits on another.
@@ -153,7 +154,7 @@ router.get('/workspace/:wsId/search', (req, res) => {
 // Graph data
 router.get('/workspace/:wsId/graph', (req, res) => {
   if (!getWorkspace(req.params.wsId, req.user.id)) return res.status(404).json({ error: 'Not found' });
-  const nodes = db.prepare('SELECT id, title, tags, note_type FROM notes WHERE workspace_id=? AND deleted_at IS NULL').all(req.params.wsId);
+  const nodes = db.prepare("SELECT id, title, tags, note_type FROM notes WHERE workspace_id=? AND deleted_at IS NULL AND note_type<>'folder'").all(req.params.wsId);
   const edges = db.prepare(`SELECT l.source_id, l.target_id FROM note_links l
     JOIN notes s ON s.id = l.source_id JOIN notes t ON t.id = l.target_id
     WHERE l.workspace_id=? AND s.deleted_at IS NULL AND t.deleted_at IS NULL`).all(req.params.wsId);

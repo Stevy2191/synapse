@@ -4,6 +4,8 @@ import { markdown } from '@codemirror/lang-markdown';
 import { synapseEditorTheme } from './cmTheme';
 import { markdownToHtml, htmlToMarkdown, DIAGRAM_FENCE, PDF_FENCE, convertCallouts } from './convert';
 import { CALLOUTS } from './blocks';
+import FolderView from '../folders/FolderView';
+import { takeRename } from '../../folders/folders';
 import { noteKind, isUntitled, nameForDiagramNote } from '../noteKinds';
 import { drawingPreview } from '../freedraw/DrawingEmbed';
 import { extractMath, restoreMath, renderMath, videoElementHtml, renderMermaid } from './embeds';
@@ -17,7 +19,7 @@ import {
   Eye, Edit, Columns, Tag, Type, Code2, Bold, Italic, Underline, List, ListOrdered, Code, Quote, Minus, Link,
   PanelLeft, PanelRight, ChevronRight, ArrowUpRight, ArrowDownLeft, Plus, Search, Image as ImageIcon, ListChecks, Download, MessageCircle, Sparkles, Users, History, Eye as EyeIcon, Lock, Globe,
 } from 'lucide-react';
-import { PanelTop, MessageSquareText } from 'lucide-react';
+import { PanelTop, MessageSquareText, FolderInput } from 'lucide-react';
 import RichToolbar from './RichToolbar';
 import FilePicker from '../files/FilePicker';
 import ReadTextDialog from '../ocr/ReadTextDialog';
@@ -948,6 +950,14 @@ export default function Editor() {
 
   const noteType = activeNote?.note?.note_type || 'note';
 
+  // A new folder: select its name so it can be typed straight away.
+  const titleRef = useRef(null);
+  useEffect(() => {
+    if (!takeRename(activeNote?.note?.id)) return undefined;
+    const t = setTimeout(() => { titleRef.current?.focus(); titleRef.current?.select(); }, 60);
+    return () => clearTimeout(t);
+  }, [activeNote?.note?.id]);
+
   const canvasTimer = useRef(null);
   const handleCanvasChange = useCallback((canvasData) => {
     const noteId = activeNote?.note?.id;
@@ -1020,11 +1030,12 @@ export default function Editor() {
   const showEditor = view === 'editor' || view === 'split';
   const showPreview = view === 'preview' || view === 'split';
   const isNote = noteType === 'note';
+  const isFolderNote = noteType === 'folder'; // folders: Share and Move, but no publish / history / chat / export
   const isMarkdown = isNote && editorMode === 'markdown';
 
   const titleBlock = (
     <div style={{ paddingTop: isNote ? 48 : 0 }}>
-      <input value={title} onChange={handleTitleChange} placeholder="Untitled" className="doc-title" readOnly={readOnly} onFocus={onEditAreaFocus} onKeyDown={markInput} onPaste={markInput} />
+      <input ref={titleRef} value={title} onChange={handleTitleChange} placeholder={noteType === 'folder' ? 'Folder name' : 'Untitled'} className="doc-title" readOnly={readOnly} onFocus={onEditAreaFocus} onKeyDown={markInput} onPaste={markInput} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '12px 0 28px', fontSize: 12.5, color: 'var(--text-muted)' }}>
         {tags.map(tag => (
           <span key={tag} className="tag-chip" onClick={() => !readOnly && removeTag(tag)} title={readOnly ? undefined : 'Remove tag'}>#{tag}</span>
@@ -1133,7 +1144,7 @@ export default function Editor() {
             <Users size={15} /><span className="hide-narrow">{isShared ? `Shared · ${ownerShare.count}` : 'Share'}</span>
           </button>
         )}
-        {!guest && (
+        {!guest && !isFolderNote && (
           <button className={`btn-ghost${publishOpen ? ' on' : ''}`} onClick={() => { flushSave(); setPublishOpen(true); }} title={published ? `Published — ${published} link${published === 1 ? '' : 's'}` : 'Publish as a link anyone can open'}>
             <Globe size={15} /><span className="hide-narrow">{published ? 'Published' : 'Publish'}</span>
           </button>
@@ -1144,19 +1155,22 @@ export default function Editor() {
             {openThreads.length > 0 && <span className="cm-badge">{openThreads.length}</span>}
           </button>
         )}
-        <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); setCommentsOpen(false); }} title="History — who changed what, and when">
+        {!isFolderNote && <button className={`btn-ghost${historyOpen ? ' on' : ''}`} onClick={() => { flushSave(); setHistoryOpen(h => !h); setNoteChat(null); setCommentsOpen(false); }} title="History — who changed what, and when">
           <History size={15} /><span className="hide-narrow">History</span>
-        </button>
+        </button>}
         {isNote && aiAllowed && !guest && (
           <button className={`btn-ghost${aiTarget ? ' on' : ''}`} onClick={() => (aiTarget ? setAiTarget(null) : openAi())} title="AI assistant — works on the selected text, or the whole note">
             <Sparkles size={15} /><span className="hide-narrow">AI</span>
           </button>
         )}
-        {!guest && <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
+        {!guest && !isFolderNote && <button className={`btn-ghost${noteChat ? ' on' : ''}`} onClick={openNoteChat} title={noteChatSummary ? 'Chat about this note' : 'Start a chat about this note'} style={{ position: 'relative' }}>
           <MessageCircle size={15} /><span className="hide-narrow">Chat</span>
           {noteChatSummary?.unread > 0 && <span className="chat-dot-badge">{noteChatSummary.unread}</span>}
         </button>}
-        {!guest && <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
+        {!guest && !readOnly && <button className="btn-ghost" onClick={() => { flushSave(); useStore.setState({ moveToFolder: activeNote.note.id }); }} title="Move to a folder">
+          <FolderInput size={15} /><span className="hide-narrow">Move</span>
+        </button>}
+        {!guest && !isFolderNote && <button className="btn-ghost" onClick={() => { flushSave(); setExportOpen(true); }} title="Export as PDF, Word, Markdown…">
           <Download size={15} /><span className="hide-narrow">Export</span>
         </button>}
         {railButton}
@@ -1215,6 +1229,11 @@ export default function Editor() {
             <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', borderTop: '1px solid var(--border-subtle)' }}>
               {readOnly && <div className="readonly-shield" title={role === 'view' ? 'You can view this but not edit it' : 'Someone else is editing'} />}
               {!readOnly && isShared && !myTurn && <div className="readonly-shield clickable" onClick={() => ensureTurn()} title="Click to start editing" />}
+              {noteType === 'folder' && (
+                <FolderView folder={activeNote.note} description={content} readOnly={readOnly}
+                  onDescription={handleContentChange}
+                  onNewNote={parentId => useStore.setState({ newNoteRequest: { parentId } })} />
+              )}
               {noteType === 'diagram' && <DiagramEditor canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} />}
               {noteType === 'draw' && <FreeDrawEditor key={activeNote.note.id} canvasData={activeNote.note.canvas_data} onChange={handleCanvasChange} title={title} />}
             </div>

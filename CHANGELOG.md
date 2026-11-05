@@ -4,6 +4,29 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.23.0 — November 2026
+
+### New: Folders
+- **Real folders** to organise your notes, like folders on your computer. Make one with the **folder +** button
+  next to **Notes** in the sidebar (or *New folder here* inside another folder); type its name straight away.
+- **Put notes in folders** by dragging them onto a folder in the sidebar, with the **Move** button at the top of a
+  note, or with the move button on a note in the sidebar (a searchable list of your folders, plus *Top level*).
+- **A folder's page** shows an optional description and everything inside it (folders first), with
+  *New note here* and *New folder here*.
+- Folders show how many items they hold and **remember whether they're open or closed** on each device.
+  On a phone, tapping a folder opens it without closing the sidebar.
+- Notes can still hold sub-notes inside them, as before. **Clusters** still group notes automatically by rules;
+  folders are where *you* put things.
+- **Your existing “holder” notes became folders automatically**: Daily notes, Meetings and its month folders,
+  Templates, imports, and any note with nothing written in it that only holds other notes. Notes you've written
+  in stay notes. Imports now create real folders too.
+- Deleting a folder moves it, with everything inside, to the Trash (with Undo), like a note.
+
+### Changed
+- **Making a meeting note no longer creates a daily note.** The meeting note goes in Meetings › month as before;
+  if that day already has a daily note, the two are linked. *Add to daily note* in a meeting's + menu still adds
+  it to the day on purpose.
+
 ## v1.22.2 — November 2026
 
 ### Fixed

@@ -294,6 +294,28 @@ const migrations = [
     db.exec(`UPDATE notes SET editor_mode='rich', rich_content=NULL, version=version+1
              WHERE editor_mode='markdown' AND note_type='note'`);
   },
+  // 5: Real folders. Notes that only hold other notes (no text of their own, or just the line
+  // Synapse wrote when it made them: Daily notes, Meetings, Templates, months, imports) become
+  // folders. Their description is kept. The version bump makes every device download it.
+  () => {
+    const BLURBS = [
+      'One note per day, created from the calendar.',
+      'Notes from meetings, created from the calendar. One folder per month.',
+    ];
+    const holders = db.prepare(`
+      SELECT n.* FROM notes n
+      WHERE n.note_type='note' AND n.deleted_at IS NULL AND n.canvas_data IS NULL
+        AND EXISTS (SELECT 1 FROM notes c WHERE c.parent_id=n.id AND c.deleted_at IS NULL)`).all();
+    const toFolder = db.prepare(`UPDATE notes SET note_type='folder', editor_mode='markdown', rich_content=NULL,
+      content=?, version=version+1 WHERE id=?`);
+    for (const n of holders) {
+      const md = (n.content || '').trim();
+      const richText = (n.rich_content || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+      const isTemplatesBlurb = n.title === 'Templates' && md.startsWith('Templates for new notes.');
+      const empty = !md && !richText;
+      if (empty || BLURBS.includes(md) || isTemplatesBlurb) toFolder.run(md, n.id);
+    }
+  },
 ];
 
 const currentVersion = db.pragma('user_version', { simple: true });

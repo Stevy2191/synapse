@@ -83,6 +83,7 @@ function makeCtx(all) {
 
 /** Is this note in the cluster? */
 export function inCluster(n, c, ctx) {
+  if (n.note_type === 'folder') return false; // clusters group notes, not folders
   if (c.hidden?.includes(n.id)) return false;
   if (c.pinned?.includes(n.id)) return true;
   const rules = (c.rules || []).filter(r => r.field !== 'tag' && r.field !== 'title' && r.field !== 'text' ? true : String(r.value ?? '').trim());

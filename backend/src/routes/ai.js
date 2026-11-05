@@ -198,6 +198,7 @@ function plainText(n) {
     if (md.trim()) return md.replace(/```synapse-diagram\n[\s\S]*?\n```/g, '[diagram]').replace(/!\[[^\]]*\]\(data:[^)]+\)/g, '[picture]');
     return (n.rich_content || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
   }
+  if (n.note_type === 'folder') return `[folder] ${n.content || ''}`;
   return n.note_type === 'draw' ? '[Free Draw drawing]' : '[flowchart]';
 }
 

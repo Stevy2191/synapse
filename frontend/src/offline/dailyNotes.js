@@ -1,7 +1,8 @@
 // Daily notes and meeting notes, Obsidian-style.
 //   Daily note:   titled "2026-11-01", kept inside a "Daily notes" folder note.
-//   Meeting note: titled "Team standup · Nov 1, 2026", kept in Meetings › "November 2026",
-//                 linked from that day's note (and linking back to it).
+//   Meeting note: titled "Team standup · Nov 1, 2026", kept in Meetings › "November 2026".
+//                 Making one never creates a daily note; if that day already has one, the two
+//                 link to each other.
 import toast from 'react-hot-toast';
 import { useStore } from '../stores/useStore';
 import { createNote, saveNote, openNote, getWorkspaceNotes } from './sync';
@@ -27,8 +28,9 @@ async function findByTitle(workspaceId, title) {
 
 async function dailyFolder(workspaceId) {
   const existing = (await getWorkspaceNotes(workspaceId)).find(n => !n.parent_id && n.title === FOLDER);
+  // (made as a real folder; older ones were notes and are converted by the server)
   if (existing) return existing;
-  const folder = await createNote({ workspace_id: workspaceId, title: FOLDER, editor_mode: 'markdown' });
+  const folder = await createNote({ workspace_id: workspaceId, title: FOLDER, note_type: 'folder', editor_mode: 'markdown' });
   await saveNote(folder.id, { content: 'One note per day, created from the calendar.' });
   return folder;
 }
@@ -47,11 +49,11 @@ const monthName = d => d.toLocaleDateString('en-US', { month: 'long', year: 'num
 /** "Team standup · Nov 4, 2026" */
 export const meetingTitle = (event, date) => `${cleanTitle(event.title)} · ${shortDate(date)}`;
 
-/** A folder note (created if missing) under `parent` (null = top level). */
+/** A folder (created if missing) under `parent` (null = top level). */
 async function folder(workspaceId, title, parentId, blurb) {
   const existing = (await getWorkspaceNotes(workspaceId)).find(n => (n.parent_id ?? null) === (parentId ?? null) && n.title === title);
   if (existing) return existing;
-  const f = await createNote({ workspace_id: workspaceId, parent_id: parentId ?? null, title, editor_mode: 'markdown' });
+  const f = await createNote({ workspace_id: workspaceId, parent_id: parentId ?? null, title, note_type: 'folder', editor_mode: 'markdown' });
   if (blurb) await saveNote(f.id, { content: blurb });
   return f;
 }
@@ -98,6 +100,7 @@ export async function ensureMeetingNote(event, date, dayEvents = []) {
   const meetings = await folder(workspaceId, 'Meetings', null, 'Notes from meetings, created from the calendar. One folder per month.');
   const month = await folder(workspaceId, monthName(date), meetings.id);
   note = await createNote({ workspace_id: workspaceId, parent_id: month.id, title, editor_mode: 'rich' });
+  const dailyNote = await findByTitle(workspaceId, key); // only link to a daily note that exists
   // The workspace's "Meeting" template (Templates folder), else the built-in one.
   const tpl = await templateNamed(workspaceId, 'Meeting');
   const safeJoin = /^https?:\/\//i.test(event.join_url || '') ? event.join_url : null;
@@ -110,10 +113,13 @@ export async function ensureMeetingNote(event, date, dayEvents = []) {
     join: { html: safeJoin ? `<a href="${safeJoin.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Join meeting</a>` : '' },
     attendees: { list: (event.attendees || []).map(a => a.name || a.email).filter(Boolean) },
     calendar: event.calendar_name || '',
-    day: `[[${key}]]`,
+    day: dailyNote ? `[[${key}]]` : '',   // an empty field drops the "Day:" line
   });
   await saveNote(note.id, { ...r, tags: [...new Set(['meeting', ...r.tags])] });
-  await listInDailyNote(workspaceId, event, date, dayEvents, title);
+  if (dailyNote) {
+    const name = cleanTitle(event.title);
+    await upsertListItem(workspaceId, dailyNote.id, 'Meetings', `${timeRange(event)} — [[${title}]]`, t => t.includes(name));
+  }
   return note;
 }
 
