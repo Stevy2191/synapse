@@ -432,7 +432,7 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
 - **Tasks** are checklist items; due date is text in the item: `📅 2026-11-20`. Default view shows
   dated tasks + everything in meeting/daily notes; tag a note `#no-tasks` to exclude it.
 - **First user = admin**, gated by a one-time setup code printed in logs / `synapse setup-code`.
-- Tiptap packages must all be the same version (3.32.2). Images are stored as data URLs
+- Tiptap packages must all be the same version (3.35.0). Images are stored as data URLs
   (resized) so they work offline.
 
 - **Security** (review Nov 2026, v1.18.1): outbound requests to user-entered addresses go through
@@ -447,9 +447,18 @@ docs/screenshots/     README images (WebP), taken from a seeded demo
   (POST /api/notes/:id/collab-ticket, 60 s) and recheckCollab() every minute / on membership change.
   ffmpeg runs with -protocol_whitelist file and a -format_whitelist. Excalidraw font path is set in
   public/excalidraw-path.js before any app code (it reads it at module load; Vite chunk order made an
-  in-bundle assignment too late). Tiptap is now 3.32.2 (all packages the same). Known leftovers: uuid
-  (v3/v5 buffer issue, we only use v4), katex (needs prior prototype pollution; peer-capped at 0.18 by
-  @tiptap/extension-mathematics), lodash-es/nanoid inside Excalidraw/mermaid (not reachable with user input).
+  in-bundle assignment too late).
+  CVE sweep (v1.24.1, Nov 2026): npm audit = 0 in backend and frontend. Docker: node:24-alpine (Node 20 EOL
+  Apr 2026), `apk upgrade`, better-sqlite3 compiled in a separate `backend-deps` stage (no compilers in the
+  final image). Backend: uuid removed (crypto.randomUUID), multer 2, better-sqlite3 12. Frontend: vite 8 +
+  @vitejs/plugin-react 5 (6 needs Babel 8, which clashes with workbox's Babel 7), vite-plugin-pwa 2,
+  react-router-dom 7, mermaid 12, katex 0.18.11 (fixed; tiptap's peer still caps at 0.18), tiptap 3.35.
+  package.json `overrides`: Excalidraw's nanoid 3.3.20, mermaid-to-excalidraw → our mermaid + nanoid 5,
+  lodash-es 4.18.1, workbox-build's glob 14 — remove them when Excalidraw/workbox ship fixed versions.
+  To bump tiptap: set every @tiptap/* to the same version, delete their package-lock entries + node_modules,
+  npm install. Testing the Docker image in the sandbox: start `dockerd`, build with --network host and a
+  scratch copy of the Dockerfile that appends the proxy CA (/root/.ccr/ca-bundle.crt) after each FROM.
+  Not done (would need a migration for existing installs): running the container as a non-root user.
 
 ## Testing (how this was done)
 

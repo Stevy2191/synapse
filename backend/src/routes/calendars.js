@@ -1,6 +1,6 @@
 // Calendars: each person's subscribed calendars and their events.
 import { Router } from 'express';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';

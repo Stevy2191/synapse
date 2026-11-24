@@ -2,7 +2,7 @@
 // it with <span data-comment="<thread id>">) or to the whole note (anchor = null). Anyone who can see
 // the note can comment; replies, @mentions and resolving notify the people involved (inbox + live).
 import { Router } from 'express';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { noteAccess, peopleWithAccess } from '../shares.js';

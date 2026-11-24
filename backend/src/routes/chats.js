@@ -4,7 +4,7 @@ import { checkUrl } from '../netguard.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';

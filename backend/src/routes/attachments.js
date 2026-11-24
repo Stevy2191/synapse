@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db, UPLOADS_DIR, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { workspaceFor } from '../members.js';

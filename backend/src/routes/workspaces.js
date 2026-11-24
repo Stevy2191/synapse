@@ -3,7 +3,7 @@ import { workspaceFor, workspacePeople, workspacePeopleIds, MY_WORKSPACES_SQL } 
 import { sendTo, pushTo } from '../chat.js';
 import { recheckCollab } from '../collab.js';
 import { addToInbox } from '../activity.js';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validImage } from '../settings.js';

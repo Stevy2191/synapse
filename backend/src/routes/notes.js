@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db, indexNote, searchableText, removeUploadFiles } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { TRASH_DAYS } from '../config.js';

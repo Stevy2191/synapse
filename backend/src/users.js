@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { db, removeUploadFiles } from './db/index.js';
 import { MIN_PASSWORD_LENGTH } from './config.js';
 

@@ -4,6 +4,25 @@ What's new in each Synapse release. Install or update with `synapse update` (alw
 Each release also has its own Docker image, `ghcr.io/stevy2191/synapse:<version>` (e.g. `:v1.1.0`),
 so you can go back to a known version if you ever need to.
 
+## v1.24.1 — November 2026
+
+### Security
+A full sweep for known vulnerabilities (CVEs / security advisories). Both halves of Synapse now report
+**0 known vulnerabilities**.
+- **Node.js 24**: the Docker image moves from Node 20, which stopped getting security fixes in April 2026,
+  to Node 24 (the supported long-term release). System packages in the image are upgraded on every build.
+- **Smaller attack surface**: the compilers needed to build the database driver (python3, make, g++) are no
+  longer left inside the running image.
+- **Server**: file uploads use multer 2 (fixes from 2025 for malformed-upload crashes), the database driver
+  better-sqlite3 12 (supports Node 24), and the flagged `uuid` package is gone (Node's own ID generator is
+  used). Other packages updated to their latest fixed releases.
+- **Browser app**: fixes for the page router (open-redirect advisory), Mermaid diagrams and math (KaTeX) —
+  including several high-severity advisories in libraries they use — the whiteboard's ID generator (nanoid),
+  lodash, and the build tools (Vite 8). Editor (Tiptap) updated to 3.35.
+
+Nothing changes in how Synapse looks or works. The first `synapse update` after this release downloads a
+bigger update than usual (new base image).
+
 ## v1.24.0 — November 2026
 
 ### New: 14 themes that don't blend together
